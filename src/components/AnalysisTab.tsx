@@ -18,11 +18,11 @@ import {
   Brush,
   ReferenceArea,
   ReferenceDot,
-} from 'recharts'
+} from 'recharts';
 
 type HistoricalPoint = {
-  day: string
-  price: number
+  day: string;
+  price: number;
 }
 
 type DemandPoint = {

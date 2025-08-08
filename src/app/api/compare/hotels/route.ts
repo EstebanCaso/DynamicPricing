@@ -6,21 +6,46 @@ type HotelParallelRow = {
   ciudad?: string | null
   rooms_jsonb?: Record<string, Array<{ room_type?: string; price?: string }>> | null
   rooms_jsnob?: Record<string, Array<{ room_type?: string; price?: string }>> | null
+  estrellas?: number | string | null
 }
 
-function parsePriceToNumber(text?: string | null): number | null {
-  if (!text) return null
+type RoomPrice = { room_type?: string; price?: string }
+
+function parsePriceToNumber(text?: string | number | null): number | null {
+  if (text == null) return null
+  if (typeof text === 'number') return Number.isFinite(text) ? text : null
   // Remove currency symbols and spaces, keep digits, dots and commas
   let cleaned = text.replace(/[^0-9.,-]/g, '')
-  // If both comma and dot exist, assume comma is thousands sep → remove commas
-  if (cleaned.includes(',') && cleaned.includes('.')) {
+
+  const hasComma = cleaned.includes(',')
+  const hasDot = cleaned.includes('.')
+
+  if (hasComma && hasDot) {
+    // Likely thousands (comma) and decimals (dot): "$1,234.56" → "1234.56"
     cleaned = cleaned.replace(/,/g, '')
-  } else if (cleaned.includes(',')) {
-    // Only comma present → treat as decimal separator
-    cleaned = cleaned.replace(/\./g, '') // remove dots as thousands
-    cleaned = cleaned.replace(/,/g, '.')
+  } else if (hasComma && !hasDot) {
+    // Only commas present. Decide if commas are thousands or decimal separator.
+    const onlyDigitsAndCommas = /^[0-9,]+$/.test(cleaned)
+    const looksLikeThousands = onlyDigitsAndCommas && /^(?:\d{1,3})(?:,\d{3})+$/.test(cleaned)
+    if (looksLikeThousands) {
+      // "1,234" or "12,345,678" → thousands
+      cleaned = cleaned.replace(/,/g, '')
+    } else {
+      // Treat comma as decimal separator: "123,45" → "123.45"
+      cleaned = cleaned.replace(/\./g, '')
+      cleaned = cleaned.replace(/,/g, '.')
+    }
   } else {
-    cleaned = cleaned.replace(/,/g, '')
+    // No commas
+    const onlyDigitsAndDots = /^[0-9.]+$/.test(cleaned)
+    const looksLikeDotThousands = onlyDigitsAndDots && /^(?:\d{1,3})(?:\.\d{3})+$/.test(cleaned)
+    if (looksLikeDotThousands) {
+      // "1.234" or "12.345.678" → treat dots as thousands
+      cleaned = cleaned.replace(/\./g, '')
+    } else {
+      // Assume dot is decimal separator; just ensure commas removed
+      cleaned = cleaned.replace(/,/g, '')
+    }
   }
   const n = Number.parseFloat(cleaned)
   return Number.isFinite(n) ? n : null
@@ -37,6 +62,17 @@ function getDateCandidates(): string[] {
     mx = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(now)
   } catch {}
   return Array.from(new Set([iso, local, mx].filter(Boolean)))
+}
+
+function getCanonicalToday(): string {
+  const now = new Date()
+  try {
+    // Prefer Mexico City calendar date as canonical for the business domain
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Mexico_City' }).format(now)
+  } catch {
+    // Fallback: local date
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+  }
 }
 
 function pickRoomsForDate(
@@ -74,6 +110,13 @@ export async function POST(request: NextRequest) {
   )
 
   try {
+    // Parse optional body for filters
+    let selectedStars: number | null = null
+    try {
+      const body = await request.json()
+      const maybe = Number(body?.stars)
+      if (Number.isFinite(maybe) && maybe >= 1 && maybe <= 5) selectedStars = Math.trunc(maybe)
+    } catch {}
     const { data: userData } = await supabase.auth.getUser()
     const user = userData?.user
     if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
@@ -82,24 +125,47 @@ export async function POST(request: NextRequest) {
     const cityMeta = (user.user_metadata?.city || user.user_metadata?.ciudad || '').toString()
     const city = cityMeta
     const dateCandidates = getDateCandidates()
+    const canonicalToday = getCanonicalToday()
     // Debug context
     // eslint-disable-next-line no-console
     console.log('[compare/hotels] inputs', { userId, city, dateCandidates })
 
-    // 1) My hotel prices today from hotel_usuario
-    const { data: myRows, error: myErr } = await supabase
-      .from('hotel_usuario')
-      .select('hotel_name, price, checkin_date')
-      .eq('user_id', userId)
-      .in('checkin_date', dateCandidates)
-      .limit(500)
-    if (myErr) throw myErr
+    // 1) My hotel prices (only rows for canonical "today"): try Hotel_usuario(date, price) then fall back to hotel_usuario(checkin_date, price)
+    let myRows: any[] | null = null
+    let myErr: any = null
+    {
+      const attempt = await supabase
+        .from('Hotel_usuario')
+        .select('hotel_name, price, date')
+        .eq('user_id', userId)
+        .eq('date', canonicalToday)
+        .limit(500)
+      if (!attempt.error && attempt.data && attempt.data.length >= 0) {
+        myRows = attempt.data as any[]
+      } else {
+        myErr = attempt.error
+      }
+    }
+    if (!myRows) {
+      const fallback = await supabase
+        .from('hotel_usuario')
+        .select('hotel_name, price, checkin_date')
+        .eq('user_id', userId)
+        .eq('checkin_date', canonicalToday)
+        .limit(500)
+      if (!fallback.error && fallback.data) {
+        myRows = fallback.data as any[]
+      } else {
+        myErr = myErr || fallback.error
+      }
+    }
+    if (!myRows) throw myErr || new Error('Failed to fetch user hotel prices')
 
     const myHotelName = myRows?.[0]?.hotel_name || user.user_metadata?.hotel_name || 'Mi hotel'
     const myPrices = (myRows || [])
-      .map((r) => parsePriceToNumber(r.price))
-      .filter((n): n is number => n != null)
-    const myAvg = myPrices.length ? myPrices.reduce((a, b) => a + b, 0) / myPrices.length : null
+      .map((r: any) => parsePriceToNumber(r?.price))
+      .filter((n: number | null): n is number => n != null)
+    const myAvg = myPrices.length ? myPrices.reduce((a: number, b: number) => a + b, 0) / myPrices.length : null
 
     // 2) Competitors from hotels_parallel/hoteles_parallel filtered by city
     let competitorRows: HotelParallelRow[] = []
@@ -122,7 +188,16 @@ export async function POST(request: NextRequest) {
     // eslint-disable-next-line no-console
     console.log('[compare/hotels] competitors fetched', { count: competitorRows.length })
 
-    const competitors = competitorRows
+    // Optional filter by star rating before processing
+    const filteredByStars = selectedStars != null
+      ? competitorRows.filter((row) => {
+          const s = (row as any)?.estrellas
+          const n = typeof s === 'string' ? Number.parseInt(s, 10) : (s as number | null | undefined)
+          return Number.isFinite(n) && n === selectedStars
+        })
+      : competitorRows
+
+    const competitors = filteredByStars
       .map((row) => {
         // Some rows store JSON as string
         let container: any = (row as any).rooms_jsonb ?? (row as any).rooms_jsnob
@@ -133,16 +208,19 @@ export async function POST(request: NextRequest) {
             container = undefined
           }
         }
-        const rooms = pickRoomsForDate(container as any, dateCandidates)
+        // Only take competitor prices if they have data for canonical "today"
+        const rooms = pickRoomsForDate(container as any, [canonicalToday]) as Array<RoomPrice> | undefined
         if (!rooms || rooms.length === 0) return null
         const nums = rooms
-          .map((r) => parsePriceToNumber(r?.price))
-          .filter((n): n is number => n != null)
+          .map((r: RoomPrice) => parsePriceToNumber(r?.price))
+          .filter((n: number | null): n is number => n != null)
         if (!nums.length) return null
-        const avg = nums.reduce((a, b) => a + b, 0) / nums.length
-        return { name: row.nombre || 'Hotel', avg }
+        const avg = nums.reduce((a: number, b: number) => a + b, 0) / nums.length
+        const s = (row as any)?.estrellas
+        const estrellas = typeof s === 'string' ? Number.parseInt(s, 10) : (s as number | null | undefined)
+        return { name: row.nombre || 'Hotel', avg, estrellas: Number.isFinite(estrellas as number) ? (estrellas as number) : null }
       })
-      .filter(Boolean) as Array<{ name: string; avg: number }>
+      .filter(Boolean) as Array<{ name: string; avg: number; estrellas: number | null }>
 
     const competitorsCount = competitors.length
     const competitorsAvg = competitorsCount
@@ -152,11 +230,13 @@ export async function POST(request: NextRequest) {
     // Ranking
     const allForRanking: Array<{ name: string; avg: number; isUser: boolean }> = []
     if (myAvg != null) allForRanking.push({ name: myHotelName, avg: myAvg, isUser: true })
-    for (const c of competitors) allForRanking.push({ ...c, isUser: false })
+    for (const c of competitors) allForRanking.push({ name: c.name, avg: c.avg, isUser: false })
     allForRanking.sort((a, b) => a.avg - b.avg)
     const position = myAvg != null
       ? allForRanking.findIndex((h) => h.isUser) + 1
       : null
+
+    const today = canonicalToday
 
     return NextResponse.json({
       success: true,
@@ -170,7 +250,8 @@ export async function POST(request: NextRequest) {
         competitorsAvg,
         competitorsCount,
         position,
-        debug: process.env.NODE_ENV !== 'production' ? { dateCandidates } : undefined,
+        starsFilter: selectedStars,
+        debug: process.env.NODE_ENV !== 'production' ? { dateCandidates, canonicalToday } : undefined,
       },
     })
   } catch (error) {
