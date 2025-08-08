@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
+import AnalysisTab from '../../components/AnalysisTab'
 
 type OverviewStats = {
   totalEvents: number
@@ -124,9 +125,26 @@ export default function DashboardPage() {
 
       {/* Main Content */}
       <div className="container mx-auto px-6 py-8">
-        <div className="grid grid-cols-2 gap-8">
-          {/* Left Column - KPIs and Calendar */}
-          <div className="space-y-8">
+        {activeTab === 'analysis' ? (
+          <AnalysisTab />
+        ) : activeTab === 'calendar' ? (
+          <div className="bg-white rounded-[25px] p-8 shadow-sm">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Calendar View</h2>
+            <div className="text-gray-600">
+              Calendar functionality with event tracking and price impact analysis will be implemented here.
+            </div>
+          </div>
+        ) : activeTab === 'competence' ? (
+          <div className="bg-white rounded-[25px] p-8 shadow-sm">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Competence Analysis</h2>
+            <div className="text-gray-600">
+              Competitor analysis and market positioning tools will be implemented here.
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-8">
+            {/* Left Column - KPIs and Calendar */}
+            <div className="space-y-8">
             {/* KPI Cards */}
             <div className="grid grid-cols-2 gap-6">
               {/* Performance Index */}
@@ -192,6 +210,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+        )}
       </div>
     </div>
   )
