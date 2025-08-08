@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -42,12 +43,22 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    
-    // Simular registro
-    setTimeout(() => {
+    try {
+      const { email, password } = formData
+      const { data, error } = await supabase.auth.signUp({ email, password })
+      if (error) {
+        alert(error.message)
+        setIsLoading(false)
+        return
+      }
+      await supabase.auth.getSession()
+      const redirect = new URLSearchParams(window.location.search).get('redirectTo') || '/dashboard'
+      router.replace(redirect)
+    } catch (err) {
+      alert('Signup failed')
+    } finally {
       setIsLoading(false)
-      router.push('/')
-    }, 1000)
+    }
   }
 
   return (

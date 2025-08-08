@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ScrapingCard from './ScrapingCard'
 import PricingCard from './PricingCard'
 import ReportsCard from './ReportsCard'
@@ -8,6 +8,28 @@ import AnalyticsCard from './AnalyticsCard'
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview')
+  const [stats, setStats] = useState<{ totalEvents: number; growthPercent: number; eventsToday: number } | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        setLoading(true)
+        const res = await fetch('/api/stats/overview', { cache: 'no-store' })
+        const json = await res.json()
+        if (json?.success) {
+          setStats(json.data)
+        } else {
+          setStats(null)
+        }
+      } catch (e) {
+        setStats(null)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadStats()
+  }, [])
 
   return (
     <div className="space-y-6">
@@ -31,8 +53,8 @@ export default function Dashboard() {
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Scrapes</p>
-              <p className="text-2xl font-bold text-gray-900">1,234</p>
+              <p className="text-sm font-medium text-gray-600">Total Events</p>
+              <p className="text-2xl font-bold text-gray-900">{loading ? '…' : (stats?.totalEvents ?? '-')}</p>
             </div>
           </div>
         </div>
@@ -45,8 +67,8 @@ export default function Dashboard() {
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Revenue Impact</p>
-              <p className="text-2xl font-bold text-gray-900">+15.2%</p>
+              <p className="text-sm font-medium text-gray-600">7-day Growth</p>
+              <p className="text-2xl font-bold text-gray-900">{loading ? '…' : `${stats?.growthPercent ?? '-'}%`}</p>
             </div>
           </div>
         </div>
@@ -59,8 +81,8 @@ export default function Dashboard() {
               </svg>
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Price Changes</p>
-              <p className="text-2xl font-bold text-gray-900">89</p>
+              <p className="text-sm font-medium text-gray-600">Events Today</p>
+              <p className="text-2xl font-bold text-gray-900">{loading ? '…' : (stats?.eventsToday ?? '-')}</p>
             </div>
           </div>
         </div>

@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { supabaseServer } from '@/lib/supabaseServer'
 
 export async function POST(request: NextRequest) {
   try {
     const { priceRange, analysisType } = await request.json()
-
-    // This would integrate with your actual scraping data
-    const analysisResult = {
-      analysisType,
-      priceRange,
-      timestamp: new Date().toISOString(),
-      status: 'Analysis completed',
-      message: 'Pricing analysis ready for integration with scraped data'
-    }
-
-    return NextResponse.json({
-      success: true,
-      data: analysisResult
-    })
+    // Placeholder: filter events by date as proxy; extend with real pricing fields when available
+    const { data, error } = await supabaseServer
+      .from('events')
+      .select('*')
+      .order('fecha', { ascending: false })
+      .limit(100)
+    if (error) throw error
+    return NextResponse.json({ success: true, data: { analysisType, priceRange, rows: data } })
 
   } catch (error) {
     console.error('Error in pricing analysis:', error)
