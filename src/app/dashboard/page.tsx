@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
+import HotelsComparisonCard from '@/components/HotelsComparisonCard'
 
 type OverviewStats = {
   totalEvents: number
@@ -184,12 +185,9 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Right Column - Hotels Table (placeholder, no mock data) */}
+          {/* Right Column - Hotels Comparison (real data) */}
           <div>
-            <div className="bg-white rounded-[25px] p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Hotels Comparison</h3>
-              <div className="text-gray-500 text-sm">Integration pending. No mock data displayed.</div>
-            </div>
+            <HotelsComparisonCard />
           </div>
         </div>
       </div>
