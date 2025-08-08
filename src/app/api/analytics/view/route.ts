@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { supabaseServer } from '@/lib/supabaseServer'
 
 export async function POST(request: NextRequest) {
   try {
     const { metric } = await request.json()
-
-    // This would integrate with your actual scraping data
-    const analyticsData = {
-      metric,
-      timestamp: new Date().toISOString(),
-      status: 'Analytics ready',
-      message: 'Analytics ready for integration with scraped data'
+    // Example: simple analytics based on events table
+    if (metric === 'price-trends' || metric === 'competitor-analysis' || metric === 'market-share' || metric === 'revenue-impact') {
+      const { data, error } = await supabaseServer
+        .from('events')
+        .select('fecha', { count: 'exact' })
+        .order('fecha', { ascending: true })
+        .limit(2000)
+      if (error) throw error
+      return NextResponse.json({ success: true, data: { metric, rows: data } })
     }
-
-    return NextResponse.json({
-      success: true,
-      data: analyticsData
-    })
+    return NextResponse.json({ success: true, data: { metric, rows: [] } })
 
   } catch (error) {
     console.error('Error viewing analytics:', error)

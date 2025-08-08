@@ -4,6 +4,8 @@ import { useState } from 'react'
 
 export default function AnalyticsCard() {
   const [selectedMetric, setSelectedMetric] = useState('')
+  const [dataPoints, setDataPoints] = useState<number | null>(null)
+  const [accuracy, setAccuracy] = useState<number | null>(null)
 
   const metrics = [
     { id: 'price-trends', name: 'Price Trends', description: 'Track price changes over time' },
@@ -26,6 +28,10 @@ export default function AnalyticsCard() {
       
       const result = await response.json()
       console.log('Analytics result:', result)
+      const rows = Array.isArray(result?.data?.rows) ? result.data.rows : []
+      setDataPoints(rows.length)
+      // Placeholder: set a mock accuracy based on volume; replace when you have a real metric
+      setAccuracy(rows.length ? Math.min(99.9, 60 + Math.round((rows.length % 40))) : null)
     } catch (error) {
       console.error('Error viewing analytics:', error)
     }
@@ -72,11 +78,11 @@ export default function AnalyticsCard() {
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div className="bg-blue-50 rounded-md p-3">
             <p className="text-blue-600 font-medium">Data Points</p>
-            <p className="text-2xl font-bold text-blue-900">2,847</p>
+            <p className="text-2xl font-bold text-blue-900">{dataPoints ?? '-'}</p>
           </div>
           <div className="bg-green-50 rounded-md p-3">
             <p className="text-green-600 font-medium">Accuracy</p>
-            <p className="text-2xl font-bold text-green-900">94.2%</p>
+            <p className="text-2xl font-bold text-green-900">{accuracy != null ? `${accuracy}%` : '-'}</p>
           </div>
         </div>
 

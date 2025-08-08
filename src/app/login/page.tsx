@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -30,12 +31,22 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    
-    // Simular login
-    setTimeout(() => {
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) {
+        alert(error.message)
+        setIsLoading(false)
+        return
+      }
+      // Force a user/session fetch to ensure cookies are set before redirect
+      await supabase.auth.getSession()
+      const redirect = new URLSearchParams(window.location.search).get('redirectTo') || '/dashboard'
+      router.replace(redirect)
+    } catch (err) {
+      alert('Login failed')
+    } finally {
       setIsLoading(false)
-      router.push('/')
-    }, 1000)
+    }
   }
 
   return (
