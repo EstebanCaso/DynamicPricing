@@ -82,6 +82,9 @@ export async function POST(request: NextRequest) {
     const cityMeta = (user.user_metadata?.city || user.user_metadata?.ciudad || '').toString()
     const city = cityMeta
     const dateCandidates = getDateCandidates()
+    // Debug context
+    // eslint-disable-next-line no-console
+    console.log('[compare/hotels] inputs', { userId, city, dateCandidates })
 
     // 1) My hotel prices today from hotel_usuario
     const { data: myRows, error: myErr } = await supabase
@@ -116,12 +119,21 @@ export async function POST(request: NextRequest) {
       if (tryAltErr) throw tryAltErr
       competitorRows = (tryAlt || []) as unknown as HotelParallelRow[]
     }
+    // eslint-disable-next-line no-console
+    console.log('[compare/hotels] competitors fetched', { count: competitorRows.length })
 
     const competitors = competitorRows
       .map((row) => {
-        const rooms =
-          pickRoomsForDate((row as any).rooms_jsonb as any, dateCandidates) ||
-          pickRoomsForDate((row as any).rooms_jsnob as any, dateCandidates)
+        // Some rows store JSON as string
+        let container: any = (row as any).rooms_jsonb ?? (row as any).rooms_jsnob
+        if (typeof container === 'string') {
+          try {
+            container = JSON.parse(container)
+          } catch {
+            container = undefined
+          }
+        }
+        const rooms = pickRoomsForDate(container as any, dateCandidates)
         if (!rooms || rooms.length === 0) return null
         const nums = rooms
           .map((r) => parsePriceToNumber(r?.price))
@@ -158,6 +170,7 @@ export async function POST(request: NextRequest) {
         competitorsAvg,
         competitorsCount,
         position,
+        debug: process.env.NODE_ENV !== 'production' ? { dateCandidates } : undefined,
       },
     })
   } catch (error) {
