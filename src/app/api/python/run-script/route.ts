@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { spawn } from 'child_process'
 import path from 'path'
 
-export async function POST(request: NextRequest) {
+export async function POST(request: NextRequest): Promise<Response> {
   try {
     const { script } = await request.json()
 
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       error += data.toString()
     })
 
-    return new Promise((resolve) => {
+    return await new Promise<Response>((resolve) => {
       pythonProcess.on('close', (code) => {
         if (code === 0) {
           resolve(NextResponse.json({

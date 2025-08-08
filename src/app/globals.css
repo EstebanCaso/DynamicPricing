@@ -9,3 +9,14 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Tremor base styles (minimal) */
+:root {
+  --tremor-brand: 239 68 68; /* red-500 */
+  --tremor-text: 17 24 39;   /* gray-900 */
+}
+
+/* Premium subtle background */
+html, body {
+  background: linear-gradient(180deg, #ececec 0%, #e7e7e7 100%);
+}
