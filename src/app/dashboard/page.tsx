@@ -1,9 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import HotelsComparisonCard from '@/components/HotelsComparisonCard'
 import AnalysisTab from '@/components/AnalysisTab'
+import CalendarTab from '@/components/CalendarTab'
 
 type OverviewStats = {
   totalEvents: number
@@ -15,6 +17,7 @@ type AnalyticsRow = { fecha?: string | null }
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('summary')
+  const searchParams = useSearchParams()
   const [stats, setStats] = useState<OverviewStats | null>(null)
   const [eventRows, setEventRows] = useState<AnalyticsRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -48,6 +51,14 @@ export default function DashboardPage() {
     load()
   }, [])
 
+  // Sync active tab with query param for deep-links like ?tab=calendar&date=YYYY-MM-DD
+  useEffect(() => {
+    const fromQuery = searchParams.get('tab')
+    if (fromQuery && ['summary', 'calendar', 'competence', 'analysis'].includes(fromQuery)) {
+      setActiveTab(fromQuery)
+    }
+  }, [searchParams])
+
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth() // 0-based
@@ -67,13 +78,7 @@ export default function DashboardPage() {
     return map
   }, [eventRows, year, month])
 
-  const impactLabel = useMemo(() => {
-    const n = stats?.eventsToday ?? 0
-    if (n > 10) return 'High'
-    if (n > 3) return 'Medium'
-    if (n > 0) return 'Low'
-    return 'None'
-  }, [stats])
+  // Impact KPI removed from summary
 
   const tabs = [
     { id: 'summary', name: 'Summary' },
@@ -129,12 +134,7 @@ export default function DashboardPage() {
         {activeTab === 'analysis' ? (
           <AnalysisTab />
         ) : activeTab === 'calendar' ? (
-          <div className="bg-white rounded-[25px] p-8 shadow-sm">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Calendar View</h2>
-            <div className="text-gray-600">
-              Calendar functionality with event tracking and price impact analysis will be implemented here.
-            </div>
-          </div>
+          <CalendarTab />
         ) : activeTab === 'competence' ? (
           <div className="bg-white rounded-[25px] p-8 shadow-sm">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Competence Analysis</h2>
@@ -143,11 +143,11 @@ export default function DashboardPage() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-3 gap-8">
             {/* Left Column - KPIs and Calendar */}
-            <div className="space-y-8">
-            {/* KPI Cards */}
-            <div className="grid grid-cols-2 gap-6">
+            <div className="col-span-1 space-y-8">
+            {/* KPI Cards (stacked) */}
+            <div className="grid grid-cols-1 gap-6">
               {/* Performance Index */}
               <div className="bg-white rounded-[25px] p-6 border-l-4 border-orange-500 shadow-sm">
                 <h3 className="text-sm font-medium text-gray-600 mb-2">Performance index</h3>
@@ -161,42 +161,41 @@ export default function DashboardPage() {
                 <h3 className="text-sm font-medium text-gray-600 mb-2">Average rate</h3>
                 <p className="text-3xl font-bold text-gray-900">-</p>
               </div>
-
-              {/* Impact of Events */}
-              <div className="bg-white rounded-[25px] p-6 border-l-4 border-green-500 shadow-sm">
-                <h3 className="text-sm font-medium text-gray-600 mb-2">Impact of events</h3>
-                <p className="text-3xl font-bold text-green-500">{loading ? '…' : impactLabel}</p>
-              </div>
-
-              {/* Price Position */}
-              <div className="bg-white rounded-[25px] p-6 border-l-4 border-green-500 shadow-sm">
-                <h3 className="text-sm font-medium text-gray-600 mb-2">Price position</h3>
-                <p className="text-3xl font-bold text-green-500">-</p>
-              </div>
             </div>
 
-            {/* Dynamic Calendar */}
-            <div className="bg-white rounded-[25px] p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">{monthName}</h3>
+            {/* Monthly Calendar (clickable) */}
+            <div className="bg-white rounded-[25px] p-6 shadow-sm h-[419px] flex flex-col">
+              <h3 className="text-2xl font-semibold text-gray-900 mb-4">{monthName}</h3>
               <div className="grid grid-cols-7 gap-1">
-                <div className="text-center text-sm font-medium text-gray-500 py-2">S</div>
-                <div className="text-center text-sm font-medium text-gray-500 py-2">M</div>
-                <div className="text-center text-sm font-medium text-gray-500 py-2">T</div>
-                <div className="text-center text-sm font-medium text-gray-500 py-2">W</div>
-                <div className="text-center text-sm font-medium text-gray-500 py-2">T</div>
-                <div className="text-center text-sm font-medium text-gray-500 py-2">F</div>
-                <div className="text-center text-sm font-medium text-gray-500 py-2">S</div>
+                {['S','M','T','W','T','F','S'].map((d) => (
+                  <div key={d} className="text-center text-sm font-medium text-gray-500 py-2">{d}</div>
+                ))}
 
+                {Array.from({ length: new Date(year, month, 1).getDay() }).map((_, i) => (
+                  <div key={`blank-${i}`} className="w-10 h-10" />
+                ))}
                 {Array.from({ length: daysInMonth }, (_, i) => {
                   const day = i + 1
+                  const dateISO = new Date(year, month, day)
+                  const iso = new Date(dateISO.getTime() - dateISO.getTimezoneOffset() * 60000)
+                    .toISOString()
+                    .slice(0, 10)
                   const count = eventsByDay.get(day) || 0
                   return (
-                    <div key={day} className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-sm relative">
+                    <a
+                      key={day}
+                      href={`/dashboard?tab=calendar&date=${iso}`}
+                      className="w-10 h-10 rounded flex items-center justify-center text-base relative border bg-gray-100 text-gray-900 border-transparent hover:ring-1 hover:ring-red-300"
+                      aria-label={`Day ${day}`}
+                    >
                       {day}
                       {count > 0 && (
-                        <div title={`${count} events`} className="absolute bottom-1 w-1 h-1 bg-red-500 rounded-full"></div>
+                        <span
+                          title={`${count} events`}
+                          className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full"
+                        />
                       )}
-                    </div>
+                    </a>
                   )
                 })}
               </div>
@@ -204,7 +203,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Right Column - Hotels Comparison (real data) */}
-          <div>
+          <div className="col-span-2">
             <HotelsComparisonCard />
           </div>
         </div>

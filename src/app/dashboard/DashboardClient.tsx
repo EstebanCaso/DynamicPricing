@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
+import CalendarTab from '@/components/CalendarTab'
 
 type CompareData = {
   today: string
@@ -176,12 +177,14 @@ export default function DashboardClient() {
       <div className="container mx-auto px-6 py-8">
         {activeTab === 'analysis' ? (
           <AnalysisTab />
+        ) : activeTab === 'calendar' ? (
+          <CalendarTab />
         ) : (
-          <div className="grid grid-cols-2 gap-8">
+          <div className="grid grid-cols-3 gap-8">
             {/* Left Column - KPIs and Calendar */}
-            <div className="space-y-8">
+            <div className="col-span-1 space-y-8">
               {/* KPI Cards */}
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 gap-6">
                 {/* Performance Index */}
                 <div className="bg-white rounded-[25px] p-6 border-l-4 border-orange-500 shadow-sm">
                   <h3 className="text-sm font-medium text-gray-600 mb-2">Performance index</h3>
@@ -193,49 +196,35 @@ export default function DashboardClient() {
                   <h3 className="text-sm font-medium text-gray-600 mb-2">Average rate</h3>
                   <p className="text-3xl font-bold text-gray-900">$126 dlls</p>
                 </div>
-
-                {/* Impact of Events */}
-                <div className="bg-white rounded-[25px] p-6 border-l-4 border-green-500 shadow-sm">
-                  <h3 className="text-sm font-medium text-gray-600 mb-2">Impact of events</h3>
-                  <p className="text-3xl font-bold text-green-500">High</p>
-                </div>
-
-                {/* Price Position */}
-                <div className="bg-white rounded-[25px] p-6 border-l-4 border-green-500 shadow-sm">
-                  <h3 className="text-sm font-medium text-gray-600 mb-2">Price position</h3>
-                  <p className="text-3xl font-bold text-green-500">3rd</p>
-                </div>
               </div>
 
-              {/* September Calendar */}
+              {/* Monthly Calendar (clickable) */}
               <div className="bg-white rounded-[25px] p-6 shadow-sm">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">September</h3>
-                <div className="grid grid-cols-7 gap-1">
-                  {/* Days of Week */}
-                  <div className="text-center text-sm font-medium text-gray-500 py-2">S</div>
-                  <div className="text-center text-sm font-medium text-gray-500 py-2">M</div>
-                  <div className="text-center text-sm font-medium text-gray-500 py-2">T</div>
-                  <div className="text-center text-sm font-medium text-gray-500 py-2">W</div>
-                  <div className="text-center text-sm font-medium text-gray-500 py-2">T</div>
-                  <div className="text-center text-sm font-medium text-gray-500 py-2">F</div>
-                  <div className="text-center text-sm font-medium text-gray-500 py-2">S</div>
-
-                  {/* Calendar Days */}
-                  {Array.from({ length: 30 }, (_, i) => (
-                    <div key={i} className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center text-sm relative">
-                      {i + 1}
-                      {/* Red dots on specific days */}
-                      {(i === 4 || i === 8 || i === 14 || i === 27) && (
-                        <div className="absolute bottom-1 w-1 h-1 bg-red-500 rounded-full"></div>
-                      )}
-                    </div>
+                <h3 className="text-3xl font-bold text-gray-900 mb-4">{new Date().toLocaleString('en-US', { month: 'long' })}</h3>
+                <div className="grid grid-cols-7 gap-1 mx-auto">
+                  {['S','M','T','W','T','F','S'].map((d) => (
+                    <div key={d} className="text-center text-base font-medium text-gray-500 py-2">{d}</div>
                   ))}
+                  {Array.from({ length: new Date(new Date().getFullYear(), new Date().getMonth(), 1).getDay() }).map((_, i) => (
+                    <div key={`blank-${i}`} className="w-10 h-10" />
+                  ))}
+                  {Array.from({ length: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate() }, (_, i) => {
+                    const now = new Date()
+                    const day = i + 1
+                    const dateISO = new Date(now.getFullYear(), now.getMonth(), day)
+                    const iso = new Date(dateISO.getTime() - dateISO.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+                    return (
+                      <a key={day} href={`/dashboard?tab=calendar&date=${iso}`} className="w-10 h-10 bg-gray-100 rounded flex items-center justify-center text-lg relative hover:ring-1 hover:ring-red-300">
+                        {day}
+                      </a>
+                    )
+                  })}
                 </div>
               </div>
             </div>
 
             {/* Right Column - Hotels Table */}
-            <div>
+            <div className="col-span-2">
               <div className="bg-white rounded-[25px] p-6 shadow-sm">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">Hotels Comparison</h3>
                 <div className="space-y-4">

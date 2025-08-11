@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 type CompareData = {
   today: string
@@ -18,6 +18,8 @@ export default function HotelsComparisonCard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedStars, setSelectedStars] = useState<number | null>(null)
+  const scrollRef = useRef<HTMLDivElement | null>(null)
+  const userRowRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -55,22 +57,23 @@ export default function HotelsComparisonCard() {
     return all.map((r, idx) => ({ ...r, rank: r.avg == null ? null : idx + 1 }))
   }, [data])
 
-  const visibleRows = useMemo(() => {
-    const n = rows.length
-    if (n <= 6) return rows
-    const userIdx = rows.findIndex((r) => r.isUser)
-    if (userIdx === -1) return rows.slice(0, 6)
-    const countBelow = n - 1 - userIdx
-    let start: number
-    if (countBelow > 3) {
-      // Center user (two above, three below)
-      start = Math.max(0, Math.min(userIdx - 2, n - 6))
-    } else {
-      // Show bottom block so all below are visible
-      start = Math.max(0, n - 6)
-    }
-    return rows.slice(start, start + 6)
+  // Full list will be scrollable; no windowing needed
+  // After data renders, ensure we auto-scroll to the user's row
+  useEffect(() => {
+    const container = scrollRef.current
+    const target = userRowRef.current
+    if (!container || !target) return
+    // Compute offset of target inside the scroll container
+    const containerTop = container.getBoundingClientRect().top
+    const targetTop = target.getBoundingClientRect().top
+    const delta = targetTop - containerTop
+    container.scrollTop = Math.max(0, delta - Math.round(container.clientHeight * 0.3))
   }, [rows])
+
+  const formatMoney = (value: number | null | undefined) => {
+    if (value == null || !Number.isFinite(value as number)) return '-'
+    return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value as number)}`
+  }
 
   const Star = ({ filled }: { filled: boolean }) => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? '#ef4444' : 'none'} stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -87,7 +90,14 @@ export default function HotelsComparisonCard() {
   )
 
   const StarsFilter = () => (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-2">
+      <button
+        aria-label="All stars"
+        onClick={() => setSelectedStars(null)}
+        className={`px-2 py-1 rounded-md text-sm ring-1 ring-gray-200 ${selectedStars == null ? 'bg-red-600 text-white ring-red-600' : 'bg-white hover:bg-gray-50 text-gray-700'}`}
+      >
+        ALL
+      </button>
       {Array.from({ length: 5 }).map((_, i) => {
         const val = i + 1
         const filled = (selectedStars ?? 0) >= val
@@ -106,35 +116,35 @@ export default function HotelsComparisonCard() {
   )
 
   return (
-    <div className="bg-white rounded-[25px] p-6 shadow-sm">
+    <div className="bg-white rounded-[25px] p-6 shadow-sm h-[700px] flex flex-col">
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Hotels Comparison</h3>
+        <h2 className="text-3xl font-semibold text-gray-900">Hotels Comparison</h2>
         <StarsFilter />
       </div>
       {loading && <div className="text-sm text-gray-500">Loading…</div>}
       {error && <div className="text-sm text-red-600">{error}</div>}
 
       {!loading && data && (
-        <div className="space-y-4">
+        <div className="flex-1 flex flex-col min-h-0 space-y-4">
           <div className="grid grid-cols-3 gap-4 text-base font-medium text-gray-600">
             <div className="pl-8">Hotels</div>
             <div className="text-center">Fee</div>
             <div className="text-center">Position</div>
           </div>
 
-          <div className="divide-y divide-gray-100 rounded-2xl overflow-hidden border border-gray-100">
-            {visibleRows.map((r) => {
+          <div ref={scrollRef} className="divide-y divide-gray-100 rounded-2xl overflow-auto border border-gray-100 flex-1 min-h-0">
+            {rows.map((r) => {
               const pos = r.rank ?? '-'
               const isUser = r.isUser
               if (isUser) {
                 return (
-                  <div key={r.name + (r.rank ?? '-') } className="py-3 px-2 bg-white">
+                  <div ref={userRowRef} key={r.name + (r.rank ?? '-') } className="py-3 px-2 bg-white">
                     <div className="flex rounded-2xl overflow-hidden shadow-sm">
                       <div className="flex-1 bg-white border-2 border-red-600 rounded-l-2xl px-4 py-3 flex items-center relative z-10">
                         <div className="flex flex-col space-y-1 flex-1 pl-8">
                           <span className="text-base font-bold text-gray-900">{r.name}</span>
                         </div>
-                        <div className="text-base font-bold text-red-600 text-center flex-1">{r.avg != null ? `$${Math.round(r.avg)}` : '-'}</div>
+                        <div className="text-base font-bold text-red-600 text-center flex-1">{formatMoney(r.avg != null ? Math.round(r.avg) : null)}</div>
                       </div>
                       <div className="w-1/3 bg-red-600 rounded-r-2xl flex items-center justify-center px-4 py-3 relative -ml-2">
                         <span className="text-lg font-bold text-white">{pos}</span>
@@ -151,7 +161,7 @@ export default function HotelsComparisonCard() {
                       <div className="mt-0.5"><StarsRow count={Math.min(5, Math.max(1, r.estrellas))} /></div>
                     )}
                   </div>
-                  <div className="text-base text-center">{r.avg != null ? `$${Math.round(r.avg)}` : '-'}</div>
+                  <div className="text-base text-center">{formatMoney(r.avg != null ? Math.round(r.avg) : null)}</div>
                   <div className="text-base text-center text-gray-600">{pos}</div>
                 </div>
               )
