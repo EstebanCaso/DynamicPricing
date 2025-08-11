@@ -2,6 +2,7 @@
 
 import {
   ResponsiveContainer,
+  Rectangle,
   LineChart,
   Line,
   CartesianGrid,
@@ -80,6 +81,7 @@ const gapSeries: GapPoint[] = [
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { supabase } from '@/lib/supabaseClient'
 
 export default function AnalysisTab() {
   const router = useRouter()
@@ -95,6 +97,17 @@ export default function AnalysisTab() {
   const [showOurs, setShowOurs] = useState(true)
   const [showMarket, setShowMarket] = useState(true)
   const [range, setRange] = useState<7 | 30 | 90>(30)
+  
+  // Supabase data states
+  const [supabaseData, setSupabaseData] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [userHotelName, setUserHotelName] = useState<string>('')
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+  const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [todayAverageRevenue, setTodayAverageRevenue] = useState<number | null>(null)
+  
   const [targetMin, setTargetMin] = useState<number>(() => Number(searchParams.get('tmn')) || 95)
   const [targetMax, setTargetMax] = useState<number>(() => Number(searchParams.get('tmx')) || 115)
   const [events, setEvents] = useState<string[]>(() => {
@@ -102,6 +115,291 @@ export default function AnalysisTab() {
     if (!raw) return ['Aug 7', 'Aug 9']
     return raw.split(',').map((s) => decodeURIComponent(s.trim())).filter(Boolean)
   })
+
+  // Function to standardize room types
+  const standardizeRoomType = (roomType: string): string => {
+    if (!roomType) return 'Standard'
+    
+    const normalized = roomType.toLowerCase().trim()
+    
+    if (normalized.includes('business')) return 'Business'
+    if (normalized.includes('double') && normalized.includes('bed')) return 'Double Bed'
+    if (normalized.includes('queen')) return 'Queen'
+    if (normalized.includes('suite')) return 'Suite'
+    if (normalized.includes('superior')) return 'Superior'
+    
+    return 'Standard'
+  }
+
+  // Function to clean price data
+  const cleanPrice = (priceString: string | number): number => {
+    if (typeof priceString === 'number') return priceString
+    if (!priceString) return 0
+    
+    // Remove MXN, $, commas, and trim whitespace
+    const cleanedPrice = priceString
+      .toString()
+      .replace(/MXN/gi, '')
+      .replace(/\$/g, '')
+      .replace(/,/g, '')
+      .trim()
+    
+    const price = parseFloat(cleanedPrice)
+    return isNaN(price) ? 0 : price
+  }
+
+  // Function to get current user
+  const getCurrentUser = async () => {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser()
+      if (error) {
+        console.error('Error getting user:', error)
+        return null
+      }
+      setCurrentUser(user)
+      return user
+    } catch (err) {
+      console.error('Error in getCurrentUser:', err)
+      return null
+    }
+  }
+
+  // Function to calculate today's total revenue from existing supabaseData
+  const calculateTodayTotalRevenue = () => {
+    try {
+      // Test with specific date: 2025-08-02
+      const today = '2025-08-02'
+      
+      console.log('📅 Calculating total revenue for test date:', today)
+      console.log('📊 Total supabaseData records:', supabaseData.length)
+      
+      if (supabaseData.length === 0) {
+        console.log('📭 No data available for calculation')
+        setTodayAverageRevenue(null)
+        return
+      }
+      
+      // First, let's see what the data structure looks like
+      console.log('🔍 Sample data record structure:', supabaseData[0])
+      
+      // Filter data for today only using checkin_date field
+      const todayData = supabaseData.filter(item => {
+        // Use the correct field name: checkin_date
+        const recordDate = item.checkin_date || item.Checkin_date
+        console.log('🔍 Checking record:', {
+          hotel: item.hotel_name || item.nombre_hotel,
+          price: item.price,
+          checkin_date: item.checkin_date,
+          Checkin_date: item.Checkin_date,
+          recordDate: recordDate
+        })
+        
+        if (!recordDate) {
+          console.log('⚠️ Record without checkin_date found:', item)
+          return false
+        }
+        
+        // Extract date part from the record (handle both date-only and datetime formats)
+        let recordDateStr = recordDate
+        if (recordDate.includes('T')) {
+          recordDateStr = recordDate.split('T')[0]
+        }
+        
+        console.log('🔍 Comparing dates:', recordDateStr, 'vs', today)
+        const matches = recordDateStr === today
+        if (matches) {
+          console.log('✅ Found matching date record for 2025-08-01:', {
+            hotel: item.hotel_name || item.nombre_hotel,
+            price: item.price,
+            checkin_date: recordDate
+          })
+        }
+        return matches
+      })
+      
+      console.log('📅 Test date (2025-08-02) filtered data records:', todayData.length)
+      console.log('📊 All matching records for 2025-08-02:', todayData.map(item => ({
+        hotel: item.hotel_name || item.nombre_hotel,
+        price: item.price,
+        room_type: item.room_type,
+        checkin_date: item.checkin_date || item.Checkin_date
+      })))
+      
+      if (todayData.length === 0) {
+        console.log('📭 No data found for 2025-08-02, calculating from all available data')
+        // If no data for today, calculate from all available data as fallback
+        const totalRevenue = supabaseData.reduce((sum, item) => {
+          const price = item.price || 0
+          return sum + price
+        }, 0)
+        
+        setTodayAverageRevenue(totalRevenue)
+        
+        console.log('📊 Fallback: All data total revenue:', totalRevenue)
+        console.log('📊 Fallback: All data record count:', supabaseData.length)
+        return
+      }
+      
+      // Calculate total revenue for today
+      const totalRevenue = todayData.reduce((sum, item) => {
+        const price = item.price || 0
+        console.log(`💰 Adding price: ${price} from hotel: ${item.hotel_name || item.nombre_hotel}, room: ${item.room_type}`)
+        return sum + price
+      }, 0)
+      
+      setTodayAverageRevenue(totalRevenue)
+      
+      console.log('📊 2025-08-02 CALCULATION SUMMARY:')
+      console.log('📊 Total revenue:', totalRevenue)
+      console.log('📊 Number of records:', todayData.length)
+      console.log('📊 Formatted total revenue:', currency.format(totalRevenue))
+      
+    } catch (err) {
+      console.error('💥 Error calculating today average revenue:', err)
+      setTodayAverageRevenue(null)
+    }
+  }
+
+  // Function to fetch and process hotel_usuario data
+  const fetchHotelUsuarioData = async () => {
+    try {
+      setLoading(true)
+      setError(null)
+      
+      console.log('🔍 Starting Supabase data fetch...')
+      console.log('🔗 Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL ? 'Configured' : 'NOT configured')
+      console.log('🔑 Supabase Key:', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ? 'Configured' : 'NOT configured')
+      
+      // Get current user
+      const user = await getCurrentUser()
+      console.log('👤 Current user:', user?.id || 'Not authenticated')
+      
+      let query = supabase
+        .from('hotel_usuario')
+        .select('*')
+      
+      // If user is authenticated, filter by user_id
+      if (user?.id) {
+        query = query.eq('user_id', user.id)
+        console.log('🔒 Filtering data for user:', user.id)
+      } else {
+        console.warn('⚠️ User not authenticated - showing example data')
+      }
+      
+      const { data, error } = await query
+      
+      console.log('📊 Supabase response:', { data, error })
+      console.log('📈 Number of records obtained:', data?.length || 0)
+      
+      if (error) {
+        console.error('❌ Supabase error:', error)
+        throw error
+      }
+      
+      if (!data || data.length === 0) {
+        console.warn('⚠️ No data found in hotel_usuario table for this user')
+        setSupabaseData([])
+        return
+      }
+      
+      // Extract hotel name from the first record
+      if (data.length > 0 && data[0].hotel_name) {
+        setUserHotelName(data[0].hotel_name)
+      }
+      
+      // Process and clean the data
+      const processedData = data.map((item: any) => ({
+        ...item,
+        room_type: standardizeRoomType(item.room_type),
+        price: cleanPrice(item.price),
+        // Keep original values for reference if needed
+        original_room_type: item.room_type,
+        original_price: item.price
+      }))
+      
+      setSupabaseData(processedData)
+      console.log('✅ Data processed successfully:', processedData)
+      console.log('🏨 User hotel:', userHotelName)
+      
+      // Note: calculateTodayAverageRevenue will be called by useEffect when supabaseData changes
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+      setError(errorMessage)
+      console.error('💥 Complete error:', err)
+      console.error('📝 Error message:', errorMessage)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Helper functions for hover handling
+  const handleBarMouseEnter = (data: any, index: number) => {
+    console.log('Mouse enter bar:', index, data)
+    if (hoverTimeout) {
+      clearTimeout(hoverTimeout)
+      setHoverTimeout(null)
+    }
+    setHoveredIndex(index)
+  }
+
+  const handleBarMouseLeave = () => {
+    console.log('Mouse leave bar')
+    const timeout = setTimeout(() => {
+      setHoveredIndex(null)
+    }, 100) // Reduced delay for better responsiveness
+    setHoveredIndex(null)
+  }
+
+  // Function to calculate category index from mouse position
+  const getCategoryIndexFromMouse = (e: any, dataLength: number) => {
+    console.log('getCategoryIndexFromMouse called with:', { e, dataLength })
+    
+    if (!e) {
+      console.log('No event object')
+      return null
+    }
+    
+    if (e.chartX === undefined) {
+      console.log('No chartX in event:', e)
+      return null
+    }
+    
+    const chartWidth = e.currentTarget?.clientWidth || 600
+    const categoryWidth = chartWidth / dataLength
+    const mouseX = e.chartX
+    const categoryIndex = Math.floor(mouseX / categoryWidth)
+    
+    console.log('Calculated values:', { chartWidth, categoryWidth, mouseX, categoryIndex })
+    
+    if (categoryIndex >= 0 && categoryIndex < dataLength) {
+      console.log('Valid category index:', categoryIndex)
+      return categoryIndex
+    }
+    
+    console.log('Invalid category index:', categoryIndex)
+    return null
+  }
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeout) {
+        clearTimeout(hoverTimeout)
+      }
+    }
+  }, [hoverTimeout])
+
+  // Fetch hotel_usuario data on component mount
+  useEffect(() => {
+    fetchHotelUsuarioData()
+  }, [])
+
+  // Calculate today's total revenue whenever supabaseData changes
+  useEffect(() => {
+    if (supabaseData.length > 0) {
+      calculateTodayTotalRevenue()
+    }
+  }, [supabaseData])
 
   const rangedData = useMemo(() => {
     const data = historicalPrices
@@ -227,21 +525,18 @@ export default function AnalysisTab() {
   }
 
   return (
-    <div className="relative space-y-4 md:space-y-6">
-      {/* Decorative glows (toned down) */}
-      <div className="pointer-events-none absolute -top-24 -left-24 h-80 w-80 rounded-full bg-gradient-to-tr from-rose-400/15 via-amber-300/15 to-emerald-300/15 blur-2xl"></div>
-      <div className="pointer-events-none absolute -bottom-24 -right-24 h-80 w-80 rounded-full bg-gradient-to-bl from-emerald-300/15 via-amber-300/15 to-rose-400/15 blur-2xl"></div>
+    <div className="space-y-6">
       {/* Insight bar - compact, premium */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Average Revenue (Neutral → Amber) */}
-        <div className="relative group">
-          <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-rose-400/15 via-amber-300/15 to-emerald-300/15 blur-sm opacity-30 group-hover:opacity-50 transition"></div>
-          <div className="relative rounded-2xl p-3 md:p-4 shadow-sm bg-white/80 border border-white/60 backdrop-blur">
+        <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center gap-3">
             <svg className="text-amber-600" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1v22M4 9l8-8 8 8"/></svg>
             <div className="flex-1">
-              <p className="text-xs font-medium tracking-wide text-gray-600">Average Revenue</p>
-              <p className="text-xl md:text-2xl font-semibold text-gray-900">$1,027</p>
+              <p className="text-xs font-medium tracking-wide text-gray-600">Total Revenue (2025-08-02)</p>
+              <p className="text-xl md:text-2xl font-semibold text-gray-900">
+                {loading ? '...' : todayAverageRevenue !== null ? currency.format(todayAverageRevenue) : '$0'}
+              </p>
             </div>
             <div className="w-24 h-8">
               <ResponsiveContainer width="100%" height="100%">
@@ -253,12 +548,9 @@ export default function AnalysisTab() {
               </ResponsiveContainer>
             </div>
           </div>
-          </div>
         </div>
         {/* Rate Position (Positive → Green) */}
-        <div className="relative group">
-          <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-rose-400/15 via-amber-300/15 to-emerald-300/15 blur-sm opacity-30 group-hover:opacity-50 transition"></div>
-          <div className="relative rounded-2xl p-3 md:p-4 shadow-sm bg-white/80 border border-white/60 backdrop-blur">
+        <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center gap-3">
             <svg className="text-emerald-600" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M7 17l9-9M7 7h9v9"/></svg>
             <div className="flex items-baseline gap-2 flex-1">
@@ -278,12 +570,9 @@ export default function AnalysisTab() {
               </ResponsiveContainer>
             </div>
           </div>
-          </div>
         </div>
         {/* Average Gap (Negative → Red) */}
-        <div className="relative group">
-          <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-rose-400/15 via-amber-300/15 to-emerald-300/15 blur-sm opacity-30 group-hover:opacity-50 transition"></div>
-          <div className="relative rounded-2xl p-3 md:p-4 shadow-sm bg-white/80 border border-white/60 backdrop-blur">
+        <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center gap-3">
             <svg className="text-rose-600" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h18M12 3v18"/></svg>
             <div className="flex-1">
@@ -300,16 +589,13 @@ export default function AnalysisTab() {
               </ResponsiveContainer>
             </div>
           </div>
-          </div>
         </div>
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Historical Prices */}
-        <div className="relative group">
-          <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-rose-400/10 via-amber-300/10 to-emerald-300/10 blur-sm opacity-25 group-hover:opacity-40 transition"></div>
-          <div className="relative bg-white/80 rounded-2xl p-4 md:p-5 shadow-sm border border-white/60 backdrop-blur">
+        <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-lg font-semibold text-gray-900">Historical Prices</h3>
             <div className="inline-flex rounded-xl border border-gray-200 bg-white p-0.5 text-sm">
@@ -367,45 +653,219 @@ export default function AnalysisTab() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          </div>
         </div>
 
-        {/* Demand */}
-        <div className="relative group">
-          <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-rose-400/10 via-amber-300/10 to-emerald-300/10 blur-sm opacity-25 group-hover:opacity-40 transition"></div>
-          <div className="relative bg-white/80 rounded-2xl p-4 md:p-5 shadow-sm border border-white/60 backdrop-blur">
+        {/* Hotel Data - Room Types by Price */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold text-gray-900">Demand</h3>
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {userHotelName ? `${userHotelName} - Revenue by Room Type` : 'Revenue by Room Type'}
+                {loading && <span className="text-sm text-gray-500 ml-2">(Loading...)</span>}
+              </h3>
+
+            </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs rounded-full bg-gray-100 px-2 py-0.5 text-gray-700">Avg {numberFmt.format(Math.round(demandVisible.reduce((a, b) => a + b.requests, 0) / Math.max(1, demandVisible.length)))}</span>
-              <span className="text-xs rounded-full bg-gray-100 px-2 py-0.5 text-gray-700">Min {numberFmt.format(Math.min(...demandVisible.map(d => d.requests)))}</span>
-              <span className="text-xs rounded-full bg-gray-100 px-2 py-0.5 text-gray-700">Max {numberFmt.format(Math.max(...demandVisible.map(d => d.requests)))}</span>
+              <button
+                onClick={fetchHotelUsuarioData}
+                disabled={loading}
+                className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                {loading ? 'Loading...' : 'Refresh'}
+              </button>
+              {error && (
+                <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+                  {error}
+                </span>
+              )}
+              {!loading && (
+                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                  {supabaseData.length} records
+                </span>
+              )}
+              {!loading && !error && supabaseData.length === 0 && (
+                <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
+                  No data
+                </span>
+              )}
             </div>
           </div>
+          
+
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={demandVisible} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+              <BarChart 
+                data={(() => {
+                  // If no data from Supabase, show mock data to test the chart (sorted by revenue)
+                  if (supabaseData.length === 0) {
+                    return [
+                      { room_type: 'Suite', total_revenue: 3237422, avg_price: 2200, count: 2 },
+                      { room_type: 'Queen', total_revenue: 1530836, avg_price: 1500, count: 3 },
+                      { room_type: 'Standard', total_revenue: 497153, avg_price: 1200, count: 5 },
+                      { room_type: 'Business', total_revenue: 329344, avg_price: 1800, count: 4 },
+                    ]
+                  }
+                  
+                  // Aggregate real data by room type with total revenue
+                  const roomTypeData = supabaseData.reduce((acc: any, item: any) => {
+                    const roomType = item.room_type || 'Standard'
+                    if (!acc[roomType]) {
+                      acc[roomType] = { room_type: roomType, total_revenue: 0, count: 0 }
+                    }
+                    acc[roomType].total_revenue += item.price || 0
+                    acc[roomType].count += 1
+                    return acc
+                  }, {})
+                  
+                  const aggregatedData = Object.values(roomTypeData).map((item: any) => ({
+                    room_type: item.room_type,
+                    total_revenue: item.total_revenue,
+                    avg_price: Math.round(item.total_revenue / item.count),
+                    count: item.count
+                  }))
+                  
+                  // Sort by total_revenue from highest to lowest
+                  const sortedData = aggregatedData.sort((a: any, b: any) => b.total_revenue - a.total_revenue)
+                  
+                  // Log the aggregated data for debugging
+                  console.log('Sorted chart data (highest to lowest):', sortedData)
+                  
+                  return sortedData
+                })()} 
+                margin={{ top: 20, right: 12, left: 4, bottom: 8 }}
+                barCategoryGap="15%"
+                maxBarSize={100}
+
+                onMouseLeave={() => {
+                  console.log('Mouse left chart area - resetting hoveredIndex')
+                  setHoveredIndex(null)
+                }}
+
+              >
                 <defs>
-                  <linearGradient id="demandBar" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="10%" stopColor="#94a3b8" stopOpacity={0.9} />
-                    <stop offset="100%" stopColor="#cbd5e1" stopOpacity={0.7} />
+                  <linearGradient id="hotelBarGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="10%" stopColor="#3b82f6" stopOpacity={0.9} />
+                    <stop offset="100%" stopColor="#93c5fd" stopOpacity={0.7} />
                   </linearGradient>
+                  <linearGradient id="grayBarGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="10%" stopColor="#9ca3af" stopOpacity={0.9} />
+                    <stop offset="100%" stopColor="#d1d5db" stopOpacity={0.7} />
+                  </linearGradient>
+                  <linearGradient id="hoverBarGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="10%" stopColor="#3b82f6" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#93c5fd" stopOpacity={0.9} />
+                  </linearGradient>
+                  {/* Shadow filter for bars */}
+                  <filter id="barShadow" x="-20%" y="-20%" width="140%" height="140%">
+                    <feDropShadow dx="0" dy="4" stdDeviation="6" floodOpacity="0.1" floodColor="#000000"/>
+                  </filter>
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.6} />
-                <XAxis dataKey="day" stroke="#6b7280" tickLine={false} axisLine={false} tickMargin={8} />
-                <YAxis stroke="#6b7280" tickLine={false} axisLine={false} tickMargin={8} />
-                <Tooltip content={<DemandTooltip />} />
-                <Bar dataKey="requests" fill="url(#demandBar)" radius={[8, 8, 0, 0]} />
+                <XAxis 
+                  dataKey="room_type"
+                  stroke="#6b7280" 
+                  tickLine={false} 
+                  axisLine={false} 
+                  tickMargin={8}
+                />
+                <YAxis 
+                  stroke="#6b7280" 
+                  tickLine={false} 
+                  axisLine={false} 
+                  tickMargin={8}
+                  tickFormatter={(value) => {
+                    // Format large numbers as K, M for better readability
+                    if (value >= 1000000) {
+                      return `$${(value / 1000000).toFixed(1)}M`
+                    } else if (value >= 1000) {
+                      return `$${(value / 1000).toFixed(0)}K`
+                    } else {
+                      return `$${value}`
+                    }
+                  }}
+                />
+                <Tooltip 
+                  formatter={(value: number, name: string) => [
+                    name === 'total_revenue' ? currency.format(value) : (name === 'avg_price' ? currency.format(value) : value),
+                    name === 'total_revenue' ? 'Total Revenue' : (name === 'avg_price' ? 'Average Price' : 'Count')
+                  ]}
+                  labelFormatter={(label: string) => `Room Type: ${label}`}
+                  cursor={false}
+                />
+                <Bar 
+                  dataKey="total_revenue"
+                  radius={[8, 8, 0, 0]}
+                  style={{ cursor: 'pointer' }}
+                  onMouseEnter={(data: any, index: number) => {
+                    console.log('Bar mouse enter:', index, data)
+                    setHoveredIndex(index)
+                  }}
+                  onMouseLeave={() => {
+                    console.log('Bar mouse leave')
+                    setHoveredIndex(null)
+                  }}
+                >
+                  {(() => {
+                    const chartData = supabaseData.length === 0 ? [
+                      { room_type: 'Suite', total_revenue: 3237422, avg_price: 2200, count: 2 },
+                      { room_type: 'Queen', total_revenue: 1530836, avg_price: 1500, count: 3 },
+                      { room_type: 'Standard', total_revenue: 497153, avg_price: 1200, count: 5 },
+                      { room_type: 'Business', total_revenue: 329344, avg_price: 1800, count: 4 },
+                    ] : Object.values(supabaseData.reduce((acc: any, item: any) => {
+                      const roomType = item.room_type || 'Standard'
+                      if (!acc[roomType]) {
+                        acc[roomType] = { room_type: roomType, total_revenue: 0, count: 0 }
+                      }
+                      acc[roomType].total_revenue += item.price || 0
+                      acc[roomType].count += 1
+                      return acc
+                    }, {})).map((item: any) => ({
+                      room_type: item.room_type,
+                      total_revenue: item.total_revenue,
+                      avg_price: Math.round(item.total_revenue / item.count),
+                      count: item.count
+                    })).sort((a: any, b: any) => b.total_revenue - a.total_revenue)
+                    
+                    const maxRevenue = Math.max(...chartData.map((item: any) => item.total_revenue))
+                    
+                    return chartData.map((entry: any, index: number) => {
+                      let fillColor
+                      
+                      console.log(`Rendering bar ${index} (${entry.room_type}) - hoveredIndex: ${hoveredIndex}`)
+                      
+                      if (hoveredIndex !== null) {
+                        if (index === hoveredIndex) {
+                          // Hovered bar gets bright color
+                          fillColor = 'url(#hoverBarGradient)'
+                          console.log(`Bar ${index} (${entry.room_type}) is hovered - using hover color`)
+                        } else {
+                          // Other bars get gray
+                          fillColor = 'url(#grayBarGradient)'
+                          console.log(`Bar ${index} (${entry.room_type}) is not hovered - using gray color`)
+                        }
+                      } else {
+                        // When not hovering, only the highest bar gets color
+                        fillColor = entry.total_revenue === maxRevenue ? 'url(#hotelBarGradient)' : 'url(#grayBarGradient)'
+                        console.log(`Bar ${index} (${entry.room_type}) - no hover, using ${entry.total_revenue === maxRevenue ? 'blue' : 'gray'} color`)
+                      }
+                      
+                      return (
+                        <Cell 
+                          key={`cell-${index}`} 
+                          fill={fillColor}
+                          filter="url(#barShadow)"
+                        />
+                      )
+                    })
+                  })()}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
-          </div>
           </div>
         </div>
 
         {/* Revenue Performance */}
-        <div className="relative group">
-          <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-rose-400/10 via-amber-300/10 to-emerald-300/10 blur-sm opacity-25 group-hover:opacity-40 transition"></div>
-          <div className="relative bg-white/80 rounded-2xl p-4 md:p-5 shadow-sm border border-white/60 backdrop-blur">
+        <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">Revenue Performance</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -432,13 +892,10 @@ export default function AnalysisTab() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-          </div>
         </div>
 
         {/* Competitive Gap Analysis */}
-        <div className="relative group">
-          <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-rose-400/10 via-amber-300/10 to-emerald-300/10 blur-sm opacity-25 group-hover:opacity-40 transition"></div>
-          <div className="relative bg-white/80 rounded-2xl p-4 md:p-5 shadow-sm border border-white/60 backdrop-blur">
+        <div className="bg-white rounded-lg shadow-sm p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-3">Competitive Gap Analysis</h3>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
@@ -462,10 +919,11 @@ export default function AnalysisTab() {
               </AreaChart>
             </ResponsiveContainer>
           </div>
-          </div>
         </div>
       </div>
     </div>
   )
 }
+
+
 

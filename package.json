@@ -27,10 +27,10 @@
   },
   "homepage": "https://github.com/EstebanCaso/DynamicPricing#readme",
   "dependencies": {
-    "@tremor/react": "^3.18.7",
     "@supabase/auth-helpers-nextjs": "^0.10.0",
     "@supabase/ssr": "^0.4.1",
     "@supabase/supabase-js": "^2.54.0",
+    "@tremor/react": "^3.18.7",
     "@types/node": "^20.0.0",
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0",
