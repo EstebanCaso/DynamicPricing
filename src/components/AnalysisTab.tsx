@@ -106,6 +106,7 @@ export default function AnalysisTab() {
   const [userHotelName, setUserHotelName] = useState<string>('')
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null)
+  const [todayAverageRevenue, setTodayAverageRevenue] = useState<number | null>(null)
   
   const [targetMin, setTargetMin] = useState<number>(() => Number(searchParams.get('tmn')) || 95)
   const [targetMax, setTargetMax] = useState<number>(() => Number(searchParams.get('tmx')) || 115)
@@ -160,6 +161,102 @@ export default function AnalysisTab() {
     } catch (err) {
       console.error('Error in getCurrentUser:', err)
       return null
+    }
+  }
+
+  // Function to calculate today's total revenue from existing supabaseData
+  const calculateTodayTotalRevenue = () => {
+    try {
+      // Test with specific date: 2025-08-02
+      const today = '2025-08-02'
+      
+      console.log('📅 Calculating total revenue for test date:', today)
+      console.log('📊 Total supabaseData records:', supabaseData.length)
+      
+      if (supabaseData.length === 0) {
+        console.log('📭 No data available for calculation')
+        setTodayAverageRevenue(null)
+        return
+      }
+      
+      // First, let's see what the data structure looks like
+      console.log('🔍 Sample data record structure:', supabaseData[0])
+      
+      // Filter data for today only using checkin_date field
+      const todayData = supabaseData.filter(item => {
+        // Use the correct field name: checkin_date
+        const recordDate = item.checkin_date || item.Checkin_date
+        console.log('🔍 Checking record:', {
+          hotel: item.hotel_name || item.nombre_hotel,
+          price: item.price,
+          checkin_date: item.checkin_date,
+          Checkin_date: item.Checkin_date,
+          recordDate: recordDate
+        })
+        
+        if (!recordDate) {
+          console.log('⚠️ Record without checkin_date found:', item)
+          return false
+        }
+        
+        // Extract date part from the record (handle both date-only and datetime formats)
+        let recordDateStr = recordDate
+        if (recordDate.includes('T')) {
+          recordDateStr = recordDate.split('T')[0]
+        }
+        
+        console.log('🔍 Comparing dates:', recordDateStr, 'vs', today)
+        const matches = recordDateStr === today
+        if (matches) {
+          console.log('✅ Found matching date record for 2025-08-01:', {
+            hotel: item.hotel_name || item.nombre_hotel,
+            price: item.price,
+            checkin_date: recordDate
+          })
+        }
+        return matches
+      })
+      
+      console.log('📅 Test date (2025-08-02) filtered data records:', todayData.length)
+      console.log('📊 All matching records for 2025-08-02:', todayData.map(item => ({
+        hotel: item.hotel_name || item.nombre_hotel,
+        price: item.price,
+        room_type: item.room_type,
+        checkin_date: item.checkin_date || item.Checkin_date
+      })))
+      
+      if (todayData.length === 0) {
+        console.log('📭 No data found for 2025-08-02, calculating from all available data')
+        // If no data for today, calculate from all available data as fallback
+        const totalRevenue = supabaseData.reduce((sum, item) => {
+          const price = item.price || 0
+          return sum + price
+        }, 0)
+        
+        setTodayAverageRevenue(totalRevenue)
+        
+        console.log('📊 Fallback: All data total revenue:', totalRevenue)
+        console.log('📊 Fallback: All data record count:', supabaseData.length)
+        return
+      }
+      
+      // Calculate total revenue for today
+      const totalRevenue = todayData.reduce((sum, item) => {
+        const price = item.price || 0
+        console.log(`💰 Adding price: ${price} from hotel: ${item.hotel_name || item.nombre_hotel}, room: ${item.room_type}`)
+        return sum + price
+      }, 0)
+      
+      setTodayAverageRevenue(totalRevenue)
+      
+      console.log('📊 2025-08-02 CALCULATION SUMMARY:')
+      console.log('📊 Total revenue:', totalRevenue)
+      console.log('📊 Number of records:', todayData.length)
+      console.log('📊 Formatted total revenue:', currency.format(totalRevenue))
+      
+    } catch (err) {
+      console.error('💥 Error calculating today average revenue:', err)
+      setTodayAverageRevenue(null)
     }
   }
 
@@ -223,6 +320,8 @@ export default function AnalysisTab() {
       setSupabaseData(processedData)
       console.log('✅ Data processed successfully:', processedData)
       console.log('🏨 User hotel:', userHotelName)
+      
+      // Note: calculateTodayAverageRevenue will be called by useEffect when supabaseData changes
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error'
       setError(errorMessage)
@@ -294,6 +393,13 @@ export default function AnalysisTab() {
   useEffect(() => {
     fetchHotelUsuarioData()
   }, [])
+
+  // Calculate today's total revenue whenever supabaseData changes
+  useEffect(() => {
+    if (supabaseData.length > 0) {
+      calculateTodayTotalRevenue()
+    }
+  }, [supabaseData])
 
   const rangedData = useMemo(() => {
     const data = historicalPrices
@@ -427,8 +533,10 @@ export default function AnalysisTab() {
           <div className="flex items-center gap-3">
             <svg className="text-amber-600" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1v22M4 9l8-8 8 8"/></svg>
             <div className="flex-1">
-              <p className="text-xs font-medium tracking-wide text-gray-600">Average Revenue</p>
-              <p className="text-xl md:text-2xl font-semibold text-gray-900">$1,027</p>
+              <p className="text-xs font-medium tracking-wide text-gray-600">Total Revenue (2025-08-02)</p>
+              <p className="text-xl md:text-2xl font-semibold text-gray-900">
+                {loading ? '...' : todayAverageRevenue !== null ? currency.format(todayAverageRevenue) : '$0'}
+              </p>
             </div>
             <div className="w-24 h-8">
               <ResponsiveContainer width="100%" height="100%">
