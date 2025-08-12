@@ -23,7 +23,7 @@ import {
 
 type HistoricalPoint = {
   day: string;
-  price: number;
+  revenue: number;
 }
 
 type DemandPoint = {
@@ -42,20 +42,7 @@ type GapPoint = {
   marketAvg: number
 }
 
-const historicalPrices: HistoricalPoint[] = (() => {
-  const today = new Date('2024-08-10')
-  const out: HistoricalPoint[] = []
-  for (let i = 29; i >= 0; i -= 1) {
-    const d = new Date(today)
-    d.setDate(today.getDate() - i)
-    const label = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(d)
-    // Fake but smooth data
-    const base = 100 + Math.sin((i / 30) * Math.PI * 2) * 15
-    const noise = (Math.random() - 0.5) * 10
-    out.push({ day: label, price: Math.max(60, Math.round(base + noise)) })
-  }
-  return out
-})()
+// Historical prices will be populated from Supabase data
 
 const computeDemand = (price: number) => {
   const base = 1400 - Math.max(0, price - 80) * 6
@@ -107,6 +94,12 @@ export default function AnalysisTab() {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null)
   const [todayAverageRevenue, setTodayAverageRevenue] = useState<number | null>(null)
+  const [historicalPrices, setHistoricalPrices] = useState<HistoricalPoint[]>([])
+  
+  // Filter states for dynamic revenue analysis
+  const [selectedRoomType, setSelectedRoomType] = useState<string>('all')
+  const [selectedDate, setSelectedDate] = useState<string>('')
+  const [viewMode, setViewMode] = useState<'total' | 'by-room' | 'by-date' | 'specific'>('total')
   
   const [targetMin, setTargetMin] = useState<number>(() => Number(searchParams.get('tmn')) || 95)
   const [targetMax, setTargetMax] = useState<number>(() => Number(searchParams.get('tmx')) || 115)
@@ -161,6 +154,147 @@ export default function AnalysisTab() {
     } catch (err) {
       console.error('Error in getCurrentUser:', err)
       return null
+    }
+  }
+
+  // Function to process Supabase data into historical revenue format
+  const processHistoricalRevenue = (data: any[]) => {
+    try {
+      if (!data || data.length === 0) {
+        console.log('📭 No data available for historical revenue processing')
+        setHistoricalPrices([])
+        return
+      }
+
+      // Group data by checkin_date and calculate total revenue per day
+      const dailyRevenue: Record<string, number> = {}
+      
+      data.forEach((item: any) => {
+        const checkinDate = item.checkin_date || item.Checkin_date
+        if (!checkinDate) return
+        
+        // Extract date part from the record (handle both date-only and datetime formats)
+        let dateStr = checkinDate
+        if (checkinDate.includes('T')) {
+          dateStr = checkinDate.split('T')[0]
+        }
+        
+        const price = item.price || 0
+        if (price > 0) {
+          if (!dailyRevenue[dateStr]) {
+            dailyRevenue[dateStr] = 0
+          }
+          dailyRevenue[dateStr] += price
+        }
+      })
+
+      // Convert to HistoricalPoint format and sort by date
+      const historicalData: HistoricalPoint[] = Object.entries(dailyRevenue)
+        .map(([date, revenue]) => {
+          const dateObj = new Date(date)
+          const label = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(dateObj)
+          
+          return {
+            day: label,
+            revenue: Math.round(revenue)
+          }
+        })
+        .sort((a, b) => {
+          // Sort by actual date, not by formatted label
+          const dateA = new Date(Object.keys(dailyRevenue).find(key => 
+            new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(key)) === a.day
+          ) || '')
+          const dateB = new Date(Object.keys(dailyRevenue).find(key => 
+            new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(new Date(key)) === b.day
+          ) || '')
+          return dateA.getTime() - dateB.getTime()
+        })
+
+      console.log('📊 Processed historical revenue:', historicalData)
+      setHistoricalPrices(historicalData)
+      
+    } catch (err) {
+      console.error('💥 Error processing historical revenue:', err)
+      setHistoricalPrices([])
+    }
+  }
+
+  // Function to calculate dynamic revenue based on filters and range
+  const calculateDynamicRevenue = () => {
+    try {
+      if (supabaseData.length === 0) {
+        console.log('📭 No data available for dynamic revenue calculation')
+        setTodayAverageRevenue(null)
+        return
+      }
+
+      let filteredData = supabaseData
+
+      // Apply room type filter
+      if (selectedRoomType !== 'all') {
+        filteredData = filteredData.filter(item => 
+          standardizeRoomType(item.room_type) === selectedRoomType
+        )
+        console.log(`🔍 Filtered by room type ${selectedRoomType}:`, filteredData.length, 'records')
+      }
+
+      // Apply date filter
+      if (selectedDate) {
+        filteredData = filteredData.filter(item => {
+          const checkinDate = item.checkin_date || item.Checkin_date
+          if (!checkinDate) return false
+          
+          let dateStr = checkinDate
+          if (checkinDate.includes('T')) {
+            dateStr = checkinDate.split('T')[0]
+          }
+          
+          return dateStr === selectedDate
+        })
+        console.log(`🔍 Filtered by date ${selectedDate}:`, filteredData.length, 'records')
+      }
+
+      // Apply range filter (7d, 30d, 90d) - this affects the KPI 1
+      if (range && range > 0) {
+        // Use the specific date range: 2025-07-31 to 2025-10-30
+        const endDate = new Date('2025-10-30')
+        const rangeStart = new Date(endDate)
+        rangeStart.setDate(endDate.getDate() - range)
+        
+        filteredData = filteredData.filter(item => {
+          const checkinDate = item.checkin_date || item.Checkin_date
+          if (!checkinDate) return false
+          
+          let dateStr = checkinDate
+          if (checkinDate.includes('T')) {
+            dateStr = checkinDate.split('T')[0]
+          }
+          
+          const itemDate = new Date(dateStr)
+          return itemDate >= rangeStart && itemDate <= endDate
+        })
+        console.log(`🔍 Filtered by range ${range}d from ${rangeStart.toISOString().split('T')[0]} to ${endDate.toISOString().split('T')[0]}:`, filteredData.length, 'records')
+      }
+
+      // Calculate total revenue from filtered data
+      const totalRevenue = filteredData.reduce((sum, item) => {
+        const price = cleanPrice(item.price)
+        return sum + price
+      }, 0)
+
+      setTodayAverageRevenue(totalRevenue)
+      
+      console.log('📊 Dynamic Revenue Calculation:')
+      console.log('📊 Room Type Filter:', selectedRoomType)
+      console.log('📊 Date Filter:', selectedDate || 'None')
+      console.log('📊 Range Filter:', `${range}d`)
+      console.log('📊 Filtered Records:', filteredData.length)
+      console.log('📊 Total Revenue:', totalRevenue)
+      console.log('📊 Formatted Revenue:', currency.format(totalRevenue))
+      
+    } catch (err) {
+      console.error('💥 Error calculating dynamic revenue:', err)
+      setTodayAverageRevenue(null)
     }
   }
 
@@ -394,26 +528,33 @@ export default function AnalysisTab() {
     fetchHotelUsuarioData()
   }, [])
 
-  // Calculate today's total revenue whenever supabaseData changes
+  // Calculate dynamic revenue and process historical revenue whenever supabaseData, filters, or range change
   useEffect(() => {
     if (supabaseData.length > 0) {
-      calculateTodayTotalRevenue()
+      calculateDynamicRevenue()
+      processHistoricalRevenue(supabaseData)
     }
-  }, [supabaseData])
+  }, [supabaseData, selectedRoomType, selectedDate, range])
 
   const rangedData = useMemo(() => {
     const data = historicalPrices
+    if (!data || data.length === 0) return []
     if (range >= data.length) return data
     return data.slice(data.length - range)
-  }, [range])
+  }, [range, historicalPrices])
 
   const [brush, setBrush] = useState<{ start: number; end: number } | null>(null)
 
   useEffect(() => {
-    setBrush({ start: 0, end: Math.max(0, rangedData.length - 1) })
-  }, [rangedData.length])
+    if (rangedData && rangedData.length > 0) {
+      setBrush({ start: 0, end: Math.max(0, rangedData.length - 1) })
+    } else {
+      setBrush(null)
+    }
+  }, [rangedData])
 
   const visibleData = useMemo(() => {
+    if (!rangedData || rangedData.length === 0) return []
     if (!brush) return rangedData
     const s = Math.max(0, Math.min(brush.start, rangedData.length - 1))
     const e = Math.max(s, Math.min(brush.end, rangedData.length - 1))
@@ -421,27 +562,49 @@ export default function AnalysisTab() {
   }, [rangedData, brush])
 
   const averageHistorical = useMemo(() => {
-    const total = visibleData.reduce((acc, p) => acc + p.price, 0)
+    if (!visibleData || visibleData.length === 0) return 0
+    const total = visibleData.reduce((acc, p) => acc + p.revenue, 0)
     return total / Math.max(1, visibleData.length)
   }, [visibleData])
 
-  const minVisible = useMemo(() => visibleData.reduce((m, p) => Math.min(m, p.price), Number.POSITIVE_INFINITY), [visibleData])
-  const maxVisible = useMemo(() => visibleData.reduce((m, p) => Math.max(m, p.price), 0), [visibleData])
+  const minVisible = useMemo(() => {
+    if (!visibleData || visibleData.length === 0) return 0
+    return visibleData.reduce((m, p) => Math.min(m, p.revenue), Number.POSITIVE_INFINITY)
+  }, [visibleData])
+  const maxVisible = useMemo(() => {
+    if (!visibleData || visibleData.length === 0) return 0
+    return visibleData.reduce((m, p) => Math.max(m, p.revenue), 0)
+  }, [visibleData])
 
-  const last = visibleData[visibleData.length - 1]?.price ?? 0
-  const prev = visibleData[visibleData.length - 2]?.price ?? last
+  const last = visibleData && visibleData.length > 0 ? visibleData[visibleData.length - 1]?.revenue ?? 0 : 0
+  const prev = visibleData && visibleData.length > 1 ? visibleData[visibleData.length - 2]?.revenue ?? last : last
   const deltaPct = prev ? ((last - prev) / prev) * 100 : 0
 
   const demandVisible: DemandPoint[] = useMemo(
-    () => visibleData.map((p) => ({ day: p.day, requests: computeDemand(p.price) })),
+    () => visibleData && visibleData.length > 0 ? visibleData.map((p) => ({ day: p.day, requests: computeDemand(p.revenue) })) : [],
     [visibleData]
   )
 
   const dayIndexByLabel = useMemo(() => {
     const map: Record<string, number> = {}
-    visibleData.forEach((p, i) => (map[p.day] = i))
+    if (visibleData && visibleData.length > 0) {
+      visibleData.forEach((p, i) => (map[p.day] = i))
+    }
     return map
   }, [visibleData])
+
+  // Get unique room types for filter dropdown
+  const uniqueRoomTypes = useMemo(() => {
+    if (!supabaseData || supabaseData.length === 0) return []
+    
+    const types = new Set<string>()
+    supabaseData.forEach(item => {
+      const roomType = standardizeRoomType(item.room_type)
+      types.add(roomType)
+    })
+    
+    return Array.from(types).sort()
+  }, [supabaseData])
 
   // persist target range and events in URL
   useEffect(() => {
@@ -452,21 +615,56 @@ export default function AnalysisTab() {
     window.history.replaceState({}, '', url.toString())
   }, [targetMin, targetMax, events])
 
-  // Mini sparkline data
-  const sparkData = useMemo(() => visibleData.slice(-14), [visibleData])
+  // Mini sparkline data for Total Revenue - shows revenue trend
+  const sparkData = useMemo(() => {
+    if (!rangedData || rangedData.length === 0) return []
+    
+    // Show last 14 days of revenue data
+    const dataLength = Math.min(rangedData.length, 14)
+    return rangedData.slice(-dataLength).map((item, i) => ({
+      day: item.day,
+      revenue: item.revenue
+    }))
+  }, [rangedData, range])
 
-  const PriceTooltip = ({ active, payload, label }: any) => {
-    if (!active || !payload?.length) return null
+  // Mini sparkline data for Rate Position - shows trend data
+  const rateSparkData = useMemo(() => {
+    if (!rangedData || rangedData.length === 0) return []
+    
+    // Create trend data based on the selected range
+    const dataLength = Math.min(rangedData.length, 14)
+    return Array.from({ length: dataLength }, (_, i) => ({
+      day: i.toString(),
+      v: 3 + Math.sin((i / dataLength) * Math.PI * 2) * 0.5
+    }))
+  }, [rangedData, range])
+
+  // Mini sparkline data for Average Gap - shows gap variation
+  const gapSparkData = useMemo(() => {
+    if (!rangedData || rangedData.length === 0) return []
+    
+    // Calculate gap data based on the selected range
+    const dataLength = Math.min(rangedData.length, 14)
+    const avgRevenue = rangedData.reduce((sum, item) => sum + item.revenue, 0) / rangedData.length
+    
+    return rangedData.slice(-dataLength).map((item, i) => ({
+      day: i.toString(),
+      v: Math.abs(item.revenue - avgRevenue) / 1000 // Scale down for better visualization
+    }))
+  }, [rangedData, range])
+
+    const HistoricalRevenueTooltip = ({ active, payload, label }: any) => {
+    if (!active || !payload?.length || !visibleData || visibleData.length === 0) return null
     const current = payload[0].value as number
     const idx = dayIndexByLabel[label]
-    const prev = idx > 0 ? visibleData[idx - 1].price : undefined
+    const prev = idx > 0 && visibleData[idx - 1] ? visibleData[idx - 1].revenue : undefined
     const delta = prev !== undefined ? current - prev : 0
     const deltaColor = delta > 0 ? '#ef4444' : delta < 0 ? '#10b981' : '#6b7280'
     const deltaSign = delta > 0 ? '+' : ''
     return (
       <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">
         <div className="font-medium text-gray-900">{label}</div>
-        <div className="text-gray-700">Price: {currency.format(current)}</div>
+        <div className="text-gray-700">Revenue: {currency.format(current)}</div>
         {prev !== undefined && (
           <div className="text-gray-600">
             Prev: {currency.format(prev)}
@@ -481,7 +679,7 @@ export default function AnalysisTab() {
   }
 
   const DemandTooltip = ({ active, payload }: any) => {
-    if (!active || !payload?.length) return null
+    if (!active || !payload?.length || !demandVisible || demandVisible.length === 0) return null
     const value = payload[0].value as number
     const mean = demandVisible.reduce((a, b) => a + b.requests, 0) / Math.max(1, demandVisible.length)
     const delta = value - mean
@@ -501,7 +699,7 @@ export default function AnalysisTab() {
     )
   }
 
-  const RevenueTooltip = ({ active, payload, label }: any) => {
+  const RevenuePerformanceTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null
     const value = payload[0].value as number
     const others = revenuePerformance.filter((r) => r.hotel !== label)
@@ -528,22 +726,76 @@ export default function AnalysisTab() {
     <div className="space-y-6">
       {/* Insight bar - compact, premium */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Average Revenue (Neutral → Amber) */}
+        {/* Dynamic Revenue Analysis */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center gap-3">
             <svg className="text-amber-600" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1v22M4 9l8-8 8 8"/></svg>
             <div className="flex-1">
-              <p className="text-xs font-medium tracking-wide text-gray-600">Total Revenue (2025-08-02)</p>
-              <p className="text-xl md:text-2xl font-semibold text-gray-900">
+              <p className="text-xs font-medium tracking-wide text-gray-600 mb-2">Total Revenue</p>
+              
+              {/* Revenue Value */}
+              <p className="text-xl md:text-2xl font-semibold text-gray-900 mb-3">
                 {loading ? '...' : todayAverageRevenue !== null ? currency.format(todayAverageRevenue) : '$0'}
               </p>
+              
+              {/* Smart Filters */}
+              <div className="flex flex-wrap gap-2 mb-3">
+                {/* Room Type Filter */}
+                <select
+                  value={selectedRoomType}
+                  onChange={(e) => setSelectedRoomType(e.target.value)}
+                  className="text-xs px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500"
+                >
+                  <option value="all">All Room Types</option>
+                  {uniqueRoomTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                
+                {/* Date Filter */}
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="text-xs px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500"
+                  placeholder="Select Date"
+                />
+                
+                {/* Clear Filters Button */}
+                {(selectedRoomType !== 'all' || selectedDate) && (
+                  <button
+                    onClick={() => {
+                      setSelectedRoomType('all')
+                      setSelectedDate('')
+                    }}
+                    className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              
+              {/* Context Indicator */}
+              <div className="text-xs text-gray-500">
+                {selectedRoomType !== 'all' && selectedDate ? (
+                  <span>Revenue for {selectedRoomType} rooms on {selectedDate} (Jul 31 - Oct 30)</span>
+                ) : selectedRoomType !== 'all' ? (
+                  <span>Total revenue for {selectedRoomType} rooms (Jul 31 - Oct 30)</span>
+                ) : selectedDate ? (
+                  <span>Total revenue on {selectedDate} (Jul 31 - Oct 30)</span>
+                ) : (
+                  <span>Total revenue across all room types (Jul 31 - Oct 30)</span>
+                )}
+              </div>
             </div>
+            
+            {/* Sparkline Chart */}
             <div className="w-24 h-8">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={sparkData} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                <LineChart data={sparkData.length > 0 ? sparkData : [{ day: '1', revenue: 0 }]} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
                   <XAxis dataKey="day" hide />
                   <YAxis hide domain={["dataMin", "dataMax"]} />
-                  <Line type="monotone" dataKey="price" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="revenue" stroke="#f59e0b" strokeWidth={2} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -562,7 +814,7 @@ export default function AnalysisTab() {
             </div>
             <div className="w-24 h-8">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={sparkData.map((d, i) => ({ day: d.day, v: 3 + Math.sin(i / 4) }))} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                <LineChart data={rateSparkData.length > 0 ? rateSparkData : [{ day: '1', v: 0 }]} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
                   <XAxis dataKey="day" hide />
                   <YAxis hide domain={[0, 'dataMax']} />
                   <Line type="monotone" dataKey="v" stroke="#10b981" strokeWidth={2} dot={false} />
@@ -581,7 +833,7 @@ export default function AnalysisTab() {
             </div>
             <div className="w-24 h-8">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={sparkData.map((d) => ({ day: d.day, v: Math.abs(d.price - averageHistorical) }))} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+                <LineChart data={gapSparkData.length > 0 ? gapSparkData : [{ day: '1', v: 0 }]} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
                   <XAxis dataKey="day" hide />
                   <YAxis hide domain={[0, 'dataMax']} />
                   <Line type="monotone" dataKey="v" stroke="#ef4444" strokeWidth={2} dot={false} />
@@ -597,22 +849,69 @@ export default function AnalysisTab() {
         {/* Historical Prices */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-lg font-semibold text-gray-900">Historical Prices</h3>
-            <div className="inline-flex rounded-xl border border-gray-200 bg-white p-0.5 text-sm">
-              {[7, 30, 90].map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setRange(r as 7 | 30 | 90)}
-                  className={`px-2 py-1 rounded-lg transition-colors ${range === r ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
-                >
-                  {r}d
-                </button>
-              ))}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                {userHotelName ? `${userHotelName} - Historical Revenue` : 'Historical Revenue'}
+                {loading && <span className="text-sm text-gray-500 ml-2">(Loading...)</span>}
+              </h3>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="inline-flex rounded-xl border border-gray-200 bg-white p-0.5 text-sm">
+                {[7, 30, 90].map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRange(r as 7 | 30 | 90)}
+                    className={`px-2 py-1 rounded-lg transition-colors ${range === r ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
+                  >
+                    {r}d
+                  </button>
+                ))}
+              </div>
+              {error && (
+                <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+                  {error}
+                </span>
+              )}
+              {!loading && (
+                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                  Jul 31 - Oct 30 ({historicalPrices.length} days)
+                </span>
+              )}
+              {!loading && !error && historicalPrices.length === 0 && (
+                <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded">
+                  No data
+                </span>
+              )}
             </div>
           </div>
           <div className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={visibleData} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+              <AreaChart data={(() => {
+                // If no data from Supabase, show mock data for specific date range: 2025-07-31 to 2025-10-30
+                if (historicalPrices.length === 0) {
+                  const startDate = new Date('2025-07-31')
+                  const endDate = new Date('2025-10-30')
+                  const mockData: HistoricalPoint[] = []
+                  
+                  // Generate data for each day in the range
+                  for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                    const dayIndex = Math.floor((d.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+                    const label = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(d)
+                    
+                    // Create realistic revenue patterns with seasonal variations
+                    const baseRevenue = 1200 // Base revenue
+                    const seasonalFactor = 1 + 0.3 * Math.sin((dayIndex / 90) * Math.PI * 2) // Seasonal variation
+                    const weeklyFactor = 1 + 0.2 * Math.sin((dayIndex / 7) * Math.PI * 2) // Weekly patterns
+                    const noise = (Math.random() - 0.5) * 0.1 // Small random variation
+                    
+                    const revenue = Math.round(baseRevenue * seasonalFactor * weeklyFactor * (1 + noise))
+                    mockData.push({ day: label, revenue: Math.max(800, revenue) })
+                  }
+                  
+                  return mockData
+                }
+                return visibleData
+              })()} margin={{ top: 8, right: 80, left: 4, bottom: 0 }}>
                 <defs>
                   <linearGradient id="priceArea" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#ef4444" stopOpacity={0.18} />
@@ -622,34 +921,22 @@ export default function AnalysisTab() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.6} />
                 <XAxis dataKey="day" stroke="#6b7280" tickLine={false} axisLine={false} tickMargin={8} />
                 <YAxis stroke="#6b7280" tickLine={false} axisLine={false} tickMargin={8} />
-                <Tooltip content={<PriceTooltip />} />
+                <Tooltip content={<HistoricalRevenueTooltip />} />
                 {/* Target band */}
                 <ReferenceArea y1={targetMin} y2={targetMax} fill="#10b981" fillOpacity={0.08} stroke="#10b981" strokeOpacity={0.15} />
                 <ReferenceLine
                   y={averageHistorical}
                   stroke="#94a3b8"
                   strokeDasharray="6 6"
-                  label={{ value: `Avg ${currency.format(averageHistorical)}`, position: 'right', fill: '#64748b' }}
-                />
-                {/* Example event markers */}
-                {events.filter((d) => visibleData.some((p) => p.day === d)).map((d) => (
-                  <ReferenceLine key={d} x={d} stroke="#f59e0b" strokeDasharray="2 2" label={{ position: 'top', value: 'Event', fill: '#f59e0b' }} />
-                ))}
-                <Area type="monotone" dataKey="price" stroke="#ef4444" fill="url(#priceArea)" strokeWidth={3} />
-                <Brush
-                  dataKey="day"
-                  height={16}
-                  stroke="#9ca3af"
-                  travellerWidth={8}
-                  startIndex={brush ? brush.start : 0}
-                  endIndex={brush ? brush.end : Math.max(0, rangedData.length - 1)}
-                  onChange={(e: any) => {
-                    if (!e) return
-                    const start = typeof e.startIndex === 'number' ? e.startIndex : 0
-                    const end = typeof e.endIndex === 'number' ? e.endIndex : Math.max(0, rangedData.length - 1)
-                    setBrush({ start, end })
+                  label={{ 
+                    value: `Avg ${currency.format(averageHistorical)}`, 
+                    position: 'right', 
+                    fill: '#64748b', 
+                    fontSize: 10
                   }}
                 />
+
+                <Area type="monotone" dataKey="revenue" stroke="#ef4444" fill="url(#priceArea)" strokeWidth={3} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -883,7 +1170,7 @@ export default function AnalysisTab() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis dataKey="hotel" stroke="#6b7280" />
                 <YAxis stroke="#6b7280" />
-                <Tooltip content={<RevenueTooltip />} />
+                <Tooltip content={<RevenuePerformanceTooltip />} />
                 <Bar dataKey="revenue" radius={[8, 8, 0, 0]}>
                   {revenuePerformance.map((d) => (
                     <Cell key={d.hotel} fill={d.hotel === 'Ours' ? 'url(#revRed)' : 'url(#revGray)'} />
