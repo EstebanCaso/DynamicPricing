@@ -101,6 +101,9 @@ export default function AnalysisTab() {
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [viewMode, setViewMode] = useState<'total' | 'by-room' | 'by-date' | 'specific'>('total')
   
+  // Add state for clicked room type from chart
+  const [clickedRoomType, setClickedRoomType] = useState<string | null>(null)
+  
   const [targetMin, setTargetMin] = useState<number>(() => Number(searchParams.get('tmn')) || 95)
   const [targetMax, setTargetMax] = useState<number>(() => Number(searchParams.get('tmx')) || 115)
   const [events, setEvents] = useState<string[]>(() => {
@@ -166,13 +169,14 @@ export default function AnalysisTab() {
         return
       }
 
-      // Apply room type filter if selected
+      // Apply room type filter if selected - prioritize clicked room type over dropdown selection
       let filteredData = data
-      if (selectedRoomType !== 'all') {
+      const effectiveRoomType = clickedRoomType || selectedRoomType
+      if (effectiveRoomType !== 'all') {
         filteredData = data.filter(item => 
-          standardizeRoomType(item.room_type) === selectedRoomType
+          standardizeRoomType(item.room_type) === effectiveRoomType
         )
-        console.log(`🔍 Historical Revenue filtered by room type ${selectedRoomType}:`, filteredData.length, 'records')
+        console.log(`🔍 Historical Revenue filtered by room type ${effectiveRoomType}:`, filteredData.length, 'records')
       }
 
       // Group data by checkin_date and calculate total revenue per day
@@ -239,12 +243,13 @@ export default function AnalysisTab() {
 
       let filteredData = supabaseData
 
-      // Apply room type filter
-      if (selectedRoomType !== 'all') {
+      // Apply room type filter - prioritize clicked room type over dropdown selection
+      const effectiveRoomType = clickedRoomType || selectedRoomType
+      if (effectiveRoomType !== 'all') {
         filteredData = filteredData.filter(item => 
-          standardizeRoomType(item.room_type) === selectedRoomType
+          standardizeRoomType(item.room_type) === effectiveRoomType
         )
-        console.log(`🔍 Filtered by room type ${selectedRoomType}:`, filteredData.length, 'records')
+        console.log(`🔍 Filtered by room type ${effectiveRoomType}:`, filteredData.length, 'records')
       }
 
       // Apply date filter
@@ -493,6 +498,22 @@ export default function AnalysisTab() {
     setHoveredIndex(null)
   }
 
+  // Function to handle bar clicks for filtering
+  const handleBarClick = (data: any, index: number) => {
+    console.log('Bar clicked:', data, index)
+    const roomType = data.room_type
+    
+    if (clickedRoomType === roomType) {
+      // If clicking the same room type, clear the filter
+      setClickedRoomType(null)
+      console.log('Clearing room type filter')
+    } else {
+      // Set the clicked room type as filter
+      setClickedRoomType(roomType)
+      console.log('Setting room type filter to:', roomType)
+    }
+  }
+
   // Function to calculate category index from mouse position
   const getCategoryIndexFromMouse = (e: any, dataLength: number) => {
     console.log('getCategoryIndexFromMouse called with:', { e, dataLength })
@@ -543,7 +564,7 @@ export default function AnalysisTab() {
       calculateDynamicRevenue()
       processHistoricalRevenue(supabaseData)
     }
-  }, [supabaseData, selectedRoomType, selectedDate, range])
+  }, [supabaseData, selectedRoomType, selectedDate, range, clickedRoomType])
 
   const rangedData = useMemo(() => {
     const data = historicalPrices
@@ -735,7 +756,65 @@ export default function AnalysisTab() {
     <div className="space-y-6">
       {/* Insight bar - compact, premium */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Dynamic Revenue Analysis */}
+        {/* Global Filters and Controls */}
+        <div className="bg-white rounded-lg shadow-sm p-6">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Room Type:</span>
+              <select
+                value={selectedRoomType}
+                onChange={(e) => setSelectedRoomType(e.target.value)}
+                className="text-sm px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+              >
+                <option value="all">All Room Types</option>
+                {uniqueRoomTypes.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-gray-700">Range:</span>
+              <div className="inline-flex rounded-md border border-gray-300 bg-white p-1">
+                {[7, 30, 90].map((r) => (
+                  <button
+                    key={r}
+                    onClick={() => setRange(r as 7 | 30 | 90)}
+                    className={`px-3 py-1 rounded text-sm transition-colors ${
+                      range === r ? 'bg-amber-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {r}d
+                  </button>
+                ))}
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button
+                onClick={fetchHotelUsuarioData}
+                disabled={loading}
+                className="text-sm bg-amber-600 text-white px-4 py-2 rounded hover:bg-amber-700 disabled:bg-gray-400 transition-colors"
+              >
+                {loading ? 'Loading...' : 'Refresh Data'}
+              </button>
+              
+              {(selectedRoomType !== 'all' || clickedRoomType) && (
+                <button
+                  onClick={() => {
+                    setSelectedRoomType('all')
+                    setClickedRoomType(null)
+                  }}
+                  className="text-sm bg-gray-100 text-gray-600 px-4 py-2 rounded hover:bg-gray-200 transition-colors"
+                >
+                  Clear Filters
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        
+        {/* Total Revenue */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center gap-3">
             <svg className="text-amber-600" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 1v22M4 9l8-8 8 8"/></svg>
@@ -747,56 +826,10 @@ export default function AnalysisTab() {
                 {loading ? '...' : todayAverageRevenue !== null ? currency.format(todayAverageRevenue) : '$0'}
               </p>
               
-              {/* Smart Filters */}
-              <div className="flex flex-wrap gap-2 mb-3">
-                {/* Room Type Filter */}
-                <select
-                  value={selectedRoomType}
-                  onChange={(e) => setSelectedRoomType(e.target.value)}
-                  className="text-xs px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500"
-                >
-                  <option value="all">All Room Types</option>
-                  {uniqueRoomTypes.map(type => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
-                
-                {/* HR Range Filter - Historical Revenue Range */}
-                <div className="inline-flex rounded-md border border-gray-300 bg-white p-0.5 text-xs">
-                  {[7, 30, 90].map((r) => (
-                    <button
-                      key={r}
-                      onClick={() => setRange(r as 7 | 30 | 90)}
-                      className={`px-2 py-1 rounded transition-colors ${
-                        range === r ? 'bg-amber-600 text-white' : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                    >
-                      {r}d
-                    </button>
-                  ))}
-                </div>
-                
-                {/* Clear Filters Button */}
-                {selectedRoomType !== 'all' && (
-                  <button
-                    onClick={() => {
-                      setSelectedRoomType('all')
-                    }}
-                    className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors"
-                  >
-                    Clear
-                  </button>
-                )}
-              </div>
-              
               {/* Context Indicator */}
               <div className="text-xs text-gray-500">
-                {selectedRoomType !== 'all' && selectedDate ? (
-                  <span>Revenue for {selectedRoomType} rooms on {selectedDate} (Jul 31 - Oct 30)</span>
-                ) : selectedRoomType !== 'all' ? (
-                  <span>Total revenue for {selectedRoomType} rooms (Jul 31 - Oct 30)</span>
-                ) : selectedDate ? (
-                  <span>Total revenue on {selectedDate} (Jul 31 - Oct 30)</span>
+                {clickedRoomType ? (
+                  <span className="text-amber-600 font-medium">📊 Filtered by clicked: {clickedRoomType}</span>
                 ) : (
                   <span>Analyzing Jul 31 - Oct 30, 2025</span>
                 )}
@@ -815,6 +848,7 @@ export default function AnalysisTab() {
             </div>
           </div>
         </div>
+        
         {/* Rate Position (Positive → Green) */}
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex items-center gap-3">
@@ -837,25 +871,7 @@ export default function AnalysisTab() {
             </div>
           </div>
         </div>
-        {/* Average Gap (Negative → Red) */}
-        <div className="bg-white rounded-lg shadow-sm p-6">
-          <div className="flex items-center gap-3">
-            <svg className="text-rose-600" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12h18M12 3v18"/></svg>
-            <div className="flex-1">
-              <p className="text-xs font-medium tracking-wide text-gray-600">Average Gap</p>
-              <p className="text-xl md:text-2xl font-semibold text-rose-600">$15</p>
-            </div>
-            <div className="w-24 h-8">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={gapSparkData.length > 0 ? gapSparkData : [{ day: '1', v: 0 }]} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
-                  <XAxis dataKey="day" hide />
-                  <YAxis hide domain={[0, 'dataMax']} />
-                  <Line type="monotone" dataKey="v" stroke="#ef4444" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-        </div>
+
       </div>
 
       {/* Charts */}
@@ -866,6 +882,9 @@ export default function AnalysisTab() {
             <div>
               <h3 className="text-lg font-semibold text-gray-900">
                 {userHotelName ? `${userHotelName} - Historical Revenue` : 'Historical Revenue'}
+                {clickedRoomType && (
+                  <span className="text-sm text-amber-600 ml-2">({clickedRoomType})</span>
+                )}
                 {loading && <span className="text-sm text-gray-500 ml-2">(Loading...)</span>}
               </h3>
             </div>
@@ -946,18 +965,14 @@ export default function AnalysisTab() {
             <div>
               <h3 className="text-lg font-semibold text-gray-900">
                 {userHotelName ? `${userHotelName} - Revenue by Room Type` : 'Revenue by Room Type'}
+                {clickedRoomType && (
+                  <span className="text-sm text-amber-600 ml-2">({clickedRoomType})</span>
+                )}
                 {loading && <span className="text-sm text-gray-500 ml-2">(Loading...)</span>}
               </h3>
 
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={fetchHotelUsuarioData}
-                disabled={loading}
-                className="text-xs bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 disabled:bg-gray-400"
-              >
-                {loading ? 'Loading...' : 'Refresh'}
-              </button>
               {error && (
                 <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
                   {error}
@@ -1149,6 +1164,7 @@ export default function AnalysisTab() {
                     console.log('Bar mouse leave')
                     setHoveredIndex(null)
                   }}
+                  onClick={handleBarClick}
                 >
                   {(() => {
                     const chartData = supabaseData.length === 0 ? [
@@ -1178,20 +1194,24 @@ export default function AnalysisTab() {
                       
                       console.log(`Rendering bar ${index} (${entry.room_type}) - hoveredIndex: ${hoveredIndex}`)
                       
-                      if (hoveredIndex !== null) {
-                        if (index === hoveredIndex) {
-                          // Hovered bar gets bright color
-                          fillColor = 'url(#hoverBarGradient)'
-                          console.log(`Bar ${index} (${entry.room_type}) is hovered - using hover color`)
-                        } else {
-                          // Other bars get gray
-                          fillColor = 'url(#grayBarGradient)'
-                          console.log(`Bar ${index} (${entry.room_type}) is not hovered - using gray color`)
-                        }
+                      if (clickedRoomType === entry.room_type) {
+                        // Clicked/selected room type gets special highlight
+                        fillColor = 'url(#hoverBarGradient)'
+                        console.log(`Bar ${index} (${entry.room_type}) is selected - using selected color`)
+                      } else if (hoveredIndex !== null && index === hoveredIndex) {
+                        // Hovered bar gets bright color only if it's not the selected one
+                        fillColor = 'url(#hoverBarGradient)'
+                        console.log(`Bar ${index} (${entry.room_type}) is hovered - using hover color`)
                       } else {
-                        // When not hovering, only the highest bar gets color
-                        fillColor = entry.total_revenue === maxRevenue ? 'url(#hotelBarGradient)' : 'url(#grayBarGradient)'
-                        console.log(`Bar ${index} (${entry.room_type}) - no hover, using ${entry.total_revenue === maxRevenue ? 'blue' : 'gray'} color`)
+                        // All other bars get gray when there's a selection, or normal colors when no selection
+                        if (clickedRoomType) {
+                          fillColor = 'url(#grayBarGradient)'
+                          console.log(`Bar ${index} (${entry.room_type}) - not selected, using gray color`)
+                        } else {
+                          // When not hovering and no selection, only the highest bar gets color
+                          fillColor = entry.total_revenue === maxRevenue ? 'url(#hotelBarGradient)' : 'url(#grayBarGradient)'
+                          console.log(`Bar ${index} (${entry.room_type}) - no hover/selection, using ${entry.total_revenue === maxRevenue ? 'blue' : 'gray'} color`)
+                        }
                       }
                       
                       return (
@@ -1206,6 +1226,11 @@ export default function AnalysisTab() {
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          
+          {/* Click instruction */}
+          <div className="text-xs text-gray-500 mt-2 text-center">
+            💡 Click on any bar to filter Total Revenue and Historical Prices by that room type
           </div>
         </div>
 
