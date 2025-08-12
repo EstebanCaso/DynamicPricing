@@ -166,10 +166,19 @@ export default function AnalysisTab() {
         return
       }
 
+      // Apply room type filter if selected
+      let filteredData = data
+      if (selectedRoomType !== 'all') {
+        filteredData = data.filter(item => 
+          standardizeRoomType(item.room_type) === selectedRoomType
+        )
+        console.log(`🔍 Historical Revenue filtered by room type ${selectedRoomType}:`, filteredData.length, 'records')
+      }
+
       // Group data by checkin_date and calculate total revenue per day
       const dailyRevenue: Record<string, number> = {}
       
-      data.forEach((item: any) => {
+      filteredData.forEach((item: any) => {
         const checkinDate = item.checkin_date || item.Checkin_date
         if (!checkinDate) return
         
@@ -752,21 +761,26 @@ export default function AnalysisTab() {
                   ))}
                 </select>
                 
-                {/* Date Filter */}
-                <input
-                  type="date"
-                  value={selectedDate}
-                  onChange={(e) => setSelectedDate(e.target.value)}
-                  className="text-xs px-2 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-500"
-                  placeholder="Select Date"
-                />
+                {/* HR Range Filter - Historical Revenue Range */}
+                <div className="inline-flex rounded-md border border-gray-300 bg-white p-0.5 text-xs">
+                  {[7, 30, 90].map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setRange(r as 7 | 30 | 90)}
+                      className={`px-2 py-1 rounded transition-colors ${
+                        range === r ? 'bg-amber-600 text-white' : 'text-gray-700 hover:bg-gray-100'
+                      }`}
+                    >
+                      {r}d
+                    </button>
+                  ))}
+                </div>
                 
                 {/* Clear Filters Button */}
-                {(selectedRoomType !== 'all' || selectedDate) && (
+                {selectedRoomType !== 'all' && (
                   <button
                     onClick={() => {
                       setSelectedRoomType('all')
-                      setSelectedDate('')
                     }}
                     className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded-md hover:bg-gray-200 transition-colors"
                   >
@@ -784,7 +798,7 @@ export default function AnalysisTab() {
                 ) : selectedDate ? (
                   <span>Total revenue on {selectedDate} (Jul 31 - Oct 30)</span>
                 ) : (
-                  <span>Total revenue across all room types (Jul 31 - Oct 30)</span>
+                  <span>Analyzing Jul 31 - Oct 30, 2025</span>
                 )}
               </div>
             </div>
@@ -856,25 +870,9 @@ export default function AnalysisTab() {
               </h3>
             </div>
             <div className="flex items-center gap-2">
-              <div className="inline-flex rounded-xl border border-gray-200 bg-white p-0.5 text-sm">
-                {[7, 30, 90].map((r) => (
-                  <button
-                    key={r}
-                    onClick={() => setRange(r as 7 | 30 | 90)}
-                    className={`px-2 py-1 rounded-lg transition-colors ${range === r ? 'bg-gray-900 text-white' : 'text-gray-700 hover:bg-gray-100'}`}
-                  >
-                    {r}d
-                  </button>
-                ))}
-              </div>
               {error && (
                 <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
                   {error}
-                </span>
-              )}
-              {!loading && (
-                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                  Jul 31 - Oct 30 ({historicalPrices.length} days)
                 </span>
               )}
               {!loading && !error && historicalPrices.length === 0 && (
@@ -967,7 +965,37 @@ export default function AnalysisTab() {
               )}
               {!loading && (
                 <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                  {supabaseData.length} records
+                  {(() => {
+                    // Calculate filtered records count
+                    let filteredData = supabaseData
+                    
+                    if (selectedRoomType !== 'all') {
+                      filteredData = filteredData.filter(item => 
+                        standardizeRoomType(item.room_type) === selectedRoomType
+                      )
+                    }
+                    
+                    if (range && range > 0) {
+                      const endDate = new Date('2025-10-30')
+                      const rangeStart = new Date(endDate)
+                      rangeStart.setDate(endDate.getDate() - range)
+                      
+                      filteredData = filteredData.filter(item => {
+                        const checkinDate = item.checkin_date || item.Checkin_date
+                        if (!checkinDate) return false
+                        
+                        let dateStr = checkinDate
+                        if (checkinDate.includes('T')) {
+                          dateStr = checkinDate.split('T')[0]
+                        }
+                        
+                        const itemDate = new Date(dateStr)
+                        return itemDate >= rangeStart && itemDate <= endDate
+                      })
+                    }
+                    
+                    return `${filteredData.length} filtered / ${supabaseData.length} total`
+                  })()}
                 </span>
               )}
               {!loading && !error && supabaseData.length === 0 && (
@@ -993,9 +1021,39 @@ export default function AnalysisTab() {
                     ]
                   }
                   
-                  // Aggregate real data by room type with total revenue
-                  const roomTypeData = supabaseData.reduce((acc: any, item: any) => {
-                    const roomType = item.room_type || 'Standard'
+                  // Apply filters to the data
+                  let filteredData = supabaseData
+                  
+                  // Apply room type filter
+                  if (selectedRoomType !== 'all') {
+                    filteredData = filteredData.filter(item => 
+                      standardizeRoomType(item.room_type) === selectedRoomType
+                    )
+                  }
+                  
+                  // Apply range filter (7d, 30d, 90d)
+                  if (range && range > 0) {
+                    const endDate = new Date('2025-10-30')
+                    const rangeStart = new Date(endDate)
+                    rangeStart.setDate(endDate.getDate() - range)
+                    
+                    filteredData = filteredData.filter(item => {
+                      const checkinDate = item.checkin_date || item.Checkin_date
+                      if (!checkinDate) return false
+                      
+                      let dateStr = checkinDate
+                      if (checkinDate.includes('T')) {
+                        dateStr = checkinDate.split('T')[0]
+                      }
+                      
+                      const itemDate = new Date(dateStr)
+                      return itemDate >= rangeStart && itemDate <= endDate
+                    })
+                  }
+                  
+                  // Aggregate filtered data by room type with total revenue
+                  const roomTypeData = filteredData.reduce((acc: any, item: any) => {
+                    const roomType = standardizeRoomType(item.room_type) || 'Standard'
                     if (!acc[roomType]) {
                       acc[roomType] = { room_type: roomType, total_revenue: 0, count: 0 }
                     }
