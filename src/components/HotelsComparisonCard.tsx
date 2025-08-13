@@ -17,7 +17,7 @@ export default function HotelsComparisonCard() {
   const [data, setData] = useState<CompareData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedStars, setSelectedStars] = useState<number | null>(null)
+  const [selectedStars, setSelectedStars] = useState<number | null>(5)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const userRowRef = useRef<HTMLTableRowElement | null>(null)
 
@@ -90,32 +90,34 @@ export default function HotelsComparisonCard() {
   )
 
   const StarsFilter = () => (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-3" aria-label="Filter by stars">
       <button
         aria-label="All stars"
         onClick={() => setSelectedStars(null)}
-        className={`px-2 py-1 rounded-md text-sm ring-1 ring-glass-300 transition-all duration-200 ${
-          selectedStars == null 
-            ? 'bg-arkus-600 text-white ring-arkus-600 shadow-lg' 
-            : 'bg-glass-200 hover:bg-glass-300 text-gray-700 hover:shadow-md'
+        className={`px-2 py-1 rounded-md text-sm ring-1 transition-all duration-200 ${
+          selectedStars == null
+            ? 'bg-red-600 text-white ring-red-600 shadow-lg'
+            : 'bg-white/60 text-gray-800 hover:bg-white ring-white/70'
         }`}
       >
         ALL
       </button>
-      {[3, 4, 5].map((stars) => (
-        <button
-          key={stars}
-          aria-label={`${stars} stars`}
-          onClick={() => setSelectedStars(stars)}
-          className={`px-2 py-1 rounded-md text-sm ring-1 ring-glass-300 transition-all duration-200 ${
-            selectedStars === stars 
-              ? 'bg-arkus-600 text-white ring-arkus-600 shadow-lg' 
-              : 'bg-glass-200 hover:bg-glass-300 text-gray-700 hover:shadow-md'
-          }`}
-        >
-          {stars}
-        </button>
-      ))}
+      <div className="flex items-center gap-1" role="group" aria-label="Star options">
+        {Array.from({ length: 5 }).map((_, i) => {
+          const count = i + 1
+          const active = selectedStars === count
+          return (
+            <button
+              key={count}
+              aria-label={`${count} stars`}
+              onClick={() => setSelectedStars(count)}
+              className={`p-1 rounded-md transition ${active ? 'bg-red-50' : 'hover:bg-white/60'}`}
+            >
+              <Star filled={selectedStars != null ? i < (selectedStars as number) : false} />
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 
@@ -180,7 +182,8 @@ export default function HotelsComparisonCard() {
       {/* Table */}
       <div className="overflow-hidden rounded-xl border border-glass-300">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <div ref={scrollRef} className="max-h-[410px] overflow-y-auto">
+            <table className="w-full">
             <thead>
               <tr className="bg-glass-200 border-b border-glass-300">
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Rank</th>
@@ -220,7 +223,8 @@ export default function HotelsComparisonCard() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
       </div>
 

@@ -14,12 +14,14 @@ type OverviewStats = {
 }
 
 type AnalyticsRow = { fecha?: string | null }
+type EventItem = { fecha?: string | null }
 
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState('summary')
   const searchParams = useSearchParams()
   const [stats, setStats] = useState<OverviewStats | null>(null)
   const [eventRows, setEventRows] = useState<AnalyticsRow[]>([])
+  const [events, setEvents] = useState<EventItem[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -51,6 +53,21 @@ function DashboardContent() {
     load()
   }, [])
 
+  // Load real events for the calendar dots
+  useEffect(() => {
+    const run = async () => {
+      try {
+        const res = await fetch('/api/calendar/events', { cache: 'no-store' })
+        const json = await res.json()
+        if (!json?.success) throw new Error(json?.error || 'Failed events')
+        setEvents(Array.isArray(json.data?.events) ? json.data.events : [])
+      } catch {
+        setEvents([])
+      }
+    }
+    run()
+  }, [])
+
   // Sync active tab with query param for deep-links like ?tab=calendar&date=YYYY-MM-DD
   useEffect(() => {
     const fromQuery = searchParams.get('tab')
@@ -64,19 +81,31 @@ function DashboardContent() {
   const month = now.getMonth() // 0-based
   const monthName = now.toLocaleString('en-US', { month: 'long' })
   const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const todayIso = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+
+  // Parse YYYY-MM-DD as a local Date (avoid UTC shift from new Date('YYYY-MM-DD'))
+  function parseYMDToLocalDate(ymd?: string | null): Date | null {
+    if (!ymd) return null
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(ymd)
+    if (!m) return null
+    const y = Number(m[1])
+    const mo = Number(m[2]) - 1
+    const d = Number(m[3])
+    return new Date(y, mo, d)
+  }
 
   const eventsByDay = useMemo(() => {
     const map = new Map<number, number>()
-    for (const row of eventRows) {
-      if (!row?.fecha) continue
-      const d = new Date(row.fecha)
-      if (d.getFullYear() === year && d.getMonth() === month) {
+    for (const ev of events) {
+      const iso = (ev?.fecha || '').slice(0, 10)
+      const d = parseYMDToLocalDate(iso)
+      if (d && Number.isFinite(d.getTime()) && d.getFullYear() === year && d.getMonth() === month) {
         const day = d.getDate()
         map.set(day, (map.get(day) || 0) + 1)
       }
     }
     return map
-  }, [eventRows, year, month])
+  }, [events, year, month])
 
   // Impact KPI removed from summary
 
@@ -197,18 +226,23 @@ function DashboardContent() {
                         .toISOString()
                         .slice(0, 10)
                       const count = eventsByDay.get(day) || 0
+                      const isToday = iso === todayIso
                       return (
                         <a
                           key={day}
                           href={`/dashboard?tab=calendar&date=${iso}`}
-                          className="w-10 h-10 rounded flex items-center justify-center text-base relative border bg-glass-200 text-gray-900 border-glass-300 hover:ring-2 hover:ring-arkus-300 hover:bg-glass-300 transition-all duration-200"
+                          className={`w-10 h-10 rounded flex items-center justify-center text-base relative border transition-all duration-200 ${
+                            isToday
+                              ? 'bg-white/60 text-gray-900 border-white/70 hover:bg-white'
+                              : 'bg-glass-200 text-gray-900 border-glass-300 hover:bg-glass-300 hover:ring-1 hover:ring-red-300'
+                          }`}
                           aria-label={`Day ${day}`}
                         >
                           {day}
                           {count > 0 && (
                             <span
                               title={`${count} events`}
-                              className="absolute top-0.5 right-0.5 w-2 h-2 bg-arkus-500 rounded-full"
+                              className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-600 rounded-full"
                             />
                           )}
                         </a>
