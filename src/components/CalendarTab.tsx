@@ -101,40 +101,77 @@ export default function CalendarTab() {
     }
   }
 
+  const clearSelection = () => {
+    setSelectedDate(null)
+    setPrices(null)
+    setError(null)
+  }
+
   return (
-    <div className="grid grid-cols-3 gap-6">
-      {/* Left: 3 months (33%) */}
-      <div className="col-span-1 space-y-6">
-        {months.map((m) => {
-          const end = endOfMonth(m).getDate()
-          const label = formatMonth(m)
-          const year = m.getFullYear()
-          const monthIndex = m.getMonth()
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-900">Calendar & Events</h2>
+            <p className="text-gray-600">View upcoming events and hotel pricing</p>
+          </div>
+          {selectedDate && (
+            <button
+              onClick={clearSelection}
+              className="px-4 py-2 bg-glass-200 text-gray-700 rounded-lg hover:bg-glass-300 transition-all duration-200"
+            >
+              Clear Selection
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Calendar Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {months.map((monthStart) => {
+          const monthEnd = endOfMonth(monthStart)
+          const daysInMonth = monthEnd.getDate()
+          const firstDayOfWeek = monthStart.getDay()
+          
           return (
-            <div key={`${year}-${monthIndex}`} className="bg-white rounded-[25px] p-6 shadow-sm">
-              <h3 className="text-2xl font-semibold text-gray-900 mb-4">{label}</h3>
+            <div key={monthStart.toISOString()} className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300">
+              <h3 className="text-xl font-semibold text-gray-900 mb-4">{formatMonth(monthStart)}</h3>
               <div className="grid grid-cols-7 gap-1">
                 {['S','M','T','W','T','F','S'].map((d) => (
                   <div key={d} className="text-center text-sm font-medium text-gray-500 py-2">{d}</div>
                 ))}
-                {/* Leading blanks to align first weekday */}
-                {Array.from({ length: startOfMonth(m).getDay() }, (_, i) => (
+
+                {Array.from({ length: firstDayOfWeek }).map((_, i) => (
                   <div key={`blank-${i}`} className="w-10 h-10" />
                 ))}
-                {Array.from({ length: end }, (_, i) => {
+                
+                {Array.from({ length: daysInMonth }, (_, i) => {
                   const day = i + 1
-                  const dateISO = isoDate(new Date(year, monthIndex, day))
-                  const has = eventsByDate.has(dateISO)
-                  const selected = selectedDate === dateISO
+                  const dateISO = isoDate(new Date(monthStart.getFullYear(), monthStart.getMonth(), day))
+                  const dayEvents = eventsByDate.get(dateISO) || []
+                  const isSelected = selectedDate === dateISO
+                  const isToday = dateISO === isoDate(today)
+                  
                   return (
                     <button
                       key={day}
-                      onClick={() => (has ? handleSelectDate(dateISO) : setSelectedDate(dateISO))}
-                      className={`w-10 h-10 rounded flex items-center justify-center text-base relative border ${selected ? 'bg-red-500 text-white border-red-500' : 'bg-gray-100 text-gray-900 border-transparent'} hover:ring-1 hover:ring-red-300`}
-                      aria-label={`Day ${day}`}
+                      onClick={() => handleSelectDate(dateISO)}
+                      className={`w-10 h-10 rounded flex items-center justify-center text-base relative border transition-all duration-200 ${
+                        isSelected
+                          ? 'bg-arkus-600 text-white border-arkus-600 ring-2 ring-arkus-300'
+                          : isToday
+                          ? 'bg-arkus-100 text-arkus-800 border-arkus-300 hover:bg-arkus-200'
+                          : 'bg-glass-200 text-gray-900 border-glass-300 hover:bg-glass-300 hover:ring-1 hover:ring-arkus-300'
+                      }`}
                     >
                       {day}
-                      {has && !selected && <span className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-500 rounded-full" />}
+                      {dayEvents.length > 0 && (
+                        <span
+                          title={`${dayEvents.length} events`}
+                          className="absolute top-0.5 right-0.5 w-2 h-2 bg-arkus-500 rounded-full"
+                        />
+                      )}
                     </button>
                   )
                 })}
@@ -144,102 +181,87 @@ export default function CalendarTab() {
         })}
       </div>
 
-             {/* Right: either Events list (default) or Selected date prices */}
-       <div className="col-span-2 space-y-6 sticky top-8 self-start">
-        {!selectedDate ? (
-          <div className="bg-white rounded-[25px] p-6 shadow-sm h-[750px] flex flex-col">
-            <h2 className="text-2xl font-bold text-gray-900 mb-6">Events Incoming</h2>
+      {/* Selected Date Details */}
+      {selectedDate && (
+        <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300">
+          <h3 className="text-xl font-semibold text-gray-900 mb-4">
+            {formatNiceDate(selectedDate)}
+          </h3>
+          
+          {/* Events */}
+          <div className="mb-6">
+            <h4 className="text-lg font-medium text-gray-800 mb-3">Events</h4>
             {loadingEvents ? (
-              <div className="text-gray-600">Loading…</div>
-            ) : (
-              <div className="space-y-4 flex-1 min-h-0 overflow-auto pr-2 pb-2">
-                {events.length === 0 && <div className="text-gray-600 text-sm">No events found.</div>}
-                {events.map((ev) => {
-                  const d = parseYMDToLocalDate(ev.fecha)
-                  const month = d ? d.toLocaleString('en-US', { month: 'short' }).toUpperCase() : ''
-                  const day = d ? d.getDate() : ''
-                  return (
-                    <div key={(ev.id || ev.enlace || ev.nombre || '') + (ev.fecha || '')} className="flex items-start gap-4">
-                      <div className="flex flex-col items-center justify-center w-20 h-16 rounded-xl border border-gray-300">
-                        <div className="text-red-500 font-semibold text-sm">{month}</div>
-                        <div className="text-2xl font-bold">{day}</div>
-                      </div>
-                      <div className="flex-1">
-                        <button
-                          className="text-xl font-semibold text-gray-900 text-left hover:underline"
-                          onClick={() => ev.fecha && handleSelectDate(ev.fecha.slice(0,10))}
-                        >
-                          {ev.nombre || 'Event'}
-                        </button>
-                        <div className="text-gray-600 text-sm">{ev.lugar || ''}</div>
-                        {ev.enlace && (
-                          <a className="text-red-600 text-sm hover:underline" href={ev.enlace} target="_blank" rel="noreferrer">Visit site 🔗</a>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+              <div className="animate-pulse space-y-2">
+                <div className="h-4 bg-glass-300 rounded w-3/4"></div>
+                <div className="h-4 bg-glass-300 rounded w-1/2"></div>
               </div>
-            )}
-          </div>
-        ) : (
-          <div className="bg-white rounded-[25px] p-6 shadow-sm h-[750px] flex flex-col">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-3xl font-semibold text-gray-900">{prices?.hotelName || 'Mi hotel'}</h2>
-              <div className="text-red-600 text-lg">{formatNiceDate(selectedDate)}</div>
-            </div>
-            {/* Highlight primary event for selected date */}
-            {(() => {
-              const selectedEvents = eventsByDate.get(selectedDate) || []
-              const ev = selectedEvents[0]
-              if (!ev) return null
-              return (
-                <div className="mb-4">
-                  <div className="text-2xl font-semibold text-gray-900">{ev.nombre}</div>
-                  <div className="text-base">
-                    {ev.enlace && (
-                      <a className="text-red-600 hover:underline" href={ev.enlace} target="_blank" rel="noreferrer">Visit site 🔗</a>
+            ) : eventsByDate.get(selectedDate)?.length ? (
+              <div className="space-y-2">
+                {eventsByDate.get(selectedDate)?.map((event, index) => (
+                  <div key={index} className="backdrop-blur-sm bg-glass-200 border border-glass-300 rounded-lg p-3">
+                    <div className="font-medium text-gray-900">{event.nombre || 'Unnamed Event'}</div>
+                    {event.lugar && <div className="text-sm text-gray-600">📍 {event.lugar}</div>}
+                    {event.enlace && (
+                      <a
+                        href={event.enlace}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-arkus-600 hover:text-arkus-700 underline"
+                      >
+                        View Details
+                      </a>
                     )}
                   </div>
-                  <div className="text-base text-gray-600">{formatNiceDate(ev.fecha)}{ev.lugar ? ` · ${ev.lugar}` : ''}</div>
-                </div>
-              )
-            })()}
-            {loadingPrices ? (
-              <div className="text-gray-600">Loading prices…</div>
-            ) : prices?.items && prices.items.length > 0 ? (
-              <div className="flex-1 overflow-x-auto overflow-y-auto min-h-0">
-                <table className="min-w-full text-left">
-                  <thead>
-                    <tr className="text-red-600">
-                      <th className="py-3 pr-6 font-semibold text-lg">Room type</th>
-                      <th className="py-3 pr-6 font-semibold text-lg">Base Price</th>
-                      <th className="py-3 pr-6 font-semibold text-lg">Recommendation</th>
-                      <th className="py-3 pr-6 font-semibold text-lg">Accept Final Price</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {prices.items.map((p, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="py-3 pr-6 text-lg">{p.room_type}</td>
-                        <td className="py-3 pr-6 text-lg">{formatMoney(p.price as number)}</td>
-                        <td className="py-3 pr-6 text-lg text-red-600">+20% ({p.price != null ? formatMoney(Math.round((p.price as number) * 1.2)) : '-'})</td>
-                        <td className="py-3 pr-6"><button className="px-5 py-2 rounded-full bg-red-600 text-white text-base">Accept</button></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                ))}
               </div>
             ) : (
-              <div className="text-gray-600 text-sm">No prices for the selected date.</div>
+              <div className="text-gray-500">No events scheduled for this date</div>
             )}
-            <div className="mt-4">
-              <button className="text-sm text-gray-600 hover:underline" onClick={() => { setSelectedDate(null); setPrices(null) }}>Back to events</button>
-            </div>
           </div>
-        )}
-        {error && <div className="text-sm text-red-600">{error}</div>}
-      </div>
+
+          {/* Hotel Prices */}
+          <div>
+            <h4 className="text-lg font-medium text-gray-800 mb-3">Hotel Prices</h4>
+            {loadingPrices ? (
+              <div className="animate-pulse space-y-2">
+                <div className="h-4 bg-glass-300 rounded w-1/2"></div>
+                <div className="h-4 bg-glass-300 rounded w-3/4"></div>
+              </div>
+            ) : prices ? (
+              <div className="space-y-2">
+                <div className="text-sm text-gray-600 mb-2">
+                  {prices.hotelName} - {prices.date}
+                </div>
+                {prices.items.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {prices.items.map((item, index) => (
+                      <div key={index} className="backdrop-blur-sm bg-glass-200 border border-glass-300 rounded-lg p-3">
+                        <div className="font-medium text-gray-900">{item.room_type}</div>
+                        <div className="text-lg font-semibold text-arkus-600">{formatMoney(item.price)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-gray-500">No pricing data available for this date</div>
+                )}
+              </div>
+            ) : (
+              <div className="text-gray-500">Select a date to view hotel pricing</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Error Display */}
+      {error && (
+        <div className="backdrop-blur-xl bg-red-50 border border-red-200 rounded-2xl shadow-xl p-6">
+          <div className="text-red-800">
+            <div className="font-medium mb-2">Error</div>
+            <div>{error}</div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

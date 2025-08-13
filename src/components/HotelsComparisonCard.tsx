@@ -19,7 +19,7 @@ export default function HotelsComparisonCard() {
   const [error, setError] = useState<string | null>(null)
   const [selectedStars, setSelectedStars] = useState<number | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
-  const userRowRef = useRef<HTMLDivElement | null>(null)
+  const userRowRef = useRef<HTMLTableRowElement | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -76,7 +76,7 @@ export default function HotelsComparisonCard() {
   }
 
   const Star = ({ filled }: { filled: boolean }) => (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? '#ef4444' : 'none'} stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? '#ff0000' : 'none'} stroke="#ff0000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <polygon points="12 2 15 9 22 9 17 14 19 21 12 17 5 21 7 14 2 9 9 9" />
     </svg>
   )
@@ -94,87 +94,144 @@ export default function HotelsComparisonCard() {
       <button
         aria-label="All stars"
         onClick={() => setSelectedStars(null)}
-        className={`px-2 py-1 rounded-md text-sm ring-1 ring-gray-200 ${selectedStars == null ? 'bg-red-600 text-white ring-red-600' : 'bg-white hover:bg-gray-50 text-gray-700'}`}
+        className={`px-2 py-1 rounded-md text-sm ring-1 ring-glass-300 transition-all duration-200 ${
+          selectedStars == null 
+            ? 'bg-arkus-600 text-white ring-arkus-600 shadow-lg' 
+            : 'bg-glass-200 hover:bg-glass-300 text-gray-700 hover:shadow-md'
+        }`}
       >
         ALL
       </button>
-      {Array.from({ length: 5 }).map((_, i) => {
-        const val = i + 1
-        const filled = (selectedStars ?? 0) >= val
-        return (
-          <button
-            key={val}
-            aria-label={`${val} star filter`}
-            onClick={() => setSelectedStars(selectedStars === val ? null : val)}
-            className="p-1 rounded-md hover:bg-gray-50"
-          >
-            <Star filled={filled} />
-          </button>
-        )
-      })}
+      {[3, 4, 5].map((stars) => (
+        <button
+          key={stars}
+          aria-label={`${stars} stars`}
+          onClick={() => setSelectedStars(stars)}
+          className={`px-2 py-1 rounded-md text-sm ring-1 ring-glass-300 transition-all duration-200 ${
+            selectedStars === stars 
+              ? 'bg-arkus-600 text-white ring-arkus-600 shadow-lg' 
+              : 'bg-glass-200 hover:bg-glass-300 text-gray-700 hover:shadow-md'
+          }`}
+        >
+          {stars}
+        </button>
+      ))}
     </div>
   )
 
+  if (loading) {
+    return (
+      <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300">
+        <div className="animate-pulse space-y-4">
+          <div className="h-4 bg-glass-300 rounded w-1/4"></div>
+          <div className="h-4 bg-glass-300 rounded w-1/2"></div>
+          <div className="h-4 bg-glass-300 rounded w-3/4"></div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300">
+        <div className="text-center">
+          <div className="text-red-600 text-lg font-semibold mb-2">Error loading data</div>
+          <div className="text-gray-600">{error}</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300">
+        <div className="text-center text-gray-600">No data available</div>
+      </div>
+    )
+  }
+
   return (
-    <div className="bg-white rounded-[25px] p-6 shadow-sm h-[700px] flex flex-col">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-3xl font-semibold text-gray-900">Hotels Comparison</h2>
+    <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Hotels Comparison</h2>
+          <p className="text-gray-600">Today: {data.today}</p>
+        </div>
         <StarsFilter />
       </div>
-      {loading && <div className="text-sm text-gray-500">Loading…</div>}
-      {error && <div className="text-sm text-red-600">{error}</div>}
 
-      {!loading && data && (
-        <div className="flex-1 flex flex-col min-h-0 space-y-4">
-          <div className="grid grid-cols-3 gap-4 text-base font-medium text-gray-600">
-            <div className="pl-8">Hotels</div>
-            <div className="text-center">Fee</div>
-            <div className="text-center">Position</div>
-          </div>
-
-          <div ref={scrollRef} className="divide-y divide-gray-100 rounded-2xl overflow-auto border border-gray-100 flex-1 min-h-0">
-            {rows.map((r) => {
-              const pos = r.rank ?? '-'
-              const isUser = r.isUser
-              if (isUser) {
-                return (
-                  <div ref={userRowRef} key={r.name + (r.rank ?? '-') } className="py-3 px-2 bg-white">
-                    <div className="flex rounded-2xl overflow-hidden shadow-sm">
-                      <div className="flex-1 bg-white border-2 border-red-600 rounded-l-2xl px-4 py-3 flex items-center relative z-10">
-                        <div className="flex flex-col space-y-1 flex-1 pl-8">
-                          <span className="text-base font-bold text-gray-900">{r.name}</span>
-                        </div>
-                        <div className="text-base font-bold text-red-600 text-center flex-1">{formatMoney(r.avg != null ? Math.round(r.avg) : null)}</div>
-                      </div>
-                      <div className="w-1/3 bg-red-600 rounded-r-2xl flex items-center justify-center px-4 py-3 relative -ml-2">
-                        <span className="text-lg font-bold text-white">{pos}</span>
-                      </div>
-                    </div>
-                  </div>
-                )
-              }
-              return (
-                <div key={r.name + (r.rank ?? '-') } className="grid grid-cols-3 gap-4 items-center py-3 bg-white">
-                  <div className="flex flex-col space-y-1 pl-8">
-                    <span className="text-base">{r.name}</span>
-                    {typeof r.estrellas === 'number' && r.estrellas > 0 && (
-                      <div className="mt-0.5"><StarsRow count={Math.min(5, Math.max(1, r.estrellas))} /></div>
-                    )}
-                  </div>
-                  <div className="text-base text-center">{formatMoney(r.avg != null ? Math.round(r.avg) : null)}</div>
-                  <div className="text-base text-center text-gray-600">{pos}</div>
-                </div>
-              )
-            })}
-          </div>
-
-          {!hasCompetitors && (
-            <div className="text-sm text-gray-500">
-              no se encuentran competidores por falta de fechas
-            </div>
-          )}
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="backdrop-blur-sm bg-glass-200 border border-glass-300 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-arkus-600">{formatMoney(data.myAvg)}</div>
+          <div className="text-sm text-gray-600">My Hotel Average</div>
         </div>
-      )}
+        <div className="backdrop-blur-sm bg-glass-200 border border-glass-300 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-gray-700">{formatMoney(data.competitorsAvg)}</div>
+          <div className="text-sm text-gray-600">Competitors Average</div>
+        </div>
+        <div className="backdrop-blur-sm bg-glass-200 border border-glass-300 rounded-xl p-4 text-center">
+          <div className="text-2xl font-bold text-emerald-600">{data.position || '-'}</div>
+          <div className="text-sm text-gray-600">Position</div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="overflow-hidden rounded-xl border border-glass-300">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="bg-glass-200 border-b border-glass-300">
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Rank</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Hotel Name</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Stars</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Average Price</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, index) => (
+                <tr
+                  key={index}
+                  ref={row.isUser ? userRowRef : null}
+                  className={`border-b border-glass-200 transition-all duration-200 ${
+                    row.isUser 
+                      ? 'bg-arkus-50 border-l-4 border-arkus-500' 
+                      : 'hover:bg-glass-50'
+                  }`}
+                >
+                  <td className="px-4 py-3 text-sm text-gray-700">
+                    {row.rank ? `#${row.rank}` : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    {row.name}
+                    {row.isUser && (
+                      <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-arkus-100 text-arkus-800">
+                        YOU
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-700">
+                    {row.estrellas ? <StarsRow count={row.estrellas} /> : '-'}
+                  </td>
+                  <td className="px-4 py-3 text-sm font-semibold text-gray-900">
+                    {formatMoney(row.avg)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Footer Info */}
+      <div className="mt-4 text-sm text-gray-600 text-center">
+        {hasCompetitors ? (
+          <span>Showing {data.competitorsCount} competitors</span>
+        ) : (
+          <span>No competitors found for the selected criteria</span>
+        )}
+      </div>
     </div>
   )
 }
