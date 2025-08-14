@@ -122,8 +122,17 @@ export async function POST(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 })
 
     const userId = user.id
-    const cityMeta = (user.user_metadata?.city || user.user_metadata?.ciudad || '').toString()
-    const city = cityMeta
+    // Resolve city from nested user metadata
+    const md: any = user.user_metadata || {}
+    const cityMetaRaw =
+      md?.hotel_metadata?.address?.cityName ||
+      md?.address?.cityName ||
+      md?.cityName ||
+      md?.ciudad ||
+      md?.raw_user_meta_data?.hotel_metadata?.address?.cityName ||
+      md?.raw_user_meta_data?.cityName ||
+      ''
+    const city = cityMetaRaw ? String(cityMetaRaw).trim() : ''
     const dateCandidates = getDateCandidates()
     const canonicalToday = getCanonicalToday()
     // Debug context
@@ -138,7 +147,7 @@ export async function POST(request: NextRequest) {
         .from('Hotel_usuario')
         .select('hotel_name, price, date')
         .eq('user_id', userId)
-        .eq('date', canonicalToday)
+        .in('date', dateCandidates)
         .limit(500)
       if (!attempt.error && attempt.data && attempt.data.length >= 0) {
         myRows = attempt.data as any[]
@@ -151,7 +160,7 @@ export async function POST(request: NextRequest) {
         .from('hotel_usuario')
         .select('hotel_name, price, checkin_date')
         .eq('user_id', userId)
-        .eq('checkin_date', canonicalToday)
+        .in('checkin_date', dateCandidates)
         .limit(500)
       if (!fallback.error && fallback.data) {
         myRows = fallback.data as any[]
@@ -208,8 +217,8 @@ export async function POST(request: NextRequest) {
             container = undefined
           }
         }
-        // Only take competitor prices if they have data for canonical "today"
-        const rooms = pickRoomsForDate(container as any, [canonicalToday]) as Array<RoomPrice> | undefined
+        // Only take competitor prices if they have data for one of the date candidates
+        const rooms = pickRoomsForDate(container as any, dateCandidates) as Array<RoomPrice> | undefined
         if (!rooms || rooms.length === 0) return null
         const nums = rooms
           .map((r: RoomPrice) => parsePriceToNumber(r?.price))
