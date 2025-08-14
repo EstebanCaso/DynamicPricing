@@ -20,3 +20,78 @@ body {
 html, body {
   background: linear-gradient(180deg, #ececec 0%, #e7e7e7 100%);
 }
+
+/* Custom glass morphism classes */
+@layer utilities {
+  .bg-glass-50 {
+    background-color: rgba(255, 255, 255, 0.05);
+  }
+  
+  .bg-glass-100 {
+    background-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .bg-glass-200 {
+    background-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  .bg-glass-300 {
+    background-color: rgba(255, 255, 255, 0.3);
+  }
+  
+  .border-glass-200 {
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  .border-glass-300 {
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+  
+  .text-glass-300 {
+    color: rgba(255, 255, 255, 0.3);
+  }
+  
+  .text-glass-500 {
+    color: rgba(255, 255, 255, 0.5);
+  }
+  
+  .text-glass-600 {
+    color: rgba(255, 255, 255, 0.6);
+  }
+  
+  .text-glass-700 {
+    color: rgba(255, 255, 255, 0.7);
+  }
+  
+  .text-glass-800 {
+    color: rgba(255, 255, 255, 0.8);
+  }
+  
+  .text-glass-900 {
+    color: rgba(255, 255, 255, 0.9);
+  }
+  
+  .bg-arkus-50 {
+    background-color: #fef2f2;
+  }
+  
+  .bg-arkus-100 {
+    background-color: #fee2e2;
+  }
+  
+  .bg-arkus-500 {
+    background-color: #ef4444;
+  }
+  
+  .bg-arkus-600 {
+    background-color: #dc2626;
+  }
+  
+  .text-arkus-600 {
+    color: #dc2626;
+  }
+  
+  .text-arkus-800 {
+    color: #991b1b;
+  }
+}

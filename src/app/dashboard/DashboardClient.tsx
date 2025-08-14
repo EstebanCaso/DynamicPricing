@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import CalendarTab from '@/components/CalendarTab'
+import CompetitorsTab from '@/components/CompetitorsTab'
 
 type CompareData = {
   today: string
@@ -106,8 +107,8 @@ export default function DashboardClient() {
     () => [
       { id: 'summary', name: 'Summary' },
       { id: 'calendar', name: 'Calendar' },
-      { id: 'competence', name: 'Competence' },
-      { id: 'analysis', name: 'Analysis' },
+              { id: 'competitors', name: 'Competitors' },
+              { id: 'analysis', name: 'Analytics' },
     ],
     []
   )
@@ -179,6 +180,8 @@ export default function DashboardClient() {
           <AnalysisTab />
         ) : activeTab === 'calendar' ? (
           <CalendarTab />
+        ) : activeTab === 'competitors' ? (
+          <CompetitorsTab />
         ) : (
           <div className="grid grid-cols-3 gap-8">
             {/* Left Column - KPIs and Calendar */}

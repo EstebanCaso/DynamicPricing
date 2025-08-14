@@ -1,11 +1,12 @@
 "use client"
 
 import { useEffect, useMemo, useState, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Image from 'next/image'
 import HotelsComparisonCard from '@/components/HotelsComparisonCard'
 import AnalysisTab from '@/components/AnalysisTab'
 import CalendarTab from '@/components/CalendarTab'
+import CompetitorsTab from '@/components/CompetitorsTab'
 
 type OverviewStats = {
   totalEvents: number
@@ -18,6 +19,8 @@ type AnalyticsRow = { fecha?: string | null }
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState('summary')
   const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
   const [stats, setStats] = useState<OverviewStats | null>(null)
   const [eventRows, setEventRows] = useState<AnalyticsRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -53,11 +56,41 @@ function DashboardContent() {
 
   // Sync active tab with query param for deep-links like ?tab=calendar&date=YYYY-MM-DD
   useEffect(() => {
+    // Try to get tab from search params first
     const fromQuery = searchParams.get('tab')
-    if (fromQuery && ['summary', 'calendar', 'competence', 'analysis'].includes(fromQuery)) {
-      setActiveTab(fromQuery)
+    
+    // Fallback: parse from URL if searchParams doesn't work
+    let tabFromUrl = fromQuery
+    if (!tabFromUrl && typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      tabFromUrl = urlParams.get('tab')
     }
-  }, [searchParams])
+    
+    if (tabFromUrl && ['summary', 'calendar', 'competitors', 'analysis'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl)
+    }
+  }, [searchParams, pathname])
+
+  // Additional effect to handle URL changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const handleUrlChange = () => {
+        const urlParams = new URLSearchParams(window.location.search)
+        const tab = urlParams.get('tab')
+        if (tab && ['summary', 'calendar', 'competitors', 'analysis'].includes(tab)) {
+          setActiveTab(tab)
+        }
+      }
+      
+      // Check on mount with a small delay to ensure client-side execution
+      setTimeout(handleUrlChange, 100)
+      
+      // Listen for popstate events (browser back/forward)
+      window.addEventListener('popstate', handleUrlChange)
+      
+      return () => window.removeEventListener('popstate', handleUrlChange)
+    }
+  }, [])
 
   const now = new Date()
   const year = now.getFullYear()
@@ -83,8 +116,8 @@ function DashboardContent() {
   const tabs = [
     { id: 'summary', name: 'Summary' },
     { id: 'calendar', name: 'Calendar' },
-    { id: 'competence', name: 'Competence' },
-    { id: 'analysis', name: 'Analysis' },
+    { id: 'competitors', name: 'Competitors' },
+    { id: 'analysis', name: 'Analytics' },
   ]
 
   return (
@@ -147,13 +180,8 @@ function DashboardContent() {
             <AnalysisTab />
           ) : activeTab === 'calendar' ? (
             <CalendarTab />
-          ) : activeTab === 'competence' ? (
-            <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl p-8 shadow-xl hover:shadow-2xl transition-all duration-300">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">Competence Analysis</h2>
-              <div className="text-gray-600">
-                Competitor analysis and market positioning tools will be implemented here.
-              </div>
-            </div>
+          ) : activeTab === 'competitors' ? (
+            <CompetitorsTab />
           ) : (
             <div className="grid grid-cols-3 gap-8">
               {/* Left Column - KPIs and Calendar */}
