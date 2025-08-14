@@ -117,7 +117,7 @@ function DashboardContent() {
   ]
 
   return (
-    <div className="min-h-screen relative overflow-hidden">
+    <div className="min-h-screen relative">
       {/* Glassmorphism Background with Arkus Red Gradient - Full Page */}
       <div className="absolute inset-0 bg-gradient-to-br from-arkus-50 via-white to-arkus-100">
         {/* Animated background elements */}
@@ -212,8 +212,8 @@ function DashboardContent() {
                 <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300 h-[419px] flex flex-col">
                   <h3 className="text-2xl font-semibold text-gray-900 mb-4">{monthName}</h3>
                   <div className="grid grid-cols-7 gap-1">
-                    {['S','M','T','W','T','F','S'].map((d) => (
-                      <div key={d} className="text-center text-sm font-medium text-gray-500 py-2">{d}</div>
+                    {['S','M','T','W','T','F','S'].map((d, i) => (
+                      <div key={`${d}-${i}`} className="text-center text-sm font-medium text-gray-500 py-2">{d}</div>
                     ))}
 
                     {Array.from({ length: new Date(year, month, 1).getDay() }).map((_, i) => (

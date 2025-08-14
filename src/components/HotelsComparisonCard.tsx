@@ -17,7 +17,7 @@ export default function HotelsComparisonCard() {
   const [data, setData] = useState<CompareData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedStars, setSelectedStars] = useState<number | null>(5)
+  const [selectedStars, setSelectedStars] = useState<number | null>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const userRowRef = useRef<HTMLTableRowElement | null>(null)
 

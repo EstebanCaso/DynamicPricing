@@ -203,8 +203,8 @@ export default function CalendarTab() {
               <div key={monthStart.toISOString()} className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300">
                 <h3 className="text-xl font-semibold text-gray-900 mb-4">{formatMonth(monthStart)}</h3>
                 <div className="grid grid-cols-7 gap-1">
-                  {['S','M','T','W','T','F','S'].map((d) => (
-                    <div key={d} className="text-center text-sm font-medium text-gray-500 py-2">{d}</div>
+                  {['S','M','T','W','T','F','S'].map((d, i) => (
+                    <div key={`${d}-${i}`} className="text-center text-sm font-medium text-gray-500 py-2">{d}</div>
                   ))}
                   {Array.from({ length: firstDayOfWeek }).map((_, i) => (
                     <div key={`blank-${i}`} className="w-10 h-10" />
@@ -241,7 +241,7 @@ export default function CalendarTab() {
         </div>
 
         {/* Right: Details (66%) - sticky */}
-        <div className="lg:w-2/3 lg:sticky lg:top-8 self-start">
+        <div className="lg:w-2/3 sticky top-8 self-start">
           
             {!selectedDate ? (
               <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6">
