@@ -87,7 +87,20 @@ export async function POST(request: NextRequest) {
     console.log('Request filters:', { selectedStars, selectedRoomType, selectedDateRange, city })
 
     // Get user's city from metadata or request
-    const userCity = city || user.user_metadata?.city || user.user_metadata?.ciudad || 'New York'
+    const userMetadata = user.user_metadata || {}
+    const rawUserMetadata = userMetadata.raw_user_meta_data || {}
+    
+    // Try multiple paths to get the city from user metadata
+    const userCity = city || 
+      rawUserMetadata.hotel_metadata?.address?.cityName ||
+      userMetadata.hotel_metadata?.address?.cityName ||
+      userMetadata.address?.cityName ||
+      userMetadata.cityName ||
+      userMetadata.ciudad ||
+      'Tijuana'
+    
+    console.log('User metadata:', userMetadata)
+    console.log('Raw user metadata:', rawUserMetadata)
     console.log('Using city:', userCity)
     
     // Get current date for analysis
@@ -144,7 +157,12 @@ export async function POST(request: NextRequest) {
       let competitorQuery = supabase
         .from('hoteles_parallel')
         .select('*')
-        .ilike('ciudad', `%${userCity}%`)
+
+      // Try to filter by city, but if ciudad column is empty, get all hotels
+      // We'll filter by city name in the hotel name or other fields later
+      if (userCity && userCity !== 'Tijuana') {
+        competitorQuery = competitorQuery.or(`ciudad.ilike.%${userCity}%,nombre.ilike.%${userCity}%`)
+      }
 
       // Apply star rating filter if specified
       if (selectedStars && selectedStars !== 'All') {
@@ -170,7 +188,11 @@ export async function POST(request: NextRequest) {
         let competitorQuery = supabase
           .from('hotels_parallel')
           .select('*')
-          .ilike('ciudad', `%${userCity}%`)
+
+        // Try to filter by city, but if ciudad column is empty, get all hotels
+        if (userCity && userCity !== 'Tijuana') {
+          competitorQuery = competitorQuery.or(`ciudad.ilike.%${userCity}%,nombre.ilike.%${userCity}%`)
+        }
 
         // Apply star rating filter if specified
         if (selectedStars && selectedStars !== 'All') {
@@ -211,9 +233,31 @@ export async function POST(request: NextRequest) {
         try {
           // Handle different table structures
           const hotelName = hotel.nombre || hotel.name || 'Unknown Hotel'
-          const hotelCity = hotel.ciudad || hotel.city || 'Unknown City'
+          let hotelCity = hotel.ciudad || hotel.city || 'Unknown City'
           const hotelStars = hotel.estrellas || hotel.stars || 3
-          const hotelLocation = hotel.ubicacion || hotel.location || ''
+          let hotelLocation = hotel.ubicacion || hotel.location || ''
+          
+          // If ciudad is empty or "EMPTY", try to extract city from hotel name
+          if (!hotelCity || hotelCity === 'EMPTY' || hotelCity === 'Unknown City') {
+            // Try to extract city from hotel name (e.g., "Homewood Suites By Hilton Chula Vista E" -> "Chula Vista")
+            const nameParts = hotelName.split(' ')
+            const possibleCities = ['Tijuana', 'Chula Vista', 'San Diego', 'Ensenada', 'Mexicali']
+            for (const city of possibleCities) {
+              if (hotelName.toLowerCase().includes(city.toLowerCase())) {
+                hotelCity = city
+                break
+              }
+            }
+            // If still no city, use the user's city
+            if (!hotelCity || hotelCity === 'EMPTY' || hotelCity === 'Unknown City') {
+              hotelCity = userCity
+            }
+          }
+          
+          // If ubicacion is empty, use the city as location
+          if (!hotelLocation || hotelLocation === 'EMPTY') {
+            hotelLocation = hotelCity
+          }
           
           // Parse rooms_jsonb to get room types and prices
           let roomsJson = hotel.rooms_jsonb
@@ -252,6 +296,12 @@ export async function POST(request: NextRequest) {
           }
 
           const avgPrice = filteredRoomTypes.reduce((sum, room) => sum + room.price, 0) / filteredRoomTypes.length
+          
+          // Only include hotels with valid prices
+          if (avgPrice <= 0 || isNaN(avgPrice)) {
+            console.log(`⚠️  Invalid price for ${hotelName}: ${avgPrice}`)
+            return null
+          }
           
           // Calculate RevPAR (assume 80% occupancy for competitors)
           const competitorOccupancy = 0.80
