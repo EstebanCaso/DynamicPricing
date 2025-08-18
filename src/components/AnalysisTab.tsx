@@ -679,7 +679,7 @@ export default function AnalysisTab() {
       calculateDynamicRevenue();
       processHistoricalRevenue(supabaseData);
     }
-  }, [supabaseData, selectedRoomType, selectedDate, range, clickedRoomType]);
+  }, [supabaseData, selectedRoomType, selectedDate, range, clickedRoomType, selectedCurrency]);
 
   const rangedData = useMemo(() => {
     const data = historicalPrices;
@@ -943,13 +943,19 @@ export default function AnalysisTab() {
                 );
                 if (!ourHotel) return null;
                 
+                // Convert revenue to selected currency if needed
+                let displayRevenue = ourHotel.revenue;
+                if (selectedCurrency === "USD") {
+                  displayRevenue = ourHotel.revenue / 18.5;
+                }
+                
                 return (
                   <div className="mt-4 pt-4 border-t border-gray-200">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs font-medium text-gray-600">Revenue per Room</p>
                         <p className="text-lg font-semibold text-arkus-600">
-                          ${ourHotel.revenue.toLocaleString()}
+                          {currency.format(displayRevenue)}
                         </p>
                       </div>
                       <div className="text-right">
