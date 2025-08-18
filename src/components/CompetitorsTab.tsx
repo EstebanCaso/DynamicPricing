@@ -39,16 +39,17 @@ interface MarketMetrics {
 }
 
 interface CompetitorResponse {
-  userHotel: UserHotelData
-  competitors: Competitor[]
-  marketMetrics: MarketMetrics
-  filters: {
-    selectedStars: string
-    selectedRoomType: string
-    selectedDateRange: string
-    city: string
-    currentDate: string
-  }
+  today: string
+  userId: string
+  city: string
+  myHotelName: string
+  myAvg: number | null
+  competitors: Array<{ name: string; avg: number; estrellas: number | null }>
+  competitorsAvg: number | null
+  competitorsCount: number
+  position: number | null
+  starsFilter: number | null
+  debug?: any
 }
 
 export default function CompetitorsTab() {
@@ -56,13 +57,10 @@ export default function CompetitorsTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedStars, setSelectedStars] = useState('All')
-  const [selectedRoomType, setSelectedRoomType] = useState('All Types')
-  const [selectedDateRange, setSelectedDateRange] = useState('30 Days')
-  const [userCity, setUserCity] = useState('New York')
 
   useEffect(() => {
     fetchCompetitiveData()
-  }, [selectedStars, selectedRoomType, selectedDateRange, userCity])
+  }, [selectedStars])
 
   const fetchCompetitiveData = async () => {
     try {
@@ -98,17 +96,14 @@ export default function CompetitorsTab() {
         return
       }
 
-      // Fetch real competitor data from our new API
-      const response = await fetch('/api/competitors/real-data', {
+      // Fetch real competitor data from our working API
+      const response = await fetch('/api/compare/hotels', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          selectedStars,
-          selectedRoomType,
-          selectedDateRange,
-          city: userCity
+          stars: selectedStars === 'All' ? null : parseInt(selectedStars)
         })
       })
 
@@ -157,16 +152,7 @@ export default function CompetitorsTab() {
     return difference > 0 ? 'text-red-600' : 'text-green-600'
   }
 
-  const getCurrentRoomData = () => {
-    if (!competitorData) return null
-    
-    if (selectedRoomType === 'All Types') {
-      return competitorData.userHotel.roomTypes[0] || null
-    }
-    return competitorData.userHotel.roomTypes.find(room => room.roomType === selectedRoomType) || null
-  }
 
-  const currentRoomData = getCurrentRoomData()
 
   // Show loading state
   if (loading) {
@@ -306,17 +292,6 @@ export default function CompetitorsTab() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700">City:</label>
-              <input
-                type="text"
-                value={userCity}
-                onChange={(e) => setUserCity(e.target.value)}
-                placeholder="Enter city name"
-                className="px-3 py-2 border border-glass-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-glass-50 backdrop-blur-sm"
-              />
-            </div>
-            
-            <div className="flex items-center space-x-2">
               <label className="text-sm font-medium text-gray-700">Star Rating:</label>
               <select
                 value={selectedStars}
@@ -327,33 +302,6 @@ export default function CompetitorsTab() {
                 <option value="3">3 Stars</option>
                 <option value="4">4 Stars</option>
                 <option value="5">5 Stars</option>
-              </select>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700">Room Type:</label>
-              <select
-                value={selectedRoomType}
-                onChange={(e) => setSelectedRoomType(e.target.value)}
-                className="px-3 py-2 border border-glass-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-glass-50 backdrop-blur-sm"
-              >
-                <option value="All Types">All Types</option>
-                {competitorData.userHotel.roomTypes.map((room, index) => (
-                  <option key={index} value={room.roomType}>{room.roomType}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700">Date Range:</label>
-              <select
-                value={selectedDateRange}
-                onChange={(e) => setSelectedDateRange(e.target.value)}
-                className="px-3 py-2 border border-glass-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-glass-50 backdrop-blur-sm"
-              >
-                <option value="7 Days">7 Days</option>
-                <option value="30 Days">30 Days</option>
-                <option value="90 Days">90 Days</option>
               </select>
             </div>
           </div>
@@ -388,39 +336,29 @@ export default function CompetitorsTab() {
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300">
-          <div className="text-2xl font-bold text-gray-900">{competitorData.marketMetrics.competitorCount}</div>
+          <div className="text-2xl font-bold text-gray-900">{competitorData.competitorsCount}</div>
           <div className="text-sm text-gray-600">Competitors</div>
-          <div className="text-xs text-gray-500">Active in {userCity}</div>
+          <div className="text-xs text-gray-500">Active in {competitorData.city}</div>
         </div>
         
         <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300">
-          <div className="text-2xl font-bold text-gray-900">{formatCurrency(competitorData.userHotel.avgPrice)}</div>
+          <div className="text-2xl font-bold text-gray-900">{formatCurrency(competitorData.myAvg || 0)}</div>
           <div className="text-sm text-gray-600">Your Avg Price</div>
-          <div className="text-xs text-gray-500">{competitorData.userHotel.stars}★ Hotel</div>
+          <div className="text-xs text-gray-500">{competitorData.myHotelName}</div>
         </div>
         
         <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300">
-          <div className="text-2xl font-bold text-gray-900">{formatCurrency(competitorData.marketMetrics.avgPrice)}</div>
+          <div className="text-2xl font-bold text-gray-900">{formatCurrency(competitorData.competitorsAvg || 0)}</div>
           <div className="text-sm text-gray-600">Market Avg Price</div>
           <div className="text-xs text-gray-500">Competitor average</div>
         </div>
         
         <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300">
-          <div className={`text-2xl font-bold ${getDifferenceColor(competitorData.marketMetrics.priceDifferencePercent)}`}>
-            {formatPercentage(competitorData.marketMetrics.priceDifferencePercent)}
-          </div>
-          <div className="text-sm text-gray-600">Price Difference</div>
-          <div className="text-xs text-gray-500">
-            {competitorData.marketMetrics.priceDifference > 0 ? 'Above' : 'Below'} market
-          </div>
-        </div>
-        
-        <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300">
-          <div className="text-2xl font-bold text-gray-900">{formatCurrency(competitorData.userHotel.revpar)}</div>
-          <div className="text-sm text-gray-600">Your RevPAR</div>
-          <div className="text-xs text-gray-500">vs {formatCurrency(competitorData.marketMetrics.avgRevpar)} market</div>
+          <div className="text-2xl font-bold text-gray-900">#{competitorData.position || 'N/A'}</div>
+          <div className="text-sm text-gray-600">Your Position</div>
+          <div className="text-xs text-gray-500">Out of {competitorData.competitorsCount + 1} hotels</div>
         </div>
       </div>
 
@@ -428,10 +366,10 @@ export default function CompetitorsTab() {
       <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-300">
         <div className="p-6 border-b border-glass-200 bg-glass-50">
           <h3 className="text-lg font-semibold text-gray-900">
-            {currentRoomData ? currentRoomData.roomType : 'All Rooms'} - Competitive Landscape
+            Competitive Landscape
           </h3>
           <p className="text-sm text-gray-600 mt-1">
-            {competitorData.filters.currentDate} • {userCity} • {selectedStars === 'All' ? 'All Ratings' : `${selectedStars}★ Hotels`}
+            {competitorData.today} • {competitorData.city} • {selectedStars === 'All' ? 'All Ratings' : `${selectedStars}★ Hotels`}
           </p>
         </div>
         
@@ -460,12 +398,12 @@ export default function CompetitorsTab() {
               {/* Your Hotel Row - Highlighted */}
               <tr className="bg-yellow-50">
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm font-semibold text-gray-900">{competitorData.userHotel.hotelName} (You)</div>
-                  <div className="text-xs text-gray-500">{competitorData.userHotel.stars}★ • Your Property</div>
+                  <div className="text-sm font-semibold text-gray-900">{competitorData.myHotelName} (You)</div>
+                  <div className="text-xs text-gray-500">Your Property</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-bold text-gray-900">
-                    {formatCurrency(competitorData.userHotel.avgPrice)}
+                    {formatCurrency(competitorData.myAvg || 0)}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -473,12 +411,12 @@ export default function CompetitorsTab() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 border border-blue-200">
-                    {competitorData.userHotel.stars}★
+                    Position #{competitorData.position || 'N/A'}
                   </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">
-                    {formatCurrency(competitorData.userHotel.revpar)}
+                    {formatCurrency((competitorData.myAvg || 0) * 0.85)}
                   </div>
                   <div className="text-xs text-gray-500">85% occupancy</div>
                 </td>
@@ -487,18 +425,18 @@ export default function CompetitorsTab() {
               {/* Competitor Rows */}
               {competitorData.competitors.length > 0 ? (
                 competitorData.competitors.map((competitor, index) => {
-                  const difference = competitor.avgPrice - competitorData.userHotel.avgPrice
-                  const differencePercent = competitorData.userHotel.avgPrice > 0 ? 
-                    (difference / competitorData.userHotel.avgPrice) * 100 : 0
+                  const difference = competitor.avg - (competitorData.myAvg || 0)
+                  const differencePercent = (competitorData.myAvg || 0) > 0 ? 
+                    (difference / (competitorData.myAvg || 0)) * 100 : 0
                   
                   return (
-                    <tr key={competitor.id} className="hover:bg-gray-50">
+                    <tr key={index} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{competitor.name}</div>
-                        <div className="text-xs text-gray-500">{competitor.city} • {competitor.location}</div>
+                        <div className="text-xs text-gray-500">{competitorData.city}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{formatCurrency(competitor.avgPrice)}</div>
+                        <div className="text-sm font-medium text-gray-900">{formatCurrency(competitor.avg)}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className={`text-sm font-medium ${getDifferenceColor(difference)}`}>
@@ -507,11 +445,11 @@ export default function CompetitorsTab() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 border border-gray-200">
-                          {competitor.stars}★
+                          {competitor.estrellas || 'N/A'}★
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{formatCurrency(competitor.revpar)}</div>
+                        <div className="text-sm font-medium text-gray-900">{formatCurrency(competitor.avg * 0.80)}</div>
                         <div className="text-xs text-gray-500">80% occupancy</div>
                       </td>
                     </tr>
@@ -536,10 +474,12 @@ export default function CompetitorsTab() {
           <div className="p-4 backdrop-blur-lg bg-green-500/20 rounded-xl border border-green-300/30 hover:bg-green-500/30 transition-all duration-300">
             <h4 className="font-medium text-green-900 mb-2">📊 Market Position</h4>
             <p className="text-sm text-green-800">
-              Your hotel ranks #{competitorData.marketMetrics.userRank} out of {competitorData.marketMetrics.totalHotels} hotels in {userCity}.
-              {competitorData.marketMetrics.priceDifference > 0 ? 
-                ` You are priced ${formatPercentage(competitorData.marketMetrics.priceDifferencePercent)} above market average.` :
-                ` You are priced ${formatPercentage(Math.abs(competitorData.marketMetrics.priceDifferencePercent))} below market average.`
+              Your hotel ranks #{competitorData.position || 'N/A'} out of {competitorData.competitorsCount + 1} hotels in {competitorData.city}.
+              {competitorData.myAvg && competitorData.competitorsAvg ? 
+                (competitorData.myAvg > competitorData.competitorsAvg ? 
+                  ` You are priced ${formatPercentage(((competitorData.myAvg - competitorData.competitorsAvg) / competitorData.competitorsAvg) * 100)} above market average.` :
+                  ` You are priced ${formatPercentage(((competitorData.competitorsAvg - competitorData.myAvg) / competitorData.competitorsAvg) * 100)} below market average.`
+                ) : ' Price comparison not available.'
               }
             </p>
           </div>
@@ -547,8 +487,8 @@ export default function CompetitorsTab() {
           <div className="p-4 backdrop-blur-lg bg-blue-500/20 rounded-xl border border-blue-300/30 hover:bg-blue-500/30 transition-all duration-300">
             <h4 className="font-medium text-blue-900 mb-2">💰 Revenue Performance</h4>
             <p className="text-sm text-blue-800">
-              Your RevPAR is {formatCurrency(competitorData.userHotel.revpar)} compared to market average of {formatCurrency(competitorData.marketMetrics.avgRevpar)}.
-              {competitorData.userHotel.revpar > competitorData.marketMetrics.avgRevpar ? 
+              Your RevPAR is {formatCurrency((competitorData.myAvg || 0) * 0.85)} compared to market average of {formatCurrency((competitorData.competitorsAvg || 0) * 0.80)}.
+              {(competitorData.myAvg || 0) * 0.85 > (competitorData.competitorsAvg || 0) * 0.80 ? 
                 ' You are outperforming the market!' : 
                 ' Consider optimizing your pricing strategy.'
               }
