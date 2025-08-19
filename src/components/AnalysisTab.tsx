@@ -781,7 +781,6 @@ export default function AnalysisTab() {
       processHistoricalRevenue(supabaseData);
     }
   }, [supabaseData, selectedRoomType, selectedDate, range, clickedRoomType, selectedCurrency]);
-  }, [supabaseData, selectedRoomType, selectedDate, range, clickedRoomType, selectedCurrency]);
 
   const rangedData = useMemo(() => {
     const data = historicalPrices;
