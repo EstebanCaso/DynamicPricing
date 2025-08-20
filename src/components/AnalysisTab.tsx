@@ -561,11 +561,11 @@ export default function AnalysisTab() {
       let query = supabase.from("hoteles_parallel").select("*");
 
       if (user?.id) {
-        // Try to filter by user_id if the column exists, otherwise get all data
+        // Try to filter by id if the column exists, otherwise get all data
         try {
         query = query.eq("id", user.id);
         } catch (e) {
-          // If user_id column doesn't exist, just get all data
+          // If id column doesn't exist, just get all data
           query = supabase.from("hoteles_parallel").select("*");
         }
       }
