@@ -16,9 +16,6 @@ interface AnalysisControlsProps {
   setEvents: (events: string[]) => void;
   clickedRoomType: string | null;
   setClickedRoomType: (type: string | null) => void;
-  loading: boolean;
-  fetchHotelUsuarioData: () => void;
-  fetchCompetitorData: () => void;
 }
 
 const AnalysisControls = memo(({
@@ -36,10 +33,7 @@ const AnalysisControls = memo(({
   events,
   setEvents,
   clickedRoomType,
-  setClickedRoomType,
-  loading,
-  fetchHotelUsuarioData,
-  fetchCompetitorData
+  setClickedRoomType
 }: AnalysisControlsProps) => {
   return (
     <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300">
@@ -103,24 +97,8 @@ const AnalysisControls = memo(({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={fetchHotelUsuarioData}
-            disabled={loading}
-            className="text-sm bg-arkus-600 text-white px-4 py-2 rounded-lg hover:bg-arkus-700 disabled:bg-gray-400 transition-all duration-200 shadow-lg hover:shadow-xl"
-          >
-            {loading ? "Loading..." : "Refresh Data"}
-          </button>
-
-          <button
-            onClick={fetchCompetitorData}
-            disabled={loading}
-            className="text-sm bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 disabled:bg-gray-400 transition-all duration-200 shadow-lg hover:shadow-xl"
-          >
-            Refresh Competitors
-          </button>
-
-          {(selectedRoomType !== "all" || clickedRoomType) && (
+        {(selectedRoomType !== "all" || clickedRoomType) && (
+          <div className="flex items-center gap-2">
             <button
               onClick={() => {
                 setSelectedRoomType("all");
@@ -130,8 +108,8 @@ const AnalysisControls = memo(({
             >
               Clear Filters
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </div>
   );

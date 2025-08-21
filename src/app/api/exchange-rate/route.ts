@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const from = searchParams.get('from');
-    const to = searchParams.get('to');
+  const { searchParams } = new URL(request.url);
+  const from = searchParams.get('from');
+  const to = searchParams.get('to');
 
-    if (!from || !to) {
-      return NextResponse.json(
-        { error: 'Missing from or to currency parameters' },
-        { status: 400 }
-      );
-    }
+  if (!from || !to) {
+    return NextResponse.json(
+      { error: 'Missing from or to currency parameters' },
+      { status: 400 }
+    );
+  }
+
+  try {
 
     const apiKey = process.env.EXCHANGE_RATE_API_KEY;
     const baseUrl = process.env.EXCHANGE_RATE_API_BASE_URL || 'https://v6.exchangerate-api.com/v6';
