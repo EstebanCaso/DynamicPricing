@@ -27,7 +27,7 @@ def get_access_token():
         sys.exit(1)
     return res.json().get("access_token")
 
-def get_hotels_by_geocode(lat, lng, token=None, radius=20, keyword=None):
+def get_hotels_by_geocode(lat, lng, token=None, radius=30, keyword=None):
     url = f"https://test.api.amadeus.com/v1/reference-data/locations/hotels/by-geocode"
     headers = {"Authorization": f"Bearer {token}"}
     params = {
@@ -42,9 +42,65 @@ def get_hotels_by_geocode(lat, lng, token=None, radius=20, keyword=None):
     if "data" not in data:
         raise Exception(f"Respuesta inesperada de Amadeus: {data}")
     hotels = data["data"]
+    
+    # Filtrar por palabra clave si se proporciona
     if keyword:
         hotels = [h for h in hotels if keyword.lower() in h.get("name", "").lower()]
+    
+    # Limitar resultados para evitar sobrecarga
+    hotels = hotels[:50]
+    
+    # Agregar información de distancia si no está presente
+    for hotel in hotels:
+        if "geoCode" in hotel and "latitude" in hotel["geoCode"] and "longitude" in hotel["geoCode"]:
+            # Calcular distancia aproximada si no está presente
+            if "distance" not in hotel:
+                distance = calculate_distance(
+                    lat, lng, 
+                    hotel["geoCode"]["latitude"], 
+                    hotel["geoCode"]["longitude"]
+                )
+                # Solo asignar si la distancia es válida
+                if distance > 0:
+                    hotel["distance"] = distance
+                else:
+                    hotel["distance"] = 0.0
+    
     return hotels
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """Calcula la distancia aproximada entre dos puntos usando la fórmula de Haversine"""
+    import math
+    
+    try:
+        # Validar que las coordenadas sean números válidos
+        if not all(isinstance(coord, (int, float)) for coord in [lat1, lon1, lat2, lon2]):
+            return 0.0
+        
+        # Convertir grados a radianes
+        lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+        
+        # Diferencia de coordenadas
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        
+        # Fórmula de Haversine
+        a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+        c = 2 * math.asin(math.sqrt(a))
+        
+        # Radio de la Tierra en kilómetros
+        r = 6371
+        
+        distance = c * r
+        
+        # Asegurar que la distancia sea un número válido
+        if math.isnan(distance) or math.isinf(distance):
+            return 0.0
+            
+        return round(distance, 1)  # Redondear a 1 decimal
+        
+    except (ValueError, TypeError, ZeroDivisionError):
+        return 0.0
 
 # CLI Mode
 if __name__ == "__main__":

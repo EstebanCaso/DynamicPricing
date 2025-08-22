@@ -5,6 +5,16 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import { supabase } from '@/lib/supabaseClient'
+import HotelAutocomplete from '@/components/HotelAutocomplete'
+import { Hotel } from '@/types/hotel'
+
+// Función de utilidad para formatear la distancia de manera segura
+const formatDistance = (distance: any): string => {
+  if (typeof distance === 'number' && !isNaN(distance) && distance > 0) {
+    return ` (${distance.toFixed(1)} km)`
+  }
+  return ''
+}
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -14,6 +24,7 @@ export default function SignupPage() {
     password: '',
     hotel: ''
   })
+  const [selectedHotel, setSelectedHotel] = useState<Hotel | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [displayText, setDisplayText] = useState('')
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -40,17 +51,68 @@ export default function SignupPage() {
     })
   }
 
+  const handleHotelSelect = (hotel: Hotel) => {
+    setSelectedHotel(hotel)
+    setFormData({
+      ...formData,
+      hotel: hotel.name
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     try {
-      const { email, password } = formData
-      const { data, error } = await supabase.auth.signUp({ email, password })
+      const { email, password, name, phone } = formData
+      
+      // Crear el usuario
+      const { data, error } = await supabase.auth.signUp({ 
+        email, 
+        password,
+        options: {
+          data: {
+            name,
+            phone,
+            hotel_info: selectedHotel ? {
+              name: selectedHotel.name,
+              hotelId: selectedHotel.hotelId,
+              latitude: selectedHotel.latitude,
+              longitude: selectedHotel.longitude,
+              address: selectedHotel.address,
+              distance: selectedHotel.distance
+            } : null
+          }
+        }
+      })
+      
       if (error) {
         alert(error.message)
         setIsLoading(false)
         return
       }
+
+      // Si el usuario se creó exitosamente, actualizar los metadatos
+      if (data.user) {
+        const { error: updateError } = await supabase.auth.updateUser({
+          data: {
+            name,
+            phone,
+            hotel_info: selectedHotel ? {
+              name: selectedHotel.name,
+              hotelId: selectedHotel.hotelId,
+              latitude: selectedHotel.latitude,
+              longitude: selectedHotel.longitude,
+              address: selectedHotel.address,
+              distance: selectedHotel.distance
+            } : null
+          }
+        })
+
+        if (updateError) {
+          console.error('Error updating user metadata:', updateError)
+        }
+      }
+
       await supabase.auth.getSession()
       const redirect = new URLSearchParams(window.location.search).get('redirectTo') || '/dashboard'
       router.replace(redirect)
@@ -115,25 +177,25 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <input
+                <input
                 type="email"
                 name="email"
                 value={formData.email}
                 onChange={handleInputChange}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
-                placeholder="Email"
+                placeholder="email@example.com"
                 required
               />
             </div>
 
             <div>
-              <input
+                <input
                 type="tel"
                 name="phone"
                 value={formData.phone}
                 onChange={handleInputChange}
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
-                placeholder="Phone"
+                placeholder="+XXXXXXXXXXX"
                 required
               />
             </div>
@@ -151,15 +213,29 @@ export default function SignupPage() {
             </div>
 
             <div>
-              <input
-                type="text"
-                name="hotel"
+              <HotelAutocomplete
                 value={formData.hotel}
-                onChange={handleInputChange}
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
-                placeholder="Hotel"
-                required
+                onChange={(value) => setFormData({ ...formData, hotel: value })}
+                onHotelSelect={handleHotelSelect}
+                placeholder="Write your Hotel Name"
+                className="w-full"
               />
+                             <p className="mt-1 text-xs text-gray-500">
+                 Nearby hotels are automatically loaded. Instant filtering by name.
+               </p>
+              {selectedHotel && (
+                <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="text-sm text-green-800">
+                    <strong>Selected Hotel:</strong> {selectedHotel.name}
+                    <br />
+                                         <span className="text-green-600">
+                       {selectedHotel.address.street && `${selectedHotel.address.street}, `}
+                       {selectedHotel.address.cityName}, {selectedHotel.address.countryCode}
+                       {formatDistance(selectedHotel.distance)}
+                     </span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button
@@ -173,19 +249,19 @@ export default function SignupPage() {
                   Creating account...
                 </div>
               ) : (
-                'Sign Up'
+                'Create Account'
               )}
             </button>
           </form>
 
           {/* Login link */}
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              Already have an account?{' '}
-              <Link href="/login" className="text-red-600 underline font-medium hover:text-red-700">
-                Sign in
-              </Link>
-            </p>
+                      <p className="text-sm text-gray-600">
+            Already have an account?{' '}
+            <Link href="/login" className="text-red-600 underline font-medium hover:text-red-700">
+              Login
+            </Link>
+          </p>
           </div>
         </div>
       </div>
