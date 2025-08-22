@@ -1,6 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { 
+  formatCurrency, 
+  convertCurrency,
+  type Currency 
+} from '@/lib/dataUtils'
 
 type CompareData = {
   today: string
@@ -18,8 +23,34 @@ export default function HotelsComparisonCard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedStars, setSelectedStars] = useState<number | null>(null)
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency>('MXN')
+  const [exchangeRate, setExchangeRate] = useState<number>(18.5) // Default fallback
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const userRowRef = useRef<HTMLTableRowElement | null>(null)
+
+  // Fetch exchange rate when currency changes
+  useEffect(() => {
+    const fetchExchangeRate = async () => {
+      if (selectedCurrency === 'MXN') {
+        setExchangeRate(1); // No conversion needed for MXN
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/exchange-rate');
+        const data = await response.json();
+        if (data.success && data.rate) {
+          setExchangeRate(data.rate);
+          console.log(`💱 Exchange rate updated: 1 USD = ${data.rate} MXN`);
+        }
+      } catch (error) {
+        console.error('Failed to fetch exchange rate:', error);
+        // Keep default fallback rate
+      }
+    };
+
+    fetchExchangeRate();
+  }, [selectedCurrency]);
 
   useEffect(() => {
     const load = async () => {
@@ -41,7 +72,7 @@ export default function HotelsComparisonCard() {
       }
     }
     load()
-  }, [selectedStars])
+  }, [selectedStars, selectedCurrency])
 
   const hasCompetitors = (data?.competitorsCount || 0) > 0
   const rows = useMemo(() => {
@@ -70,9 +101,20 @@ export default function HotelsComparisonCard() {
     container.scrollTop = Math.max(0, delta - Math.round(container.clientHeight * 0.3))
   }, [rows])
 
+  // Currency conversion helper
+  const convertPriceToSelectedCurrency = (price: number, originalCurrency: Currency = 'MXN'): number => {
+    const convertedPrice = convertCurrency(price, originalCurrency, selectedCurrency, exchangeRate);
+    if (originalCurrency !== selectedCurrency) {
+      console.log(`💱 Converting ${price} ${originalCurrency} → ${convertedPrice.toFixed(2)} ${selectedCurrency} (rate: ${exchangeRate})`);
+    }
+    return convertedPrice;
+  };
+
   const formatMoney = (value: number | null | undefined) => {
     if (value == null || !Number.isFinite(value as number)) return '-'
-    return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value as number)}`
+    // Apply currency conversion before formatting
+    const convertedAmount = convertPriceToSelectedCurrency(value as number, 'MXN');
+    return formatCurrency(convertedAmount, selectedCurrency);
   }
 
   const Star = ({ filled }: { filled: boolean }) => (
@@ -160,7 +202,21 @@ export default function HotelsComparisonCard() {
           <h2 className="text-2xl font-bold text-gray-900">Hotels Comparison</h2>
           <p className="text-gray-600">Today: {data.today}</p>
         </div>
-        <StarsFilter />
+        <div className="flex items-center gap-4">
+          {/* Currency Selector */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-gray-700">Currency:</span>
+            <select
+              value={selectedCurrency}
+              onChange={(e) => setSelectedCurrency(e.target.value as Currency)}
+              className="text-sm px-3 py-2 border border-glass-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-arkus-500 bg-glass-50 backdrop-blur-sm"
+            >
+              <option value="MXN">MXN</option>
+              <option value="USD">USD</option>
+            </select>
+          </div>
+          <StarsFilter />
+        </div>
       </div>
 
       {/* Summary Stats */}

@@ -2,6 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { 
+  TABLES, 
+  formatCurrency, 
+  logDataFlow,
+  cleanPrice,
+  convertCurrency,
+  type Currency,
+  type ProcessedHotelData 
+} from '@/lib/dataUtils'
 
 interface Competitor {
   id: string
@@ -57,10 +66,36 @@ export default function CompetitorsTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedStars, setSelectedStars] = useState('All')
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency>('MXN')
+  const [exchangeRate, setExchangeRate] = useState<number>(18.5) // Default fallback
+
+  // Fetch exchange rate when currency changes
+  useEffect(() => {
+    const fetchExchangeRate = async () => {
+      if (selectedCurrency === 'MXN') {
+        setExchangeRate(1); // No conversion needed for MXN
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/exchange-rate');
+        const data = await response.json();
+        if (data.success && data.rate) {
+          setExchangeRate(data.rate);
+          console.log(`💱 Exchange rate updated: 1 USD = ${data.rate} MXN`);
+        }
+      } catch (error) {
+        console.error('Failed to fetch exchange rate:', error);
+        // Keep default fallback rate
+      }
+    };
+
+    fetchExchangeRate();
+  }, [selectedCurrency]);
 
   useEffect(() => {
     fetchCompetitiveData()
-  }, [selectedStars])
+  }, [selectedStars, selectedCurrency])
 
   const fetchCompetitiveData = async () => {
     try {
@@ -76,12 +111,14 @@ export default function CompetitorsTab() {
         return
       }
 
-      // Check if user has hotel data first
+      // Check if user has hotel data first using unified table name
       const { data: userHotelCheck, error: checkError } = await supabase
-        .from('hotel_usuario')
+        .from(TABLES.USER_HOTEL)
         .select('hotel_name')
         .eq('user_id', user.id)
         .limit(1)
+      
+      logDataFlow('CompetitorsTab', { userId: user.id }, 'Checking user hotel data');
 
       if (checkError) {
         console.error('Error checking user hotel data:', checkError)
@@ -120,6 +157,19 @@ export default function CompetitorsTab() {
 
       setCompetitorData(result.data)
       
+      // Log debug information for troubleshooting
+      if (result.data.debug) {
+        console.log('🔧 Competitors Debug Info:', result.data.debug)
+      }
+      
+      if (result.data.competitorsCount === 0) {
+        console.log('⚠️ No competitors found. Debug info:', {
+          city: result.data.city,
+          myHotel: result.data.myHotelName,
+          debug: result.data.debug
+        })
+      }
+      
     } catch (err) {
       console.error('Error fetching competitive data:', err)
       setError(err instanceof Error ? err.message : 'Failed to load competitive data')
@@ -128,14 +178,22 @@ export default function CompetitorsTab() {
     }
   }
 
-  const formatCurrency = (amount: number) => {
-    if (typeof amount !== 'number' || isNaN(amount)) {
-      return '$0.00'
+  // Currency conversion helper
+  const convertPriceToSelectedCurrency = (price: number, originalCurrency: Currency = 'MXN'): number => {
+    const convertedPrice = convertCurrency(price, originalCurrency, selectedCurrency, exchangeRate);
+    if (originalCurrency !== selectedCurrency) {
+      console.log(`💱 Converting ${price} ${originalCurrency} → ${convertedPrice.toFixed(2)} ${selectedCurrency} (rate: ${exchangeRate})`);
     }
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(amount)
+    return convertedPrice;
+  };
+
+  const formatCurrencyValue = (amount: number) => {
+    if (typeof amount !== 'number' || isNaN(amount)) {
+      return formatCurrency(0, selectedCurrency)
+    }
+    // Apply currency conversion before formatting
+    const convertedAmount = convertPriceToSelectedCurrency(amount, 'MXN');
+    return formatCurrency(convertedAmount, selectedCurrency)
   }
 
   const formatPercentage = (value: number) => {
@@ -292,6 +350,18 @@ export default function CompetitorsTab() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4">
             <div className="flex items-center space-x-2">
+              <label className="text-sm font-medium text-gray-700">Currency:</label>
+              <select
+                value={selectedCurrency}
+                onChange={(e) => setSelectedCurrency(e.target.value as Currency)}
+                className="px-3 py-2 border border-glass-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-glass-50 backdrop-blur-sm"
+              >
+                <option value="MXN">MXN (Pesos)</option>
+                <option value="USD">USD (Dollars)</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center space-x-2">
               <label className="text-sm font-medium text-gray-700">Star Rating:</label>
               <select
                 value={selectedStars}
@@ -344,13 +414,13 @@ export default function CompetitorsTab() {
         </div>
         
         <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300">
-          <div className="text-2xl font-bold text-gray-900">{formatCurrency(competitorData.myAvg || 0)}</div>
+          <div className="text-2xl font-bold text-gray-900">{formatCurrencyValue(competitorData.myAvg || 0)}</div>
           <div className="text-sm text-gray-600">Your Avg Price</div>
           <div className="text-xs text-gray-500">{competitorData.myHotelName}</div>
         </div>
         
         <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300">
-          <div className="text-2xl font-bold text-gray-900">{formatCurrency(competitorData.competitorsAvg || 0)}</div>
+          <div className="text-2xl font-bold text-gray-900">{formatCurrencyValue(competitorData.competitorsAvg || 0)}</div>
           <div className="text-sm text-gray-600">Market Avg Price</div>
           <div className="text-xs text-gray-500">Competitor average</div>
         </div>
@@ -403,7 +473,7 @@ export default function CompetitorsTab() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-bold text-gray-900">
-                    {formatCurrency(competitorData.myAvg || 0)}
+                    {formatCurrencyValue(competitorData.myAvg || 0)}
                   </div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
@@ -416,7 +486,7 @@ export default function CompetitorsTab() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">
-                    {formatCurrency((competitorData.myAvg || 0) * 0.85)}
+                    {formatCurrencyValue((competitorData.myAvg || 0) * 0.85)}
                   </div>
                   <div className="text-xs text-gray-500">85% occupancy</div>
                 </td>
@@ -436,11 +506,11 @@ export default function CompetitorsTab() {
                         <div className="text-xs text-gray-500">{competitorData.city}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{formatCurrency(competitor.avg)}</div>
+                        <div className="text-sm font-medium text-gray-900">{formatCurrencyValue(competitor.avg)}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className={`text-sm font-medium ${getDifferenceColor(difference)}`}>
-                          {difference > 0 ? '+' : ''}{formatCurrency(difference)} ({formatPercentage(differencePercent)})
+                          {difference > 0 ? '+' : ''}{formatCurrencyValue(difference)} ({formatPercentage(differencePercent)})
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -449,7 +519,7 @@ export default function CompetitorsTab() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{formatCurrency(competitor.avg * 0.80)}</div>
+                        <div className="text-sm font-medium text-gray-900">{formatCurrencyValue(competitor.avg * 0.80)}</div>
                         <div className="text-xs text-gray-500">80% occupancy</div>
                       </td>
                     </tr>
@@ -458,7 +528,19 @@ export default function CompetitorsTab() {
               ) : (
                 <tr>
                   <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                    No competitor data available for the selected filters
+                    <div className="py-8">
+                      <div className="text-lg font-medium text-gray-600 mb-2">
+                        No competitors found
+                      </div>
+                      <div className="text-sm text-gray-500 mb-4">
+                        {competitorData.city 
+                          ? `No competitors found in ${competitorData.city}` 
+                          : 'No city information available for filtering'}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        Try changing the star rating filter or ensure competitor data is available in the database.
+                      </div>
+                    </div>
                   </td>
                 </tr>
               )}
@@ -487,7 +569,7 @@ export default function CompetitorsTab() {
           <div className="p-4 backdrop-blur-lg bg-blue-500/20 rounded-xl border border-blue-300/30 hover:bg-blue-500/30 transition-all duration-300">
             <h4 className="font-medium text-blue-900 mb-2">💰 Revenue Performance</h4>
             <p className="text-sm text-blue-800">
-              Your RevPAR is {formatCurrency((competitorData.myAvg || 0) * 0.85)} compared to market average of {formatCurrency((competitorData.competitorsAvg || 0) * 0.80)}.
+              Your RevPAR is {formatCurrencyValue((competitorData.myAvg || 0) * 0.85)} compared to market average of {formatCurrencyValue((competitorData.competitorsAvg || 0) * 0.80)}.
               {(competitorData.myAvg || 0) * 0.85 > (competitorData.competitorsAvg || 0) * 0.80 ? 
                 ' You are outperforming the market!' : 
                 ' Consider optimizing your pricing strategy.'

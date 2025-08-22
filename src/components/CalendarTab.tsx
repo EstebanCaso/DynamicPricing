@@ -1,6 +1,11 @@
 "use client"
 
 import { useEffect, useMemo, useState } from 'react'
+import { 
+  formatCurrency, 
+  logDataFlow,
+  type Currency 
+} from '@/lib/dataUtils'
 
 type EventItem = { id?: string; nombre?: string | null; fecha?: string | null; lugar?: string | null; enlace?: string | null }
 type PriceItem = { room_type: string; price: number | null }
@@ -25,9 +30,9 @@ function formatNiceDate(ymd?: string | null): string {
   const d = parseYMDToLocalDate(ymd)
   return d ? d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'long', day: '2-digit' }) : ''
 }
-function formatMoney(value?: number | null): string {
+function formatMoney(value?: number | null, currency: Currency = 'MXN'): string {
   if (value == null || !Number.isFinite(value)) return '-'
-  return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value)}`
+  return formatCurrency(value, currency)
 }
 
 export default function CalendarTab() {
@@ -42,6 +47,7 @@ export default function CalendarTab() {
   const [isApplying, setIsApplying] = useState<boolean>(false)
   const [bulkMode, setBulkMode] = useState<boolean>(false)
   const [manualPercent, setManualPercent] = useState<number>(0)
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency>('MXN')
 
   // Load events upcoming 90 days
   useEffect(() => {
@@ -192,6 +198,27 @@ export default function CalendarTab() {
 
   return (
     <div className="space-y-8">
+      {/* Controls */}
+      <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Calendar & Pricing</h2>
+            <p className="text-gray-600 text-sm">Manage your hotel pricing by date</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-sm font-medium text-gray-700">Currency:</label>
+            <select
+              value={selectedCurrency}
+              onChange={(e) => setSelectedCurrency(e.target.value as Currency)}
+              className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
+            >
+              <option value="MXN">MXN (Pesos)</option>
+              <option value="USD">USD (Dollars)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      
       <div className="flex flex-col lg:flex-row gap-8 items-start">
         {/* Left: Months (33%) */}
         <div className="lg:w-1/3 space-y-8">
@@ -396,13 +423,13 @@ export default function CalendarTab() {
                               ) : null}
                               <div>
                                 <div className="font-semibold text-gray-900 text-lg md:text-xl">{r.room_type}</div>
-                                <div className="text-base text-gray-700">Current {formatMoney(r.base)}</div>
+                                <div className="text-base text-gray-700">Current {formatMoney(r.base, selectedCurrency)}</div>
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
                               <div className="text-right">
                                 <div className="text-sm text-gray-600">New</div>
-                                <div className="font-bold text-red-600 text-xl">{formatMoney(r.next)}</div>
+                                <div className="font-bold text-red-600 text-xl">{formatMoney(r.next, selectedCurrency)}</div>
                               </div>
                               <button
                                 disabled={isApplying}

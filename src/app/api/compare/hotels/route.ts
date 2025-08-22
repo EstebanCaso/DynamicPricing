@@ -138,6 +138,14 @@ export async function POST(request: NextRequest) {
     // Debug context
     // eslint-disable-next-line no-console
     console.log('[compare/hotels] inputs', { userId, city, dateCandidates })
+    // eslint-disable-next-line no-console
+    console.log('[compare/hotels] user metadata', { 
+      hotel_metadata: md?.hotel_metadata, 
+      address: md?.address, 
+      cityName: md?.cityName, 
+      ciudad: md?.ciudad,
+      raw_user_meta_data: md?.raw_user_meta_data 
+    })
 
     // 1) My hotel prices (only rows for canonical "today"): try Hotel_usuario(date, price) then fall back to hotel_usuario(checkin_date, price)
     let myRows: any[] | null = null
@@ -178,10 +186,14 @@ export async function POST(request: NextRequest) {
 
     // 2) Competitors from hotels_parallel/hoteles_parallel filtered by city
     let competitorRows: HotelParallelRow[] = []
+    
+    // If city is empty, get all competitors (fallback)
+    const cityFilter = city ? `%${city}%` : '%'
+    
     const { data: tryHotels, error: tryErr } = await supabase
       .from('hotels_parallel')
       .select('*')
-      .ilike('ciudad', `%${city}%`)
+      .ilike('ciudad', cityFilter)
       .limit(2000)
     if (!tryErr && tryHotels) {
       competitorRows = tryHotels as unknown as HotelParallelRow[]
@@ -189,13 +201,39 @@ export async function POST(request: NextRequest) {
       const { data: tryAlt, error: tryAltErr } = await supabase
         .from('hoteles_parallel')
         .select('*')
-        .ilike('ciudad', `%${city}%`)
+        .ilike('ciudad', cityFilter)
         .limit(2000)
       if (tryAltErr) throw tryAltErr
       competitorRows = (tryAlt || []) as unknown as HotelParallelRow[]
     }
+    
+    // If still no results and we had a specific city, try without city filter as last resort
+    if (competitorRows.length === 0 && city) {
+      console.log('[compare/hotels] No competitors found for city, trying without city filter...')
+      const { data: fallbackHotels } = await supabase
+        .from('hotels_parallel')
+        .select('*')
+        .limit(100) // Smaller limit for fallback
+      if (fallbackHotels && fallbackHotels.length > 0) {
+        competitorRows = fallbackHotels as unknown as HotelParallelRow[]
+      } else {
+        const { data: fallbackAlt } = await supabase
+          .from('hoteles_parallel')
+          .select('*')
+          .limit(100)
+        competitorRows = (fallbackAlt || []) as unknown as HotelParallelRow[]
+      }
+    }
     // eslint-disable-next-line no-console
     console.log('[compare/hotels] competitors fetched', { count: competitorRows.length })
+    // eslint-disable-next-line no-console
+    console.log('[compare/hotels] sample competitor data', competitorRows.slice(0, 3).map(row => ({
+      nombre: row.nombre,
+      ciudad: row.ciudad,
+      hasRoomsJsonb: !!row.rooms_jsonb,
+      hasRoomsJsnob: !!row.rooms_jsnob,
+      estrellas: row.estrellas
+    })))
 
     // Optional filter by star rating before processing
     const filteredByStars = selectedStars != null
@@ -217,8 +255,21 @@ export async function POST(request: NextRequest) {
             container = undefined
           }
         }
-        // Only take competitor prices if they have data for one of the date candidates
-        const rooms = pickRoomsForDate(container as any, dateCandidates) as Array<RoomPrice> | undefined
+        // Try to get rooms for date candidates, but if none found, try any available date
+        let rooms = pickRoomsForDate(container as any, dateCandidates) as Array<RoomPrice> | undefined
+        
+        // If no rooms found for today's candidates, try any available date as fallback
+        if (!rooms || rooms.length === 0) {
+          if (container && typeof container === 'object') {
+            const allDates = Object.keys(container)
+            if (allDates.length > 0) {
+              // Take the most recent date available
+              const mostRecentDate = allDates.sort().reverse()[0]
+              rooms = container[mostRecentDate] as Array<RoomPrice> | undefined
+            }
+          }
+        }
+        
         if (!rooms || rooms.length === 0) return null
         const nums = rooms
           .map((r: RoomPrice) => parsePriceToNumber(r?.price))
@@ -230,6 +281,14 @@ export async function POST(request: NextRequest) {
         return { name: row.nombre || 'Hotel', avg, estrellas: Number.isFinite(estrellas as number) ? (estrellas as number) : null }
       })
       .filter(Boolean) as Array<{ name: string; avg: number; estrellas: number | null }>
+
+    // eslint-disable-next-line no-console
+    console.log('[compare/hotels] processed competitors', { 
+      filteredByStarsCount: filteredByStars.length,
+      processedCount: competitors.length,
+      dateCandidates,
+      sampleProcessed: competitors.slice(0, 3)
+    })
 
     const competitorsCount = competitors.length
     const competitorsAvg = competitorsCount
@@ -260,7 +319,16 @@ export async function POST(request: NextRequest) {
         competitorsCount,
         position,
         starsFilter: selectedStars,
-        debug: process.env.NODE_ENV !== 'production' ? { dateCandidates, canonicalToday } : undefined,
+        debug: { 
+          dateCandidates, 
+          canonicalToday, 
+          city,
+          totalCompetitorRows: competitorRows.length,
+          filteredByStarsCount: filteredByStars.length,
+          processedCompetitorsCount: competitors.length,
+          cityMetaRaw,
+          userMetadata: md
+        },
       },
     })
   } catch (error) {

@@ -37,7 +37,7 @@ const RevenueMetrics = memo(({
           </svg>
         </div>
         <div className="flex-1">
-          <p className="text-xs font-medium tracking-wide text-gray-600 mb-2">Total Revenue</p>
+          <p className="text-xs font-medium tracking-wide text-gray-600 mb-2">Avg Revenue per Room</p>
           <p className="text-xl md:text-2xl font-semibold text-gray-900 mb-3">
             {loading ? "..." : todayAverageRevenue !== null ? currency.format(todayAverageRevenue) : "$0"}
           </p>

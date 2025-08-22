@@ -27,6 +27,19 @@ import {
 import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
+import { 
+  TABLES, 
+  COLUMNS, 
+  cleanPrice, 
+  convertCurrency, 
+  standardizeRoomType,
+  fetchUserHotelData,
+  fetchCompetitorData,
+  formatCurrency,
+  logDataFlow,
+  type Currency,
+  type ProcessedHotelData 
+} from "@/lib/dataUtils";
 import RevenueMetrics from "./RevenueMetrics";
 import PerformanceScorecard from "./PerformanceScorecard";
 import HistoricalPricesChart from "./HistoricalPricesChart";
@@ -63,11 +76,7 @@ const computeDemand = (price: number) => {
   return Math.max(400, Math.round(base + noise));
 };
 
-const revenuePerformance: RevenuePoint[] = [
-  { hotel: "Hotel A", revenue: 1100 },
-  { hotel: "Ours", revenue: 1150 },
-  { hotel: "Hotel B", revenue: 1080 },
-];
+// Removed static revenuePerformance - now using dynamic revenuePerformanceData
 
 const gapSeries: GapPoint[] = [
   { day: "M", ours: 180, marketAvg: 190 },
@@ -82,7 +91,7 @@ const gapSeries: GapPoint[] = [
 export default function AnalysisTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [selectedCurrency, setSelectedCurrency] = useState<"MXN" | "USD">("MXN");
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency>("MXN");
   
   // Currency conversion state and functions with session caching
   const [exchangeRate, setExchangeRate] = useState<number>(18.5); // Default fallback
@@ -199,20 +208,15 @@ export default function AnalysisTab() {
     return cleanPrice(priceString).value;
   }, [cleanPrice]);
 
-  // Helper function to convert price to selected currency
-  const convertPriceToSelectedCurrency = useCallback((priceInMXN: number, originalCurrency: string = 'MXN'): number => {
-    if (selectedCurrency === "MXN" || originalCurrency === "USD") {
-      return priceInMXN;
+  // Helper function to convert price to selected currency using unified function
+  const convertPriceToSelectedCurrency = useCallback((price: number, originalCurrency: Currency = 'MXN'): number => {
+    const convertedPrice = convertCurrency(price, originalCurrency, selectedCurrency, exchangeRate);
+    
+    if (originalCurrency !== selectedCurrency) {
+      console.log(`💱 Converting ${price} ${originalCurrency} → ${convertedPrice.toFixed(2)} ${selectedCurrency} (rate: ${exchangeRate})`);
     }
     
-    // Convert MXN to USD using exchange rate (18.5 MXN = 1 USD)
-    if (originalCurrency === "MXN" && selectedCurrency === "USD") {
-      const convertedPrice = priceInMXN / exchangeRate;
-      console.log(`💱 Converting ${priceInMXN} MXN → ${convertedPrice.toFixed(2)} USD (rate: ${exchangeRate})`);
-      return convertedPrice;
-    }
-    
-    return priceInMXN;
+    return convertedPrice;
   }, [selectedCurrency, exchangeRate]);
 
   // Enhanced currency formatter
@@ -249,7 +253,7 @@ export default function AnalysisTab() {
   const [range, setRange] = useState<7 | 30 | 90>(30);
 
   // Supabase data states
-  const [supabaseData, setSupabaseData] = useState<any[]>([]);
+  const [supabaseData, setSupabaseData] = useState<ProcessedHotelData[]>([]);
   const [loading, setLoading] = useState(true); // Changed to true initially
   const [error, setError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -278,185 +282,7 @@ export default function AnalysisTab() {
     return raw.split(",").map((s) => decodeURIComponent(s.trim())).filter(Boolean);
   });
 
-  // Function to standardize room types
-  const standardizeRoomType = (roomType: string): string => {
-    if (!roomType) return "Standard";
-    const normalized = roomType.toLowerCase().trim();
-    
-    // First, check for Standard patterns (highest priority)
-    if (normalized.includes("estándar")) return "Standard";
-    if (normalized.includes("standard")) return "Standard";
-    if (normalized.includes("habitación")) return "Standard";
-    if (normalized.includes("cuarto")) return "Standard";
-    if (normalized.includes("dormitorio")) return "Standard";
-    
-    // Then check for specific premium types
-    if (normalized.includes("suite")) return "Suite";
-    if (normalized.includes("queen")) return "Queen";
-    if (normalized.includes("king")) return "King";
-    if (normalized.includes("double") && normalized.includes("bed")) return "Double Bed";
-    if (normalized.includes("twin")) return "Twin";
-    if (normalized.includes("single")) return "Single";
-    if (normalized.includes("business")) return "Business";
-    if (normalized.includes("superior")) return "Superior";
-    if (normalized.includes("deluxe")) return "Deluxe";
-    if (normalized.includes("executive")) return "Executive";
-    if (normalized.includes("family")) return "Family";
-    if (normalized.includes("presidential")) return "Presidential";
-    if (normalized.includes("penthouse")) return "Penthouse";
-    if (normalized.includes("villa")) return "Villa";
-    if (normalized.includes("cabin")) return "Cabin";
-    if (normalized.includes("apartment")) return "Apartment";
-    if (normalized.includes("studio")) return "Studio";
-    if (normalized.includes("loft")) return "Loft";
-    if (normalized.includes("jacuzzi")) return "Jacuzzi";
-    if (normalized.includes("master")) return "Master";
-    if (normalized.includes("carriage")) return "Carriage";
-    if (normalized.includes("signature")) return "Signature";
-    if (normalized.includes("junior")) return "Junior";
-    if (normalized.includes("accessible")) return "Accessible";
-    if (normalized.includes("ada")) return "ADA";
-    if (normalized.includes("terrace")) return "Terrace";
-    if (normalized.includes("garden")) return "Garden";
-    if (normalized.includes("pool")) return "Pool";
-    if (normalized.includes("disability")) return "Disability";
-    if (normalized.includes("roll-in")) return "Roll-in";
-    if (normalized.includes("shower")) return "Shower";
-    if (normalized.includes("bathtub")) return "Bathtub";
-    if (normalized.includes("non-smoking")) return "Non-smoking";
-    if (normalized.includes("fumadores")) return "Non-smoking";
-    if (normalized.includes("extragrande")) return "Extra Large";
-    if (normalized.includes("cama")) return "Bed";
-    if (normalized.includes("camitas")) return "Small Beds";
-    if (normalized.includes("movilidad")) return "Mobility";
-    if (normalized.includes("reducida")) return "Reduced";
-    if (normalized.includes("ras")) return "Floor Level";
-    if (normalized.includes("suelo")) return "Floor";
-    if (normalized.includes("adaptada")) return "Adapted";
-    if (normalized.includes("personas")) return "People";
-    if (normalized.includes("vistas")) return "View";
-    if (normalized.includes("ciudad")) return "City";
-    if (normalized.includes("sofá")) return "Sofa";
-    if (normalized.includes("sofa")) return "Sofa";
-    if (normalized.includes("doble")) return "Double";
-    if (normalized.includes("grande")) return "Large";
-    if (normalized.includes("pequeña")) return "Small";
-    if (normalized.includes("individual")) return "Individual";
-    if (normalized.includes("múltiple")) return "Multiple";
-    if (normalized.includes("multiple")) return "Multiple";
-    
-    // Handle Spanish room types
-    if (normalized.includes("estándar")) return "Standard";
-    if (normalized.includes("básica")) return "Standard";
-    if (normalized.includes("simple")) return "Standard";
-    if (normalized.includes("regular")) return "Standard";
-    if (normalized.includes("normal")) return "Standard";
-    if (normalized.includes("clásica")) return "Standard";
-    if (normalized.includes("tradicional")) return "Standard";
-    if (normalized.includes("económica")) return "Standard";
-    if (normalized.includes("presupuesto")) return "Standard";
-    if (normalized.includes("confort")) return "Standard";
-    if (normalized.includes("acogedora")) return "Standard";
-    
-    // Handle common variations and abbreviations
-    if (normalized.includes("std")) return "Standard";
-    if (normalized.includes("basic")) return "Standard";
-    if (normalized.includes("simple")) return "Standard";
-    if (normalized.includes("regular")) return "Standard";
-    if (normalized.includes("normal")) return "Standard";
-    if (normalized.includes("classic")) return "Standard";
-    if (normalized.includes("traditional")) return "Standard";
-    if (normalized.includes("economy")) return "Standard";
-    if (normalized.includes("budget")) return "Standard";
-    if (normalized.includes("comfort")) return "Standard";
-    if (normalized.includes("cozy")) return "Standard";
-    
-    // Handle hotel-specific naming conventions
-    if (normalized.includes("room")) return "Standard";
-    if (normalized.includes("accommodation")) return "Standard";
-    if (normalized.includes("lodging")) return "Standard";
-    if (normalized.includes("guest")) return "Standard";
-    if (normalized.includes("visitor")) return "Standard";
-    if (normalized.includes("traveler")) return "Standard";
-    
-    // Handle specific room types that should be Standard
-    if (normalized.includes("king room")) return "Standard";
-    if (normalized.includes("queen room")) return "Standard";
-    if (normalized.includes("double room")) return "Standard";
-    if (normalized.includes("full room")) return "Standard";
-    if (normalized.includes("twin room")) return "Standard";
-    if (normalized.includes("single room")) return "Standard";
-    if (normalized.includes("business room")) return "Standard";
-    if (normalized.includes("superior room")) return "Standard";
-    if (normalized.includes("deluxe room")) return "Standard";
-    if (normalized.includes("executive room")) return "Standard";
-    if (normalized.includes("family room")) return "Standard";
-    if (normalized.includes("presidential room")) return "Standard";
-    if (normalized.includes("penthouse room")) return "Standard";
-    if (normalized.includes("villa room")) return "Standard";
-    if (normalized.includes("cabin room")) return "Standard";
-    if (normalized.includes("apartment room")) return "Standard";
-    if (normalized.includes("studio room")) return "Standard";
-    if (normalized.includes("loft room")) return "Standard";
-    
-    // Handle more general patterns that should be Standard
-    if (normalized.includes("habitación con")) return "Standard";
-    if (normalized.includes("habitación doble")) return "Standard";
-    if (normalized.includes("habitación estándar")) return "Standard";
-    if (normalized.includes("habitación business")) return "Standard";
-    if (normalized.includes("habitación superior")) return "Standard";
-    if (normalized.includes("habitación deluxe")) return "Standard";
-    if (normalized.includes("habitación executive")) return "Standard";
-    if (normalized.includes("habitación family")) return "Standard";
-    if (normalized.includes("habitación presidential")) return "Standard";
-    if (normalized.includes("habitación penthouse")) return "Standard";
-    if (normalized.includes("habitación villa")) return "Standard";
-    if (normalized.includes("habitación cabin")) return "Standard";
-    if (normalized.includes("habitación apartment")) return "Standard";
-    if (normalized.includes("habitación studio")) return "Standard";
-    if (normalized.includes("habitación loft")) return "Standard";
-    if (normalized.includes("habitación jacuzzi")) return "Standard";
-    if (normalized.includes("habitación master")) return "Standard";
-    if (normalized.includes("habitación carriage")) return "Standard";
-    if (normalized.includes("habitación signature")) return "Standard";
-    if (normalized.includes("habitación junior")) return "Standard";
-    if (normalized.includes("habitación accessible")) return "Standard";
-    if (normalized.includes("habitación ada")) return "Standard";
-    if (normalized.includes("habitación terrace")) return "Standard";
-    if (normalized.includes("habitación garden")) return "Standard";
-    if (normalized.includes("habitación pool")) return "Standard";
-    if (normalized.includes("habitación disability")) return "Standard";
-    if (normalized.includes("habitación roll-in")) return "Standard";
-    if (normalized.includes("habitación shower")) return "Standard";
-    if (normalized.includes("habitación bathtub")) return "Standard";
-    if (normalized.includes("habitación non-smoking")) return "Standard";
-    if (normalized.includes("habitación fumadores")) return "Standard";
-    if (normalized.includes("habitación extragrande")) return "Standard";
-    if (normalized.includes("habitación cama")) return "Standard";
-    if (normalized.includes("habitación camitas")) return "Standard";
-    if (normalized.includes("habitación movilidad")) return "Standard";
-    if (normalized.includes("habitación reducida")) return "Standard";
-    if (normalized.includes("habitación ras")) return "Standard";
-    if (normalized.includes("habitación suelo")) return "Standard";
-    if (normalized.includes("habitación adaptada")) return "Standard";
-    if (normalized.includes("habitación personas")) return "Standard";
-    if (normalized.includes("habitación vistas")) return "Standard";
-    if (normalized.includes("habitación ciudad")) return "Standard";
-    if (normalized.includes("habitación sofá")) return "Standard";
-    if (normalized.includes("habitación sofa")) return "Standard";
-    if (normalized.includes("habitación doble")) return "Standard";
-    if (normalized.includes("habitación grande")) return "Standard";
-    if (normalized.includes("habitación pequeña")) return "Standard";
-    if (normalized.includes("habitación individual")) return "Standard";
-    if (normalized.includes("habitación múltiple")) return "Standard";
-    if (normalized.includes("habitación multiple")) return "Standard";
-    
-    // Catch-all for any habitación that wasn't caught above
-    if (normalized.includes("habitación")) return "Standard";
-    
-    // If no specific match, return the original room type (capitalized)
-    return roomType.charAt(0).toUpperCase() + roomType.slice(1).toLowerCase();
-  };
+  // Using unified standardizeRoomType function from dataUtils
 
   // Function to get current user
   const getCurrentUser = async () => {
@@ -489,18 +315,15 @@ export default function AnalysisTab() {
       }
 
       const dailyRevenue: Record<string, number> = {};
-      filteredData.forEach((item: any) => {
-        const checkinDate = item.checkin_date || item.Checkin_date;
+          filteredData.forEach((item) => {
+      const checkinDate = item.checkin_date;
         if (!checkinDate) return;
         let dateStr = checkinDate;
         if (checkinDate.includes("T")) {
           dateStr = checkinDate.split("T")[0];
         }
-        // Use converted price if available, otherwise convert on the fly
-        const price = item.converted_price || convertPriceToSelectedCurrency(
-          getPriceValue(item.price), 
-          cleanPrice(item.price).currency
-        );
+      // Use processed price and convert to selected currency
+      const price = convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
         if (price > 0) {
           if (!dailyRevenue[dateStr]) {
             dailyRevenue[dateStr] = 0;
@@ -551,7 +374,7 @@ export default function AnalysisTab() {
 
       if (selectedDate) {
         filteredData = filteredData.filter((item) => {
-          const checkinDate = item.checkin_date || item.Checkin_date;
+          const checkinDate = item.checkin_date;
           if (!checkinDate) return false;
           let dateStr = checkinDate;
           if (checkinDate.includes("T")) {
@@ -567,7 +390,7 @@ export default function AnalysisTab() {
         rangeStart.setDate(endDate.getDate() - range);
 
         filteredData = filteredData.filter((item) => {
-          const checkinDate = item.checkin_date || item.Checkin_date;
+          const checkinDate = item.checkin_date;
           if (!checkinDate) return false;
           let dateStr = checkinDate;
           if (checkinDate.includes("T")) {
@@ -579,79 +402,58 @@ export default function AnalysisTab() {
       }
 
       const totalRevenue = filteredData.reduce((sum, item) => {
-        const cleanedPrice = cleanPrice(item.price);
-        const price = convertPriceToSelectedCurrency(cleanedPrice.value, cleanedPrice.currency);
+        const price = convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
         return sum + price;
       }, 0);
 
-      setTodayAverageRevenue(totalRevenue);
+      // Calculate average revenue per room instead of total
+      const averageRevenuePerRoom = filteredData.length > 0 ? totalRevenue / filteredData.length : 0;
+      setTodayAverageRevenue(averageRevenuePerRoom);
     } catch (err) {
       console.error("Error calculating dynamic revenue:", err);
       setTodayAverageRevenue(null);
     }
   };
 
-  // Function to fetch and process hotel_usuario data
+  // Function to fetch and process hotel_usuario data using unified functions
   const fetchHotelUsuarioData = async () => {
     try {
       setLoading(true);
       setError(null);
 
       const user = await getCurrentUser();
-      
-      // Query the correct table: hotel_usuario (user's hotel data)
-      let query = supabase.from("hotel_usuario").select("*");
 
-      if (user?.id) {
-        query = query.eq("user_id", user.id);
+      if (!user?.id) {
+        throw new Error('User not authenticated');
       }
 
-      const { data, error } = await query;
+      logDataFlow('AnalysisTab', { userId: user.id }, 'Fetching user hotel data');
 
-      if (error) {
-        throw error;
-      }
+      // Use unified data fetching function
+      const processedData = await fetchUserHotelData(user.id);
 
-      if (!data || data.length === 0) {
+      if (processedData.length === 0) {
         setSupabaseData([]);
         return;
       }
 
       // Set user hotel name from the first hotel
-      if (data.length > 0 && data[0].hotel_name) {
-        setUserHotelName(data[0].hotel_name);
+      if (processedData.length > 0 && processedData[0].hotel_name) {
+        setUserHotelName(processedData[0].hotel_name);
       }
 
-      // Process the hotel_usuario data
-      const processedData = data.map((item: any) => {
-        const cleanedPrice = cleanPrice(item.price);
-        return {
-          id: item.id,
-          hotel_name: item.hotel_name,
-          checkin_date: item.checkin_date,
-          room_type: item.room_type,
-          price: item.price,
-          scrape_date: item.scrape_date,
-          ajuste_aplicado: item.ajuste_aplicado,
-          // Add processed fields
-          processed_room_type: standardizeRoomType(item.room_type),
-          processed_price: cleanedPrice.value,
-          processed_currency: cleanedPrice.currency,
-        original_room_type: item.room_type,
-        original_price: item.price,
-          // Add converted price for current currency
-          converted_price: convertPriceToSelectedCurrency(cleanedPrice.value, cleanedPrice.currency),
-        };
-      });
+      logDataFlow('AnalysisTab', { 
+        count: processedData.length, 
+        hotelName: processedData[0]?.hotel_name,
+        samplePrice: processedData[0]?.processed_price 
+      }, 'Processed user hotel data');
 
-      console.log(`✅ Processed ${processedData.length} entries from hotel_usuario`);
-      console.log('Sample processed data:', processedData.slice(0, 3));
       setSupabaseData(processedData);
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
       setError(errorMessage);
-      console.error('Error fetching hotel data:', err);
+      console.error('❌ Error fetching hotel data:', err);
     } finally {
       setLoading(false);
     }
@@ -663,8 +465,9 @@ export default function AnalysisTab() {
       const user = await getCurrentUser();
       if (!user) return;
 
-      // Get user's city from their hotel data
-      const userHotel = supabaseData.find(item => item.ciudad);
+      // Get user's city from their hotel data - note: ciudad is not in ProcessedHotelData
+      // We'll need to get this from user metadata instead
+      const userHotel = supabaseData[0]; // Just use first hotel for now
       if (!userHotel) return;
 
       // Query the correct table: hoteles_parallel
@@ -735,9 +538,10 @@ export default function AnalysisTab() {
     }
   };
 
-  // Helper function to calculate hotel revenue from rooms_jsonb data
+  // Helper function to calculate average hotel revenue per room from rooms_jsonb data
   const calculateHotelRevenueFromJsonb = (roomsJsonb: any): number => {
     let totalRevenue = 0;
+    let roomCount = 0;
     
     if (roomsJsonb && typeof roomsJsonb === 'object') {
       Object.entries(roomsJsonb).forEach(([date, rooms]: [string, any]) => {
@@ -747,6 +551,7 @@ export default function AnalysisTab() {
               const price = getPriceValue(room.price);
               if (price > 0) {
                 totalRevenue += price;
+                roomCount++;
               }
             }
           });
@@ -754,15 +559,19 @@ export default function AnalysisTab() {
       });
     }
     
-    return totalRevenue;
+    // Return average revenue per room instead of total
+    return roomCount > 0 ? totalRevenue / roomCount : 0;
   };
 
-  // Helper function to calculate hotel revenue from processed data array
+  // Helper function to calculate average hotel revenue per room from processed data array
   const calculateHotelRevenue = (hotelData: any[]): number => {
-    return hotelData.reduce((sum, item) => {
+    const totalRevenue = hotelData.reduce((sum, item) => {
       const price = getPriceValue(item.price);
       return sum + (price > 0 ? price : 0);
     }, 0);
+    
+    // Return average revenue per room instead of total
+    return hotelData.length > 0 ? totalRevenue / hotelData.length : 0;
   };
 
   // Function to handle bar clicks for filtering
@@ -860,10 +669,18 @@ export default function AnalysisTab() {
   const uniqueRoomTypes = useMemo(() => {
     if (!supabaseData || supabaseData.length === 0) return [];
     const types = new Set<string>();
+    const rawRoomTypes = new Set<string>();
+    
     supabaseData.forEach((item) => {
+      // Log raw room types for debugging
+      rawRoomTypes.add(item.room_type);
       const roomType = standardizeRoomType(item.room_type);
       types.add(roomType);
     });
+    
+    console.log('🏠 Raw room types from data:', Array.from(rawRoomTypes).sort());
+    console.log('🏷️ Standardized room types:', Array.from(types).sort());
+    
     return Array.from(types).sort();
   }, [supabaseData]);
 
@@ -917,7 +734,7 @@ export default function AnalysisTab() {
 
     if (selectedDate) {
       filtered = filtered.filter((item) => {
-        const checkinDate = item.checkin_date || item.Checkin_date;
+        const checkinDate = item.checkin_date;
         if (!checkinDate) return false;
         let dateStr = checkinDate;
         if (checkinDate.includes("T")) {
@@ -930,7 +747,7 @@ export default function AnalysisTab() {
     if (dateRange) {
       const { rangeStart, endDate } = dateRange;
       filtered = filtered.filter((item) => {
-        const checkinDate = item.checkin_date || item.Checkin_date;
+        const checkinDate = item.checkin_date;
         if (!checkinDate) return false;
         let dateStr = checkinDate;
         if (checkinDate.includes("T")) {
@@ -945,17 +762,23 @@ export default function AnalysisTab() {
   }, [supabaseData, effectiveRoomType, selectedDate, dateRange]);
 
   const avgFilteredPrice = useMemo(() => {
+    console.log(`🔄 Recalculating Avg Filtered Price in ${selectedCurrency}...`);
     if (!filteredSupabaseData || filteredSupabaseData.length === 0) return 0;
     const total = filteredSupabaseData.reduce((sum, item) => {
-      let price = getPriceValue(item.price);
-      if (selectedCurrency === "USD") price = price / 18.5;
+      // Always convert in real-time based on current currency selection
+      const price = convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
       return sum + price;
     }, 0);
-    return Math.round(total / filteredSupabaseData.length);
-  }, [filteredSupabaseData, selectedCurrency]);
+    const avgPrice = Math.round(total / filteredSupabaseData.length);
+    
+    console.log(`📊 Avg Filtered Price (${selectedCurrency}): ${avgPrice} from ${filteredSupabaseData.length} items`);
+    
+    return avgPrice;
+  }, [filteredSupabaseData, selectedCurrency, cleanPrice, convertPriceToSelectedCurrency]);
 
   // Calculate price statistics with proper currency conversion for display only
   const priceStats = useMemo(() => {
+    console.log(`🔄 Recalculating Price Stats in ${selectedCurrency}...`);
     if (supabaseData.length === 0) return null;
 
     let filteredData = supabaseData;
@@ -972,7 +795,7 @@ export default function AnalysisTab() {
       const rangeStart = new Date(endDate);
       rangeStart.setDate(endDate.getDate() - range);
       filteredData = filteredData.filter((item) => {
-        const checkinDate = item.checkin_date || item.Checkin_date;
+        const checkinDate = item.checkin_date;
         if (!checkinDate) return false;
         let dateStr = checkinDate;
         if (checkinDate.includes("T")) {
@@ -983,33 +806,43 @@ export default function AnalysisTab() {
       });
     }
 
-    // Calculate prices in MXN (original currency)
+    // Calculate prices with real-time currency conversion
     const validPrices = filteredData
-      .map(item => getPriceValue(item.price))
+      .map(item => {
+        return convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
+      })
       .filter(price => price > 0);
 
     if (validPrices.length === 0) return null;
 
-    // Calculate statistics in MXN
-    const avgPriceMXN = validPrices.reduce((sum, price) => sum + price, 0) / validPrices.length;
-    const minPriceMXN = Math.min(...validPrices);
-    const maxPriceMXN = Math.max(...validPrices);
-    const priceRangeMXN = maxPriceMXN - minPriceMXN;
+    // Calculate statistics in selected currency
+    const avgPrice = validPrices.reduce((sum, price) => sum + price, 0) / validPrices.length;
+    const minPrice = Math.min(...validPrices);
+    const maxPrice = Math.max(...validPrices);
+    const priceRange = maxPrice - minPrice;
 
     const roomTypes = Array.from(new Set(filteredData.map(item => standardizeRoomType(item.room_type))));
 
-    return {
-      avgPrice: Math.round(avgPriceMXN * 100) / 100,
-      priceRange: Math.round(priceRangeMXN * 100) / 100,
+    const result = {
+      avgPrice: Math.round(avgPrice * 100) / 100,
+      priceRange: Math.round(priceRange * 100) / 100,
       count: validPrices.length,
       roomTypeCount: roomTypes.length,
       roomTypes: roomTypes,
       effectiveRoomType: effectiveRoomType,
-      // Add display values for the selected currency
-      displayAvgPrice: convertToUSD(avgPriceMXN),
-      displayPriceRange: convertToUSD(priceRangeMXN)
+      // These are already in the selected currency
+      displayAvgPrice: avgPrice,
+      displayPriceRange: priceRange
     };
-  }, [supabaseData, clickedRoomType, selectedRoomType, range, cleanPrice, standardizeRoomType, convertToUSD]);
+    
+    console.log(`📊 Price Stats (${selectedCurrency}):`, {
+      avgPrice: result.avgPrice,
+      count: result.count,
+      effectiveRoomType: result.effectiveRoomType
+    });
+    
+    return result;
+  }, [supabaseData, clickedRoomType, selectedRoomType, range, cleanPrice, standardizeRoomType, convertPriceToSelectedCurrency, selectedCurrency]);
 
   // Calculate historical price series with currency conversion
   const historicalPriceSeries = useMemo(() => {
@@ -1030,7 +863,7 @@ export default function AnalysisTab() {
                       const rangeStart = new Date(endDate);
                       rangeStart.setDate(endDate.getDate() - range);
                       filteredData = filteredData.filter((item) => {
-                        const checkinDate = item.checkin_date || item.Checkin_date;
+                        const checkinDate = item.checkin_date;
                         if (!checkinDate) return false;
                         let dateStr = checkinDate;
                         if (checkinDate.includes("T")) {
@@ -1044,8 +877,8 @@ export default function AnalysisTab() {
     // Group by date and calculate average price in selected currency
                     const dailyPrices: Record<string, { total: number; count: number; dates: string[]; roomTypes: Set<string> }> = {};
                     
-                    filteredData.forEach((item: any) => {
-                      const checkinDate = item.checkin_date || item.Checkin_date;
+                          filteredData.forEach((item) => {
+        const checkinDate = item.checkin_date;
                       if (!checkinDate) return;
                       
                       let dateStr = checkinDate;
@@ -1053,9 +886,8 @@ export default function AnalysisTab() {
                         dateStr = checkinDate.split("T")[0];
                       }
                       
-                      // Always convert in real-time based on current currency selection
-                      const cleanedPrice = cleanPrice(item.price);
-                      const price = convertPriceToSelectedCurrency(cleanedPrice.value, cleanedPrice.currency);
+        // Always convert in real-time based on current currency selection
+        const price = convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
       
                       if (price > 0) {
                         if (!dailyPrices[dateStr]) {
@@ -1096,7 +928,7 @@ export default function AnalysisTab() {
                         };
                       })
                       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    
+                    
     console.log(`📈 Historical Prices (${selectedCurrency}):`, result.slice(0, 3).map(item => ({
       day: item.day,
       price: item.price,
@@ -1121,32 +953,31 @@ export default function AnalysisTab() {
       ? supabaseData.filter((item) => standardizeRoomType(item.room_type) === selectedRoomType)
       : supabaseData;
 
-    const roomTypeData: Record<string, { total_revenue: number; count: number; prices: number[] }> = {};
-    
-    filteredData.forEach((item: any) => {
+                    const roomTypeData: Record<string, { total_revenue: number; count: number; prices: number[] }> = {};
+                    
+                        filteredData.forEach((item) => {
       const roomType = standardizeRoomType(item.room_type);
       // Always convert in real-time based on current currency selection
-      const cleanedPrice = cleanPrice(item.price);
-      const price = convertPriceToSelectedCurrency(cleanedPrice.value, cleanedPrice.currency);
-      
-      if (price > 0) {
-        if (!roomTypeData[roomType]) {
-          roomTypeData[roomType] = { total_revenue: 0, count: 0, prices: [] };
-        }
-        roomTypeData[roomType].total_revenue += price;
-        roomTypeData[roomType].count += 1;
-        roomTypeData[roomType].prices.push(price);
-      }
-    });
-
-    const aggregatedData = Object.entries(roomTypeData).map(([roomType, data]) => ({
-      room_type: roomType,
-      total_revenue: data.total_revenue,
-      avg_price: Math.round(data.total_revenue / data.count),
-      count: data.count,
-      min_price: Math.min(...data.prices),
-      max_price: Math.max(...data.prices)
-    }));
+      const price = convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
+                      
+                      if (price > 0) {
+                        if (!roomTypeData[roomType]) {
+                          roomTypeData[roomType] = { total_revenue: 0, count: 0, prices: [] };
+                        }
+                        roomTypeData[roomType].total_revenue += price;
+                        roomTypeData[roomType].count += 1;
+                        roomTypeData[roomType].prices.push(price);
+                      }
+                    });
+                    
+                    const aggregatedData = Object.entries(roomTypeData).map(([roomType, data]) => ({
+                      room_type: roomType,
+                      total_revenue: data.total_revenue,
+                      avg_price: Math.round(data.total_revenue / data.count),
+                      count: data.count,
+                      min_price: Math.min(...data.prices),
+                      max_price: Math.max(...data.prices)
+                    }));
 
     // Use preserved room type order to maintain visual consistency
     if (roomTypeOrder.length > 0) {
@@ -1211,8 +1042,8 @@ export default function AnalysisTab() {
     const delta = prev !== undefined ? current - prev : 0;
     const deltaColor = delta > 0 ? "#ef4444" : delta < 0 ? "#10b981" : "#6b7280";
     const deltaSign = delta > 0 ? "+" : "";
-                
-                return (
+
+                          return (
       <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
         <div className="font-medium text-gray-900">{label}</div>
         <div className="text-gray-700">Revenue: {currency.format(current)}</div>
@@ -1236,7 +1067,7 @@ export default function AnalysisTab() {
                       <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-arkus-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading analysis data...</p>
-                      </div>
+              </div>
                     </div>
       )}
 
@@ -1251,7 +1082,7 @@ export default function AnalysisTab() {
           >
             Retry
           </button>
-                </div>
+              </div>
       )}
 
       {/* Content - Only show when not loading and no errors */}
@@ -1297,7 +1128,7 @@ export default function AnalysisTab() {
               positionIndex={positionIndex}
               performancePercentage={performancePercentage}
             />
-              </div>
+            </div>
 
           {/* Charts Grid - Perfectly aligned with consistent heights */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1445,7 +1276,12 @@ export default function AnalysisTab() {
                         </div>
                         <div>
                         <p className="text-xs text-gray-600">Revenue per Room</p>
-                        <p className="text-lg font-semibold text-arkus-600">$8,889 MXN</p>
+                        <p className="text-lg font-semibold text-arkus-600">
+                          {todayAverageRevenue !== null 
+                            ? currency.format(todayAverageRevenue) 
+                            : "$0"
+                          }
+                        </p>
                         </div>
                       </div>
                     </div>
@@ -1487,7 +1323,7 @@ export default function AnalysisTab() {
                           const rangeStart = new Date(endDate);
                           rangeStart.setDate(endDate.getDate() - range);
                           filteredData = filteredData.filter((item) => {
-                            const checkinDate = item.checkin_date || item.Checkin_date;
+                            const checkinDate = item.checkin_date;
                             if (!checkinDate) return false;
                             let dateStr = checkinDate;
                             if (checkinDate.includes("T")) {
@@ -1500,7 +1336,7 @@ export default function AnalysisTab() {
                         
                         // Calculate average price using the same logic as Historical Prices
                         const validPrices = filteredData
-                            .map(item => getPriceValue(item.price))
+                            .map(item => convertPriceToSelectedCurrency(item.processed_price, item.processed_currency))
                           .filter(price => price > 0);
                         
                         if (!validPrices || validPrices.length === 0) return "No valid prices";
@@ -1548,7 +1384,7 @@ export default function AnalysisTab() {
                     const rangeStart = new Date(endDate);
                     rangeStart.setDate(endDate.getDate() - range);
                     filteredData = filteredData.filter((item) => {
-                      const checkinDate = item.checkin_date || item.Checkin_date;
+                      const checkinDate = item.checkin_date;
                       if (!checkinDate) return false;
                       let dateStr = checkinDate;
                       if (checkinDate.includes("T")) {
@@ -1563,7 +1399,7 @@ export default function AnalysisTab() {
                   const dailyPrices: Record<string, { total: number; count: number; dates: string[]; roomTypes: Set<string> }> = {};
                   
                   filteredData.forEach((item: any) => {
-                    const checkinDate = item.checkin_date || item.Checkin_date;
+                    const checkinDate = item.checkin_date;
                     if (!checkinDate) return;
                     
                     let dateStr = checkinDate;
@@ -1739,7 +1575,7 @@ export default function AnalysisTab() {
                   const rangeStart = new Date(endDate);
                   rangeStart.setDate(endDate.getDate() - range);
                   filteredData = filteredData.filter((item) => {
-                    const checkinDate = item.checkin_date || item.Checkin_date;
+                    const checkinDate = item.checkin_date;
                     if (!checkinDate) return false;
                     let dateStr = checkinDate;
                     if (checkinDate.includes("T")) {
@@ -1753,12 +1589,7 @@ export default function AnalysisTab() {
                 // Calculate average price using the same logic as Historical Prices
                 const validPrices = filteredData
                   .map(item => {
-                    let price = getPriceValue(item.price);
-                    // Convert MXN to USD if USD is selected
-                    if (selectedCurrency === "USD") {
-                      price = price / 18.5;
-                    }
-                    return price;
+                    return convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
                   })
                   .filter(price => price > 0);
                   
