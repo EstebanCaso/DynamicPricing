@@ -125,10 +125,12 @@ export async function POST(request: NextRequest) {
     // Resolve city from nested user metadata
     const md: any = user.user_metadata || {}
     const cityMetaRaw =
+      md?.hotel_info?.address?.cityName ||
       md?.hotel_metadata?.address?.cityName ||
       md?.address?.cityName ||
       md?.cityName ||
       md?.ciudad ||
+      md?.raw_user_meta_data?.hotel_info?.address?.cityName ||
       md?.raw_user_meta_data?.hotel_metadata?.address?.cityName ||
       md?.raw_user_meta_data?.cityName ||
       ''
@@ -187,45 +189,59 @@ export async function POST(request: NextRequest) {
     // 2) Competitors from hotels_parallel/hoteles_parallel filtered by city
     let competitorRows: HotelParallelRow[] = []
     
-    // If city is empty, get all competitors (fallback)
-    const cityFilter = city ? `%${city}%` : '%'
-    
-    const { data: tryHotels, error: tryErr } = await supabase
-      .from('hotels_parallel')
-      .select('*')
-      .ilike('ciudad', cityFilter)
-      .limit(2000)
-    if (!tryErr && tryHotels) {
-      competitorRows = tryHotels as unknown as HotelParallelRow[]
+    // Filter competitors by city - only show hotels from the same city as the user
+    if (!city) {
+      console.log('[compare/hotels] No city found in user metadata, cannot filter competitors')
+      competitorRows = []
     } else {
-      const { data: tryAlt, error: tryAltErr } = await supabase
-        .from('hoteles_parallel')
+      // Use exact city match instead of ILIKE with wildcards for more precise filtering
+      const cityFilter = city.trim().toUpperCase()
+      
+      const { data: tryHotels, error: tryErr } = await supabase
+        .from('hotels_parallel')
         .select('*')
         .ilike('ciudad', cityFilter)
         .limit(2000)
-      if (tryAltErr) throw tryAltErr
-      competitorRows = (tryAlt || []) as unknown as HotelParallelRow[]
-    }
-    
-    // If still no results and we had a specific city, try without city filter as last resort
-    if (competitorRows.length === 0 && city) {
-      console.log('[compare/hotels] No competitors found for city, trying without city filter...')
-      const { data: fallbackHotels } = await supabase
-        .from('hotels_parallel')
-        .select('*')
-        .limit(100) // Smaller limit for fallback
-      if (fallbackHotels && fallbackHotels.length > 0) {
-        competitorRows = fallbackHotels as unknown as HotelParallelRow[]
+      if (!tryErr && tryHotels) {
+        competitorRows = tryHotels as unknown as HotelParallelRow[]
       } else {
-        const { data: fallbackAlt } = await supabase
+        const { data: tryAlt, error: tryAltErr } = await supabase
           .from('hoteles_parallel')
           .select('*')
-          .limit(100)
-        competitorRows = (fallbackAlt || []) as unknown as HotelParallelRow[]
+          .ilike('ciudad', cityFilter)
+          .limit(2000)
+        if (tryAltErr) throw tryAltErr
+        competitorRows = (tryAlt || []) as unknown as HotelParallelRow[]
+      }
+      
+      // If no results with exact city match, try partial match as fallback
+      if (competitorRows.length === 0) {
+        console.log('[compare/hotels] No competitors found with exact city match, trying partial match...')
+        const partialCityFilter = `%${cityFilter}%`
+        
+        const { data: partialHotels } = await supabase
+          .from('hotels_parallel')
+          .select('*')
+          .ilike('ciudad', partialCityFilter)
+          .limit(1000)
+        if (partialHotels && partialHotels.length > 0) {
+          competitorRows = partialHotels as unknown as HotelParallelRow[]
+        } else {
+          const { data: partialAlt } = await supabase
+            .from('hoteles_parallel')
+            .select('*')
+            .ilike('ciudad', partialCityFilter)
+            .limit(1000)
+          competitorRows = (partialAlt || []) as unknown as HotelParallelRow[]
+        }
       }
     }
     // eslint-disable-next-line no-console
-    console.log('[compare/hotels] competitors fetched', { count: competitorRows.length })
+    console.log('[compare/hotels] competitors fetched', { 
+      count: competitorRows.length,
+      city: city,
+      cityFilter: city ? city.trim().toUpperCase() : 'N/A'
+    })
     // eslint-disable-next-line no-console
     console.log('[compare/hotels] sample competitor data', competitorRows.slice(0, 3).map(row => ({
       nombre: row.nombre,

@@ -71,7 +71,9 @@ eventos_mx = []
 
 # Buscar eventos en Ticketmaster (solo conciertos)
 try:
-    print("Iniciando búsqueda de eventos en Ticketmaster...", file=sys.stderr)
+    print("=== INICIANDO SCRAPING DE TICKETMASTER ===", file=sys.stderr)
+    print(f"Parámetros: días={DIAS}, límite={LIMITE}, lat={lat}, lon={lon}, radio={radius_km}km", file=sys.stderr)
+    
     fetcher = EventsFetcher(api_key=API_KEY)
     
     # Buscar eventos en Ticketmaster con timeout
@@ -85,25 +87,31 @@ try:
     )
     # Mostrar todos los eventos sin filtrar por género
     eventos_us = eventos_us_raw
-    print(f"Eventos de Ticketmaster encontrados: {len(eventos_us)}", file=sys.stderr)
+    print(f"✓ Eventos de Ticketmaster encontrados: {len(eventos_us)}", file=sys.stderr)
+    print(f"=== FIN SCRAPING TICKETMASTER ===", file=sys.stderr)
     
 except Exception as e:
-    print(f"ERROR: Error obteniendo eventos de Ticketmaster: {e}", file=sys.stderr)
+    print(f"❌ ERROR: Error obteniendo eventos de Ticketmaster: {e}", file=sys.stderr)
     eventos_us = []
 
 # Llamar a scrape_songkick.py para eventos de Songkick (Tijuana)
 try:
-    print("Ejecutando scraping de Songkick...", file=sys.stderr)
+    print("=== EJECUTANDO SCRAPING DE SONGKICK ===", file=sys.stderr)
+    print(f"Comando: python scripts/scrape_songkick.py {lat} {lon} {radius_km}", file=sys.stderr)
     
     # Configurar timeout para subprocess
     result = subprocess.run([
-        'python', 'python_scripts/scrape_songkick.py',
+        'python', 'scripts/scrape_songkick.py',
         str(lat), str(lon), str(radius_km)
     ], capture_output=True, text=True, check=False, encoding='utf-8', errors='replace', timeout=SUBPROCESS_TIMEOUT)
     
     print(f"Songkick return code: {result.returncode}", file=sys.stderr)
     print(f"Songkick stdout length: {len(result.stdout)}", file=sys.stderr)
-    print(f"Songkick stderr: {result.stderr}", file=sys.stderr)
+    print(f"Songkick stderr length: {len(result.stderr)}", file=sys.stderr)
+    
+    # Mostrar stderr completo si hay errores
+    if result.stderr.strip():
+        print(f"Songkick stderr completo: {result.stderr}", file=sys.stderr)
     
     # Debug: mostrar los primeros y últimos caracteres del stdout
     if result.stdout.strip():
@@ -112,59 +120,53 @@ try:
         print(f"Songkick stdout preview (últimos 100 chars): {stdout_preview[-100:] if len(stdout_preview) > 100 else stdout_preview}", file=sys.stderr)
         print(f"Songkick stdout starts with '[': {stdout_preview.startswith('[')}", file=sys.stderr)
         print(f"Songkick stdout ends with ']': {stdout_preview.endswith(']')}", file=sys.stderr)
-    
-    if result.returncode == 0 and result.stdout.strip():
+        
+        # Intentar parsear directamente
         try:
-            # Limpiar el stdout antes de parsear
-            stdout_clean = result.stdout.strip()
+            eventos_mx = json.loads(stdout_preview)
+            print(f"✓ Eventos de Songkick parseados exitosamente: {len(eventos_mx)}", file=sys.stderr)
+        except json.JSONDecodeError as e:
+            print(f"⚠ Error parseando JSON de Songkick: {e}", file=sys.stderr)
+            print(f"Raw output: {result.stdout[:200]}...", file=sys.stderr)
             
-            # Intentar parsear directamente
+            # Intentar limpiar el JSON si hay caracteres extra
             try:
-                eventos_mx = json.loads(stdout_clean)
-                print(f"Eventos de Songkick parseados exitosamente: {len(eventos_mx)}", file=sys.stderr)
-            except json.JSONDecodeError as e:
-                print(f"ERROR: Error parseando JSON de Songkick: {e}", file=sys.stderr)
-                print(f"Raw output: {result.stdout[:200]}...", file=sys.stderr)
+                # Buscar el inicio del JSON (primer '[')
+                start_idx = stdout_preview.find('[')
+                end_idx = stdout_preview.rfind(']')
                 
-                # Intentar limpiar el JSON si hay caracteres extra
-                try:
-                    # Buscar el inicio del JSON (primer '[')
-                    start_idx = stdout_clean.find('[')
-                    end_idx = stdout_clean.rfind(']')
+                if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                    json_str = stdout_preview[start_idx:end_idx + 1]
+                    eventos_mx = json.loads(json_str)
+                    print(f"✓ Eventos de Songkick parseados después de limpieza: {len(eventos_mx)}", file=sys.stderr)
+                else:
+                    print("❌ No se encontró estructura JSON válida en la salida", file=sys.stderr)
+                    eventos_mx = []
                     
-                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
-                        json_str = stdout_clean[start_idx:end_idx + 1]
-                        eventos_mx = json.loads(json_str)
-                        print(f"Eventos de Songkick parseados después de limpieza: {len(eventos_mx)}", file=sys.stderr)
-                    else:
-                        print("No se encontró estructura JSON válida en la salida", file=sys.stderr)
-                        eventos_mx = []
-                        
-                except json.JSONDecodeError as e2:
-                    print(f"ERROR: Falló también la limpieza del JSON: {e2}", file=sys.stderr)
-                    print(f"JSON limpio intentado: {json_str[:200] if 'json_str' in locals() else 'N/A'}...", file=sys.stderr)
-                    eventos_mx = []
-                except Exception as e3:
-                    print(f"ERROR: Error inesperado en limpieza de JSON: {e3}", file=sys.stderr)
-                    eventos_mx = []
-        except Exception as e:
-            print(f"ERROR: Error general parseando JSON de Songkick: {e}", file=sys.stderr)
-            eventos_mx = []
+            except json.JSONDecodeError as e2:
+                print(f"❌ Falló también la limpieza del JSON: {e2}", file=sys.stderr)
+                print(f"JSON limpio intentado: {json_str[:200] if 'json_str' in locals() else 'N/A'}...", file=sys.stderr)
+                eventos_mx = []
+            except Exception as e3:
+                print(f"❌ Error inesperado en limpieza de JSON: {e3}", file=sys.stderr)
+                eventos_mx = []
     else:
-        print("Songkick returned empty output or error", file=sys.stderr)
+        print("❌ Songkick returned empty output", file=sys.stderr)
         eventos_mx = []
         
+    print(f"=== FIN SCRAPING SONGKICK - Eventos encontrados: {len(eventos_mx)} ===", file=sys.stderr)
+        
 except subprocess.TimeoutExpired:
-    print(f"ERROR: Timeout ejecutando scrape_songkick.py después de {SUBPROCESS_TIMEOUT} segundos", file=sys.stderr)
+    print(f"❌ Timeout ejecutando scrape_songkick.py después de {SUBPROCESS_TIMEOUT} segundos", file=sys.stderr)
     eventos_mx = []
 except subprocess.CalledProcessError as e:
-    print(f"ERROR: Error ejecutando scrape_songkick.py (CalledProcessError): {e}", file=sys.stderr)
+    print(f"❌ Error ejecutando scrape_songkick.py (CalledProcessError): {e}", file=sys.stderr)
     print(f"Return code: {e.returncode}", file=sys.stderr)
     print(f"stdout: {e.stdout}", file=sys.stderr)
     print(f"stderr: {e.stderr}", file=sys.stderr)
     eventos_mx = []
 except Exception as e:
-    print(f"ERROR: Error ejecutando scrape_songkick.py: {e}", file=sys.stderr)
+    print(f"❌ Error ejecutando scrape_songkick.py: {e}", file=sys.stderr)
     eventos_mx = []
 
 print(f"\n=== EVENTOS EN MEXICO (Songkick) ===\n", file=sys.stderr)
@@ -185,8 +187,14 @@ for evento in eventos_us:
     print("---", file=sys.stderr)
 
 # Guardar resultados en un archivo para el backend/UI
-print(f"eventos_mx: {len(eventos_mx)} eventos", file=sys.stderr)
-print(f"eventos_us: {len(eventos_us)} eventos", file=sys.stderr)
+# Resumen final de eventos obtenidos
+print(f"\n{'='*60}", file=sys.stderr)
+print(f"📊 RESUMEN FINAL DE SCRAPING", file=sys.stderr)
+print(f"{'='*60}", file=sys.stderr)
+print(f"🎵 Eventos de Songkick (México): {len(eventos_mx)} eventos", file=sys.stderr)
+print(f"🎫 Eventos de Ticketmaster (US): {len(eventos_us)} eventos", file=sys.stderr)
+print(f"📈 Total de eventos: {len(eventos_mx) + len(eventos_us)} eventos", file=sys.stderr)
+print(f"{'='*60}", file=sys.stderr)
 
 try:
     output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resultados")

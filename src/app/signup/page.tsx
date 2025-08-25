@@ -114,8 +114,8 @@ export default function SignupPage() {
       }
 
       await supabase.auth.getSession()
-      const redirect = new URLSearchParams(window.location.search).get('redirectTo') || '/dashboard'
-      router.replace(redirect)
+      // Redirigir a la página de bienvenida para ejecutar los scripts de scraping
+      router.replace('/welcome')
     } catch (err) {
       alert('Signup failed')
     } finally {

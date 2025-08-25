@@ -32,9 +32,9 @@ export async function POST(request: NextRequest): Promise<Response> {
       const { latitude, longitude, radius = 50, userUuid } = userData
       scriptArgs = [latitude.toString(), longitude.toString(), radius.toString(), userUuid]
     } else if (script === 'hotel-scraper' && userData) {
-      // Para hotel_propio.py: hotel_name user_uuid
+      // Para hotel_propio.py: user_uuid hotel_name
       const { hotelName, userUuid } = userData
-      scriptArgs = [hotelName, userUuid]
+      scriptArgs = [userUuid, hotelName]
     }
 
     // Execute Python script with arguments
@@ -45,9 +45,20 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     let output = ''
     let error = ''
+    let progress = 0
 
+    // Monitor stdout for progress indicators
     pythonProcess.stdout.on('data', (data) => {
-      output += data.toString()
+      const dataStr = data.toString()
+      output += dataStr
+      
+      // Look for progress indicators in the output
+      if (dataStr.includes('PROGRESS:')) {
+        const match = dataStr.match(/PROGRESS:(\d+)/)
+        if (match) {
+          progress = parseInt(match[1])
+        }
+      }
     })
 
     pythonProcess.stderr.on('data', (data) => {
@@ -60,12 +71,14 @@ export async function POST(request: NextRequest): Promise<Response> {
           resolve(NextResponse.json({
             success: true,
             output: output.trim(),
+            progress: 100,
             script: script
           }))
         } else {
           resolve(NextResponse.json({
             success: false,
             error: error || 'Script execution failed',
+            progress: progress,
             script: script
           }, { status: 500 }))
         }
