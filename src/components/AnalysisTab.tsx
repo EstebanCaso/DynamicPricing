@@ -17,6 +17,11 @@ import {
   Cell,
   Brush,
   ReferenceArea,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
 } from "recharts";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
@@ -41,7 +46,6 @@ import HistoricalPricesChart from "./HistoricalPricesChart";
 import PriceStats from "./PriceStats";
 import RevenueByRoomTypeChart from "./RevenueByRoomTypeChart";
 import AnalysisControls from "./AnalysisControls";
-import PerformanceRadarChart from "./PerformanceRadarChart";
 
 type HistoricalPoint = {
   day: string;
@@ -514,7 +518,7 @@ export default function AnalysisTab() {
         if (competitor.rooms_jsonb && typeof competitor.rooms_jsonb === 'object') {
           const competitorRevenue = calculateHotelRevenueFromJsonb(competitor.rooms_jsonb);
           if (competitorRevenue > 0) {
-            performanceData.push({
+                performanceData.push({
               hotel: competitor.nombre || "Unknown Hotel",
               revenue: competitorRevenue,
               color: "#94a3b8"
@@ -685,7 +689,7 @@ export default function AnalysisTab() {
     const url = new URL(window.location.href);
     url.searchParams.set("tmn", String(Math.round(targetMin)));
     url.searchParams.set("tmx", String(Math.round(targetMax)));
-      url.searchParams.set("ev", events.map(encodeURIComponent).join(","));
+    url.searchParams.set("ev", events.map(encodeURIComponent).join(","));
     window.history.replaceState({}, "", url.toString());
   }, [targetMin, targetMax, events]);
 
@@ -846,85 +850,85 @@ export default function AnalysisTab() {
     if (supabaseData.length === 0) return [];
 
                     let filteredData = supabaseData;
-                    const effectiveRoomType = clickedRoomType || selectedRoomType;
+                const effectiveRoomType = clickedRoomType || selectedRoomType;
     
-                    if (effectiveRoomType !== "all") {
-                      filteredData = filteredData.filter((item) => 
-                        standardizeRoomType(item.room_type) === effectiveRoomType
-                      );
-                    }
-                    
-                    if (range && range > 0) {
-                      const endDate = new Date("2025-10-30");
-                      const rangeStart = new Date(endDate);
-                      rangeStart.setDate(endDate.getDate() - range);
-                      filteredData = filteredData.filter((item) => {
+                if (effectiveRoomType !== "all") {
+                  filteredData = filteredData.filter((item) => 
+                    standardizeRoomType(item.room_type) === effectiveRoomType
+                  );
+                }
+                
+                if (range && range > 0) {
+                  const endDate = new Date("2025-10-30");
+                  const rangeStart = new Date(endDate);
+                  rangeStart.setDate(endDate.getDate() - range);
+                  filteredData = filteredData.filter((item) => {
                         const checkinDate = item.checkin_date;
-                        if (!checkinDate) return false;
-                        let dateStr = checkinDate;
-                        if (checkinDate.includes("T")) {
-                          dateStr = checkinDate.split("T")[0];
-                        }
-                        const itemDate = new Date(dateStr);
-                        return itemDate >= rangeStart && itemDate <= endDate;
-                      });
+                    if (!checkinDate) return false;
+                    let dateStr = checkinDate;
+                    if (checkinDate.includes("T")) {
+                      dateStr = checkinDate.split("T")[0];
                     }
-                    
+                    const itemDate = new Date(dateStr);
+                    return itemDate >= rangeStart && itemDate <= endDate;
+                  });
+                }
+                
     // Group by date and calculate average price in selected currency
-                    const dailyPrices: Record<string, { total: number; count: number; dates: string[]; roomTypes: Set<string> }> = {};
-                    
+                const dailyPrices: Record<string, { total: number; count: number; dates: string[]; roomTypes: Set<string> }> = {};
+                
                           filteredData.forEach((item) => {
         const checkinDate = item.checkin_date;
-                      if (!checkinDate) return;
-                      
-                      let dateStr = checkinDate;
-                      if (checkinDate.includes("T")) {
-                        dateStr = checkinDate.split("T")[0];
-                      }
-                      
+                  if (!checkinDate) return;
+                  
+                  let dateStr = checkinDate;
+                  if (checkinDate.includes("T")) {
+                    dateStr = checkinDate.split("T")[0];
+                  }
+                  
         // Always convert in real-time based on current currency selection
         const price = convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
-      
+                  
                       if (price > 0) {
-                        if (!dailyPrices[dateStr]) {
-                          dailyPrices[dateStr] = { 
-                            total: 0, 
-                            count: 0, 
-                            dates: [], 
-                            roomTypes: new Set() 
-                          };
-                        }
+                    if (!dailyPrices[dateStr]) {
+                      dailyPrices[dateStr] = { 
+                        total: 0, 
+                        count: 0, 
+                        dates: [], 
+                        roomTypes: new Set() 
+                      };
+                    }
                         dailyPrices[dateStr].total += price;
-                        dailyPrices[dateStr].count += 1;
-                        dailyPrices[dateStr].dates.push(dateStr);
-                        dailyPrices[dateStr].roomTypes.add(standardizeRoomType(item.room_type));
-                      }
-                    });
+                    dailyPrices[dateStr].count += 1;
+                    dailyPrices[dateStr].dates.push(dateStr);
+                    dailyPrices[dateStr].roomTypes.add(standardizeRoomType(item.room_type));
+                  }
+                });
 
     if (Object.keys(dailyPrices).length === 0) return [];
-                    
-                    // Convert to chart format and sort by date
+                
+                // Convert to chart format and sort by date
     const result = Object.entries(dailyPrices)
-                      .map(([date, data]) => {
-                        const dateObj = new Date(date);
-        const label = new Intl.DateTimeFormat("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        }).format(dateObj);
+                  .map(([date, data]) => {
+                    const dateObj = new Date(date);
+                    const label = new Intl.DateTimeFormat("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    }).format(dateObj);
         
         const avgPrice = Math.round(data.total / data.count * 100) / 100;
-                        
-                        return {
-                          day: label,
-                          date: date,
-                          price: avgPrice, // Already converted to selected currency
-                          count: data.count,
-                          roomTypes: Array.from(data.roomTypes),
-                          totalPrice: data.total
-                        };
-                      })
-                      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
                     
+                    return {
+                      day: label,
+                      date: date,
+                          price: avgPrice, // Already converted to selected currency
+                      count: data.count,
+                      roomTypes: Array.from(data.roomTypes),
+                      totalPrice: data.total
+                    };
+                  })
+                  .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                
     console.log(`📈 Historical Prices (${selectedCurrency}):`, result.slice(0, 3).map(item => ({
       day: item.day,
       price: item.price,
@@ -949,31 +953,31 @@ export default function AnalysisTab() {
       ? supabaseData.filter((item) => standardizeRoomType(item.room_type) === selectedRoomType)
       : supabaseData;
 
-                    const roomTypeData: Record<string, { total_revenue: number; count: number; prices: number[] }> = {};
-                    
+                const roomTypeData: Record<string, { total_revenue: number; count: number; prices: number[] }> = {};
+                
                         filteredData.forEach((item) => {
-      const roomType = standardizeRoomType(item.room_type);
+                  const roomType = standardizeRoomType(item.room_type);
       // Always convert in real-time based on current currency selection
       const price = convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
-                      
-                      if (price > 0) {
-                        if (!roomTypeData[roomType]) {
-                          roomTypeData[roomType] = { total_revenue: 0, count: 0, prices: [] };
-                        }
-                        roomTypeData[roomType].total_revenue += price;
-                        roomTypeData[roomType].count += 1;
-                        roomTypeData[roomType].prices.push(price);
-                      }
-                    });
-                    
-                    const aggregatedData = Object.entries(roomTypeData).map(([roomType, data]) => ({
-                      room_type: roomType,
-                      total_revenue: data.total_revenue,
-                      avg_price: Math.round(data.total_revenue / data.count),
-                      count: data.count,
-                      min_price: Math.min(...data.prices),
-                      max_price: Math.max(...data.prices)
-                    }));
+                  
+                  if (price > 0) {
+                    if (!roomTypeData[roomType]) {
+                      roomTypeData[roomType] = { total_revenue: 0, count: 0, prices: [] };
+                    }
+                    roomTypeData[roomType].total_revenue += price;
+                    roomTypeData[roomType].count += 1;
+                    roomTypeData[roomType].prices.push(price);
+                  }
+                });
+                
+                const aggregatedData = Object.entries(roomTypeData).map(([roomType, data]) => ({
+                  room_type: roomType,
+                  total_revenue: data.total_revenue,
+                  avg_price: Math.round(data.total_revenue / data.count),
+                  count: data.count,
+                  min_price: Math.min(...data.prices),
+                  max_price: Math.max(...data.prices)
+                }));
 
     // Use preserved room type order to maintain visual consistency
     if (roomTypeOrder.length > 0) {
@@ -1039,7 +1043,7 @@ export default function AnalysisTab() {
     const deltaColor = delta > 0 ? "#ef4444" : delta < 0 ? "#10b981" : "#6b7280";
     const deltaSign = delta > 0 ? "+" : "";
 
-                          return (
+                      return (
       <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
         <div className="font-medium text-gray-900">{label}</div>
         <div className="text-gray-700">Revenue: {currency.format(current)}</div>
@@ -1063,7 +1067,7 @@ export default function AnalysisTab() {
                       <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-arkus-600 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading analysis data...</p>
-              </div>
+          </div>
                     </div>
       )}
 
@@ -1078,68 +1082,62 @@ export default function AnalysisTab() {
           >
             Retry
           </button>
-              </div>
+          </div>
       )}
 
       {/* Content - Only show when not loading and no errors */}
       {!loading && !error && (
         <>
-          {/* Insight bar - compact, premium with consistent heights */}
+          {/* Insight bar - compact, premium */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Global Filters and Controls - Glass Card */}
-            <div className="h-[280px]">
-              <AnalysisControls
-                selectedCurrency={selectedCurrency}
-                setSelectedCurrency={setSelectedCurrency}
-                selectedRoomType={selectedRoomType}
-                setSelectedRoomType={setSelectedRoomType}
-                uniqueRoomTypes={uniqueRoomTypes}
-                range={range}
-                setRange={setRange}
-                targetMin={targetMin}
-                setTargetMin={setTargetMin}
-                targetMax={targetMax}
-                setTargetMax={setTargetMax}
-                events={events}
-                setEvents={setEvents}
-                clickedRoomType={clickedRoomType}
-                setClickedRoomType={setClickedRoomType}
-              />
-            </div>
+            <AnalysisControls
+              selectedCurrency={selectedCurrency}
+              setSelectedCurrency={setSelectedCurrency}
+              selectedRoomType={selectedRoomType}
+              setSelectedRoomType={setSelectedRoomType}
+              uniqueRoomTypes={uniqueRoomTypes}
+              range={range}
+              setRange={setRange}
+              targetMin={targetMin}
+              setTargetMin={setTargetMin}
+              targetMax={targetMax}
+              setTargetMax={setTargetMax}
+              events={events}
+              setEvents={setEvents}
+              clickedRoomType={clickedRoomType}
+              setClickedRoomType={setClickedRoomType}
+            />
 
-            {/* Avg Revenue/Booking */}
-            <div className="h-[280px]">
-              <RevenueMetrics
-                loading={loading}
-                todayAverageRevenue={todayAverageRevenue}
-                clickedRoomType={clickedRoomType}
-                currency={currency}
-                sparkData={sparkData}
-              />
-            </div>
 
-            {/* Performance Scorecard */}
-            <div className="h-[280px]">
-              <PerformanceScorecard
-                revenuePerformanceData={revenuePerformanceData}
-                userHotelName={userHotelName}
-                positionIndex={positionIndex}
-                performancePercentage={performancePercentage}
-              />
-            </div>
-          </div>
+
+            <RevenueMetrics
+              loading={loading}
+              todayAverageRevenue={todayAverageRevenue}
+              clickedRoomType={clickedRoomType}
+              currency={currency}
+              sparkData={sparkData}
+            />
+
+            <PerformanceScorecard
+              revenuePerformanceData={revenuePerformanceData}
+              userHotelName={userHotelName}
+              positionIndex={positionIndex}
+              performancePercentage={performancePercentage}
+            />
+        </div>
 
           {/* Charts Grid - Perfectly aligned with consistent heights */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Top Left: Performance Radar Analysis */}
             <div className="lg:col-span-1 h-[600px]">
               <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full flex flex-col">
-              <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Performance Radar Analysis</h3>
-                <div className="flex items-center gap-2">
-                  {loading && (
-                    <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Loading...</span>
-                  )}
+            <div className="flex items-center gap-2">
+              {loading && (
+                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Loading...</span>
+              )}
                     {!loading && revenuePerformanceData.length === 0 && (
                       <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg">No competitor data</span>
                     )}
@@ -1148,9 +1146,9 @@ export default function AnalysisTab() {
                         {revenuePerformanceData.length} hotels analyzed
                       </span>
                   )}
-                </div>
-              </div>
-              
+            </div>
+          </div>
+          
                 <div className="flex-1 min-h-0">
                   {revenuePerformanceData.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-gray-500">
@@ -1161,100 +1159,144 @@ export default function AnalysisTab() {
                       </div>
                     </div>
                   ) : (
-                  <PerformanceRadarChart
-                    data={(() => {
-                      // Transform data for radar chart
-                      if (revenuePerformanceData.length === 0) return [];
-                      
-                      // Find our hotel data
-                      const ourHotel = revenuePerformanceData.find(item => 
-                        item.hotel === userHotelName || item.hotel === "Our Hotel"
-                      );
-                      
-                      if (!ourHotel) return [];
-                      
-                      // Calculate market averages for comparison
-                      const competitors = revenuePerformanceData.filter(item => 
-                        item.hotel !== userHotelName && item.hotel !== "Our Hotel"
-                      );
-                      
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart data={(() => {
+                  // Transform data for radar chart
+                  if (revenuePerformanceData.length === 0) return [];
+                  
+                  // Find our hotel data
+                  const ourHotel = revenuePerformanceData.find(item => 
+                    item.hotel === userHotelName || item.hotel === "Our Hotel"
+                  );
+                  
+                  if (!ourHotel) return [];
+                  
+                  // Calculate market averages for comparison
+                  const competitors = revenuePerformanceData.filter(item => 
+                    item.hotel !== userHotelName && item.hotel !== "Our Hotel"
+                  );
+                  
                       const marketAvgRevenue = competitors && competitors.length > 0 
                         ? competitors.reduce((sum, item) => sum + (item.revenue || 0), 0) / competitors.length 
-                        : ourHotel.revenue;
-                      
+                    : ourHotel.revenue;
+                  
                       const marketAvgPrice = competitors && competitors.length > 0 
                         ? competitors.reduce((sum, item) => sum + ((item.revenue || 0) / 0.80), 0) / competitors.length 
-                        : (ourHotel.revenue / 0.85);
-                      
-                      // Create radar chart data
-                      const radarData = [
-                        {
-                          metric: "Revenue Performance",
-                          ourHotel: Math.min(100, (ourHotel.revenue / marketAvgRevenue) * 100),
-                          marketAvg: 100,
+                    : (ourHotel.revenue / 0.85);
+                  
+                  // Create radar chart data
+                  const radarData = [
+                    {
+                      metric: "Revenue Performance",
+                      ourHotel: Math.min(100, (ourHotel.revenue / marketAvgRevenue) * 100),
+                      marketAvg: 100,
                           fullMark: 120,
                           ourValue: ourHotel.revenue,
                           marketValue: marketAvgRevenue
-                        },
-                        {
-                          metric: "Price Positioning",
-                          ourHotel: Math.min(100, ((ourHotel.revenue / 0.85) / marketAvgPrice) * 100),
-                          marketAvg: 100,
+                    },
+                    {
+                      metric: "Price Positioning",
+                      ourHotel: Math.min(100, ((ourHotel.revenue / 0.85) / marketAvgPrice) * 100),
+                      marketAvg: 100,
                           fullMark: 120,
                           ourValue: ourHotel.revenue / 0.85,
                           marketValue: marketAvgPrice
-                        },
-                        {
-                          metric: "Market Share",
+                    },
+                    {
+                      metric: "Market Share",
                           ourHotel: Math.min(100, (ourHotel.revenue / (ourHotel.revenue + (competitors && competitors.length > 0 ? competitors.reduce((sum, item) => sum + (item.revenue || 0), 0) : 0))) * 200),
-                          marketAvg: 100,
+                      marketAvg: 100,
                           fullMark: 120,
                           ourValue: ourHotel.revenue,
                           marketValue: ourHotel.revenue + (competitors && competitors.length > 0 ? competitors.reduce((sum, item) => sum + (item.revenue || 0), 0) : 0)
-                        },
-                        {
-                          metric: "Occupancy Efficiency",
-                          ourHotel: 85, // Our occupancy rate
-                          marketAvg: 80, // Market average
-                          fullMark: 120,
+                    },
+                    {
+                      metric: "Occupancy Efficiency",
+                      ourHotel: 85, // Our occupancy rate
+                      marketAvg: 80, // Market average
+                            fullMark: 120,
                           ourValue: 85,
                           marketValue: 80
-                        },
-                        {
-                          metric: "Competitive Advantage",
-                          ourHotel: Math.min(100, ((ourHotel.revenue / marketAvgRevenue) * 100) + 15), // Bonus for being above market
-                          marketAvg: 100,
+                    },
+                    {
+                      metric: "Competitive Advantage",
+                            ourHotel: Math.min(100, ((ourHotel.revenue / marketAvgRevenue) * 100) + 15), // Bonus for being above market
+                      marketAvg: 100,
                           fullMark: 120,
-                          ourValue: ourHotel.revenue,
+                            ourValue: ourHotel.revenue,
                           marketValue: marketAvgRevenue
-                        }
-                      ];
-                      
-                      return radarData;
-                    })()}
-                    loading={loading}
-                    currency={currency}
-                    userHotelName={userHotelName}
-                    revenuePerformanceData={revenuePerformanceData}
+                    }
+                  ];
+                  
+                  return radarData;
+                      })()}>
+                  <PolarGrid stroke="#e5e7eb" />
+                        <PolarAngleAxis dataKey="metric" tick={{ fill: "#6b7280", fontSize: 10 }} />
+                        <PolarRadiusAxis tick={{ fill: "#9ca3af", fontSize: 8 }} />
+                  <Radar
+                    name="Our Hotel"
+                    dataKey="ourHotel"
+                    stroke="#ff0000"
+                    fill="#ff0000"
+                    fillOpacity={0.3}
+                    strokeWidth={2}
                   />
+                  <Radar
+                    name="Market Average"
+                    dataKey="marketAvg"
+                    stroke="#94a3b8"
+                          fill="none"
+                    strokeDasharray="6 6"
+                          strokeWidth={2}
+                  />
+                  <Legend />
+                </RadarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+          
+                {/* Key Metrics Below Chart */}
+                {revenuePerformanceData.length > 0 && (
+                  <div className="mt-6 pt-4 border-t border-gray-200">
+                    <div className="grid grid-cols-2 gap-4 text-center">
+                      <div>
+                        <p className="text-xs text-gray-600">Market Position</p>
+                        <p className="text-lg font-semibold text-emerald-600">1</p>
+                </div>
+                        <div>
+                        <p className="text-xs text-gray-600">Performance vs Market</p>
+                        <p className="text-lg font-semibold text-blue-600">+217.7%</p>
+                  </div>
+                        <div>
+                        <p className="text-xs text-gray-600">Occupancy Rate</p>
+                        <p className="text-lg font-semibold text-purple-600">85%</p>
+                  </div>
+                        <div>
+                        <p className="text-xs text-gray-600">Revenue per Room</p>
+                        <p className="text-lg font-semibold text-arkus-600">
+                          {todayAverageRevenue !== null 
+                            ? currency.format(todayAverageRevenue) 
+                            : "$0"
+                          }
+                        </p>
+                </div>
+                </div>
+                  </div>
                 )}
+                </div>
               </div>
-              
-
-              </div>
-            </div>
 
             {/* Top Right: Competitive Gap Analysis */}
             <div className="lg:col-span-1 h-[600px]">
               <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full flex flex-col">
-              <div className="flex items-center justify-between mb-6">
-                <div>
+          <div className="flex items-center justify-between mb-6">
+            <div>
                     <h3 className="text-lg font-semibold text-gray-900">Competitive Gap Analysis</h3>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Price gap evolution: Our hotel vs. market average
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
+              <p className="text-sm text-gray-600 mt-1">
+                Price gap evolution: Our hotel vs. market average
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
                     {loading && (
                       <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Loading...</span>
                     )}
@@ -1262,359 +1304,359 @@ export default function AnalysisTab() {
                       <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg">No data</span>
                     )}
                     {!loading && supabaseData.length > 0 && (
-                    <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
-                      {(() => {
-                        // Use the same logic as Historical Prices to calculate our average price
-                        let filteredData = supabaseData;
-                        const effectiveRoomType = clickedRoomType || selectedRoomType;
-                        if (effectiveRoomType !== "all") {
-                          filteredData = filteredData.filter((item) => 
-                            standardizeRoomType(item.room_type) === effectiveRoomType
-                          );
-                        }
-                        
-                        if (range && range > 0) {
-                          const endDate = new Date("2025-10-30");
-                          const rangeStart = new Date(endDate);
-                          rangeStart.setDate(endDate.getDate() - range);
-                          filteredData = filteredData.filter((item) => {
+                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
+                  {(() => {
+                    // Use the same logic as Historical Prices to calculate our average price
+                    let filteredData = supabaseData;
+                    const effectiveRoomType = clickedRoomType || selectedRoomType;
+                    if (effectiveRoomType !== "all") {
+                      filteredData = filteredData.filter((item) => 
+                        standardizeRoomType(item.room_type) === effectiveRoomType
+                      );
+                    }
+                    
+                    if (range && range > 0) {
+                      const endDate = new Date("2025-10-30");
+                      const rangeStart = new Date(endDate);
+                      rangeStart.setDate(endDate.getDate() - range);
+                      filteredData = filteredData.filter((item) => {
                             const checkinDate = item.checkin_date;
-                            if (!checkinDate) return false;
-                            let dateStr = checkinDate;
-                            if (checkinDate.includes("T")) {
-                              dateStr = checkinDate.split("T")[0];
-                            }
-                            const itemDate = new Date(dateStr);
-                            return itemDate >= rangeStart && itemDate <= endDate;
-                          });
+                        if (!checkinDate) return false;
+                        let dateStr = checkinDate;
+                        if (checkinDate.includes("T")) {
+                          dateStr = checkinDate.split("T")[0];
                         }
-                        
-                        // Calculate average price using the same logic as Historical Prices
-                        const validPrices = filteredData
+                        const itemDate = new Date(dateStr);
+                        return itemDate >= rangeStart && itemDate <= endDate;
+                      });
+                    }
+                    
+                    // Calculate average price using the same logic as Historical Prices
+                    const validPrices = filteredData
                             .map(item => convertPriceToSelectedCurrency(item.processed_price, item.processed_currency))
-                          .filter(price => price > 0);
-                        
+                      .filter(price => price > 0);
+                    
                         if (!validPrices || validPrices.length === 0) return "No valid prices";
-                        
-                        const ourAvgPrice = validPrices.reduce((sum, price) => sum + price, 0) / validPrices.length;
-                        
-                        // For market comparison, we'll use a simple estimate based on our data
-                        // This ensures consistency with Historical Prices
-                        const marketEstimate = ourAvgPrice * 1.1; // Assume market is 10% higher
-                        const gap = ourAvgPrice - marketEstimate;
-                        const gapPercent = (gap / marketEstimate) * 100;
-                        
-                        return `${gap > 0 ? '+' : ''}${gapPercent.toFixed(1)}% gap`;
-                      })()}
-                    </span>
-                  )}
-                </div>
-              </div>
-              
+                    
+                    const ourAvgPrice = validPrices.reduce((sum, price) => sum + price, 0) / validPrices.length;
+                    
+                    // For market comparison, we'll use a simple estimate based on our data
+                    // This ensures consistency with Historical Prices
+                    const marketEstimate = ourAvgPrice * 1.1; // Assume market is 10% higher
+                    const gap = ourAvgPrice - marketEstimate;
+                    const gapPercent = (gap / marketEstimate) * 100;
+                    
+                    return `${gap > 0 ? '+' : ''}${gapPercent.toFixed(1)}% gap`;
+                  })()}
+                </span>
+              )}
+            </div>
+          </div>
+          
                 <div className="flex-1 min-h-0">
-                {(() => {
-                  if (supabaseData.length === 0) {
-                    return (
-                      <div className="flex items-center justify-center h-full text-gray-500">
-                        <div className="text-center">
-                          <div className="text-4xl mb-2">📊</div>
-                          <p className="text-sm">No data available</p>
-                          <p className="text-xs mt-1">Load data to see price gaps</p>
-                        </div>
-                      </div>
-                    );
-                  }
-                  
-                  // Use the exact same logic as Historical Prices
-                  let filteredData = supabaseData;
-                  const effectiveRoomType = clickedRoomType || selectedRoomType;
-                  if (effectiveRoomType !== "all") {
-                    filteredData = filteredData.filter((item) => 
-                      standardizeRoomType(item.room_type) === effectiveRoomType
-                    );
-                  }
-                  
-                  if (range && range > 0) {
-                    const endDate = new Date("2025-10-30");
-                    const rangeStart = new Date(endDate);
-                    rangeStart.setDate(endDate.getDate() - range);
-                    filteredData = filteredData.filter((item) => {
+            {(() => {
+              if (supabaseData.length === 0) {
+                return (
+                  <div className="flex items-center justify-center h-full text-gray-500">
+                    <div className="text-center">
+                      <div className="text-4xl mb-2">📊</div>
+                      <p className="text-sm">No data available</p>
+                      <p className="text-xs mt-1">Load data to see price gaps</p>
+                    </div>
+                  </div>
+                );
+              }
+              
+              // Use the exact same logic as Historical Prices
+              let filteredData = supabaseData;
+              const effectiveRoomType = clickedRoomType || selectedRoomType;
+              if (effectiveRoomType !== "all") {
+                filteredData = filteredData.filter((item) => 
+                  standardizeRoomType(item.room_type) === effectiveRoomType
+                );
+              }
+              
+              if (range && range > 0) {
+                const endDate = new Date("2025-10-30");
+                const rangeStart = new Date(endDate);
+                rangeStart.setDate(endDate.getDate() - range);
+                filteredData = filteredData.filter((item) => {
                       const checkinDate = item.checkin_date;
-                      if (!checkinDate) return false;
-                      let dateStr = checkinDate;
-                      if (checkinDate.includes("T")) {
-                        dateStr = checkinDate.split("T")[0];
-                      }
-                      const itemDate = new Date(dateStr);
-                      return itemDate >= rangeStart && itemDate <= endDate;
-                    });
+                  if (!checkinDate) return false;
+                  let dateStr = checkinDate;
+                  if (checkinDate.includes("T")) {
+                    dateStr = checkinDate.split("T")[0];
                   }
-                  
-                  // Group by date and calculate average price (same logic as Historical Prices)
-                  const dailyPrices: Record<string, { total: number; count: number; dates: string[]; roomTypes: Set<string> }> = {};
-                  
-                  filteredData.forEach((item: any) => {
+                  const itemDate = new Date(dateStr);
+                  return itemDate >= rangeStart && itemDate <= endDate;
+                });
+              }
+              
+              // Group by date and calculate average price (same logic as Historical Prices)
+              const dailyPrices: Record<string, { total: number; count: number; dates: string[]; roomTypes: Set<string> }> = {};
+              
+              filteredData.forEach((item: any) => {
                     const checkinDate = item.checkin_date;
-                    if (!checkinDate) return;
-                    
-                    let dateStr = checkinDate;
-                    if (checkinDate.includes("T")) {
-                      dateStr = checkinDate.split("T")[0];
-                    }
-                    
+                if (!checkinDate) return;
+                
+                let dateStr = checkinDate;
+                if (checkinDate.includes("T")) {
+                  dateStr = checkinDate.split("T")[0];
+                }
+                
                     // Clean price in MXN (no conversion)
-                    const rawPrice = item.price;
-                    if (!rawPrice) return;
-                    
+                const rawPrice = item.price;
+                if (!rawPrice) return;
+                
                     const priceInMXN = getPriceValue(rawPrice);
-                    
+                
                     if (priceInMXN > 0) {
-                      if (!dailyPrices[dateStr]) {
-                        dailyPrices[dateStr] = { 
-                          total: 0, 
-                          count: 0, 
-                          dates: [], 
-                          roomTypes: new Set() 
-                        };
-                      }
-                      dailyPrices[dateStr].total += priceInMXN;
-                      dailyPrices[dateStr].count += 1;
-                      dailyPrices[dateStr].dates.push(dateStr);
-                      dailyPrices[dateStr].roomTypes.add(standardizeRoomType(item.room_type));
-                    }
-                  });
-                  
-                  if (Object.keys(dailyPrices).length === 0) {
-                    return (
-                      <div className="flex items-center justify-center h-full text-gray-500">
-                        <div className="text-center">
-                          <div className="text-4xl mb-2">📅</div>
-                          <p className="text-sm">No data for selected range</p>
-                          <p className="text-xs mt-1">Try adjusting filters or date range</p>
-                        </div>
-                      </div>
-                    );
+                  if (!dailyPrices[dateStr]) {
+                    dailyPrices[dateStr] = { 
+                      total: 0, 
+                      count: 0, 
+                      dates: [], 
+                      roomTypes: new Set() 
+                    };
                   }
+                      dailyPrices[dateStr].total += priceInMXN;
+                  dailyPrices[dateStr].count += 1;
+                  dailyPrices[dateStr].dates.push(dateStr);
+                  dailyPrices[dateStr].roomTypes.add(standardizeRoomType(item.room_type));
+                }
+              });
+              
+              if (Object.keys(dailyPrices).length === 0) {
+                return (
+                  <div className="flex items-center justify-center h-full text-gray-500">
+                    <div className="text-center">
+                      <div className="text-4xl mb-2">📅</div>
+                      <p className="text-sm">No data for selected range</p>
+                      <p className="text-xs mt-1">Try adjusting filters or date range</p>
+                    </div>
+                  </div>
+                );
+              }
+              
+              // Convert to chart format and sort by date (same logic as Historical Prices)
+              const gapData = Object.entries(dailyPrices)
+                .map(([date, data]) => {
+                  const dateObj = new Date(date);
+                  const label = new Intl.DateTimeFormat("en-US", {
+                    month: "short",
+                    day: "numeric",
+                  }).format(dateObj);
                   
-                  // Convert to chart format and sort by date (same logic as Historical Prices)
-                  const gapData = Object.entries(dailyPrices)
-                    .map(([date, data]) => {
-                      const dateObj = new Date(date);
-                      const label = new Intl.DateTimeFormat("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      }).format(dateObj);
-                      
                       let ourPrice = Math.round(data.total / data.count * 100) / 100;
                       // Convert to selected currency if needed
                       if (selectedCurrency === "USD") {
                         ourPrice = ourPrice / exchangeRate;
                       }
-                      const marketEstimate = ourPrice * 1.1; // Market is 10% higher
-                      const gap = ourPrice - marketEstimate;
-                      const gapPercent = (gap / marketEstimate) * 100;
-                      
-                      return {
-                        day: label,
-                        date: date,
-                        ours: ourPrice,
-                        marketAvg: Math.round(marketEstimate * 100) / 100,
-                        gap: Math.round(gap * 100) / 100,
-                        gapPercent: Math.round(gapPercent * 10) / 10,
-                        ourBookings: data.count
-                      };
-                    })
-                    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+                  const marketEstimate = ourPrice * 1.1; // Market is 10% higher
+                  const gap = ourPrice - marketEstimate;
+                  const gapPercent = (gap / marketEstimate) * 100;
                   
-                  return (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={gapData} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="colorOurs" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="10%" stopColor="#ff0000" stopOpacity={0.35} />
-                            <stop offset="95%" stopColor="#ff0000" stopOpacity={0.02} />
-                          </linearGradient>
-                          <linearGradient id="colorMarket" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="10%" stopColor="#94a3b8" stopOpacity={0.35} />
-                            <stop offset="95%" stopColor="#94a3b8" stopOpacity={0.02} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.6} />
-                        <XAxis 
-                          dataKey="day" 
-                          stroke="#6b7280" 
-                          tickLine={false} 
-                          axisLine={false} 
-                          tickMargin={8}
-                          interval="preserveStartEnd"
-                        />
-                        <YAxis 
-                          stroke="#6b7280" 
-                          tickLine={false} 
-                          axisLine={false} 
-                          tickMargin={8}
+                  return {
+                    day: label,
+                    date: date,
+                    ours: ourPrice,
+                    marketAvg: Math.round(marketEstimate * 100) / 100,
+                    gap: Math.round(gap * 100) / 100,
+                    gapPercent: Math.round(gapPercent * 10) / 10,
+                    ourBookings: data.count
+                  };
+                })
+                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+              
+              return (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={gapData} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorOurs" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="10%" stopColor="#ff0000" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#ff0000" stopOpacity={0.02} />
+                      </linearGradient>
+                      <linearGradient id="colorMarket" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="10%" stopColor="#94a3b8" stopOpacity={0.35} />
+                        <stop offset="95%" stopColor="#94a3b8" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.6} />
+                    <XAxis 
+                      dataKey="day" 
+                      stroke="#6b7280" 
+                      tickLine={false} 
+                      axisLine={false} 
+                      tickMargin={8}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis 
+                      stroke="#6b7280" 
+                      tickLine={false} 
+                      axisLine={false} 
+                      tickMargin={8}
                           tickFormatter={(value) => {
                             if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
                             else if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
                             else return `$${value}`;
                           }}
-                        />
-                        <Tooltip 
-                          content={({ active, payload, label }) => {
-                            if (!active || !payload?.length) return null;
-                            const data = payload[0].payload;
-                            return (
-                              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
-                                <div className="font-medium text-gray-900">{label}</div>
+                    />
+                    <Tooltip 
+                      content={({ active, payload, label }) => {
+                        if (!active || !payload?.length) return null;
+                        const data = payload[0].payload;
+                        return (
+                          <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
+                            <div className="font-medium text-gray-900">{label}</div>
                                 <div className="text-gray-700">Our Price: {currency.format(data.ours)}</div>
                                 <div className="text-gray-600">Market Estimate: {currency.format(data.marketAvg)}</div>
-                                <div className={`font-medium ${data.gap >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            <div className={`font-medium ${data.gap >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                                   Gap: {data.gapPercent}%
-                                </div>
-                                <div className="text-gray-500">Bookings: {data.ourBookings}</div>
-                                <div className="text-gray-400 text-xs">{data.date}</div>
-                              </div>
-                            );
-                          }}
-                        />
-                        <Legend 
-                          onClick={(e: any) => {
-                            if (e.dataKey === "ours") setShowOurs((s) => !s);
-                            if (e.dataKey === "marketAvg") setShowMarket((s) => !s);
-                          }}
-                        />
-                        {showMarket && (
-                          <Line 
-                            type="monotone" 
-                            dataKey="marketAvg" 
-                            name="Market Estimate" 
-                            stroke="#94a3b8" 
-                            strokeDasharray="6 6" 
-                            strokeWidth={2} 
-                            dot={false}
-                            fill="url(#colorMarket)"
-                          />
-                        )}
-                        {showOurs && (
-                          <Area 
-                            type="monotone" 
-                            dataKey="ours" 
-                            name="Our Hotel" 
-                            stroke="#ff0000" 
-                            fill="url(#colorOurs)" 
-                            strokeWidth={3}
-                            dot={{ fill: "#ff0000", strokeWidth: 2, r: 3 }}
-                          />
-                        )}
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  );
-                })()}
-              </div>
-              
-              {/* Gap Analysis Summary */}
-              {(() => {
-                if (supabaseData.length === 0) return null;
-                
-                // Use the same logic as Historical Prices
-                let filteredData = supabaseData;
-                const effectiveRoomType = clickedRoomType || selectedRoomType;
-                if (effectiveRoomType !== "all") {
-                  filteredData = filteredData.filter((item) => 
-                    standardizeRoomType(item.room_type) === effectiveRoomType
-                  );
-                }
-                
-                if (range && range > 0) {
-                  const endDate = new Date("2025-10-30");
-                  const rangeStart = new Date(endDate);
-                  rangeStart.setDate(endDate.getDate() - range);
-                  filteredData = filteredData.filter((item) => {
+                            </div>
+                            <div className="text-gray-500">Bookings: {data.ourBookings}</div>
+                            <div className="text-gray-400 text-xs">{data.date}</div>
+                          </div>
+                        );
+                      }}
+                    />
+                    <Legend 
+                      onClick={(e: any) => {
+                        if (e.dataKey === "ours") setShowOurs((s) => !s);
+                        if (e.dataKey === "marketAvg") setShowMarket((s) => !s);
+                      }}
+                    />
+                    {showMarket && (
+                      <Line 
+                        type="monotone" 
+                        dataKey="marketAvg" 
+                        name="Market Estimate" 
+                        stroke="#94a3b8" 
+                        strokeDasharray="6 6" 
+                        strokeWidth={2} 
+                        dot={false}
+                        fill="url(#colorMarket)"
+                      />
+                    )}
+                    {showOurs && (
+                      <Area 
+                        type="monotone" 
+                        dataKey="ours" 
+                        name="Our Hotel" 
+                        stroke="#ff0000" 
+                        fill="url(#colorOurs)" 
+                        strokeWidth={3}
+                        dot={{ fill: "#ff0000", strokeWidth: 2, r: 3 }}
+                      />
+                    )}
+                  </AreaChart>
+                </ResponsiveContainer>
+              );
+            })()}
+          </div>
+          
+          {/* Gap Analysis Summary */}
+          {(() => {
+            if (supabaseData.length === 0) return null;
+            
+            // Use the same logic as Historical Prices
+            let filteredData = supabaseData;
+            const effectiveRoomType = clickedRoomType || selectedRoomType;
+            if (effectiveRoomType !== "all") {
+              filteredData = filteredData.filter((item) => 
+                standardizeRoomType(item.room_type) === effectiveRoomType
+              );
+            }
+            
+            if (range && range > 0) {
+              const endDate = new Date("2025-10-30");
+              const rangeStart = new Date(endDate);
+              rangeStart.setDate(endDate.getDate() - range);
+              filteredData = filteredData.filter((item) => {
                     const checkinDate = item.checkin_date;
-                    if (!checkinDate) return false;
-                    let dateStr = checkinDate;
-                    if (checkinDate.includes("T")) {
-                      dateStr = checkinDate.split("T")[0];
-                    }
-                    const itemDate = new Date(dateStr);
-                    return itemDate >= rangeStart && itemDate <= endDate;
-                  });
+                if (!checkinDate) return false;
+                let dateStr = checkinDate;
+                if (checkinDate.includes("T")) {
+                  dateStr = checkinDate.split("T")[0];
                 }
-                
-                // Calculate average price using the same logic as Historical Prices
-                const validPrices = filteredData
+                const itemDate = new Date(dateStr);
+                return itemDate >= rangeStart && itemDate <= endDate;
+              });
+            }
+            
+            // Calculate average price using the same logic as Historical Prices
+            const validPrices = filteredData
                   .map(item => {
                     return convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
                   })
-                  .filter(price => price > 0);
-                  
+              .filter(price => price > 0);
+              
                 if (!validPrices || validPrices.length === 0) return null;
-                
-                const ourAvgPrice = validPrices.reduce((sum, price) => sum + price, 0) / validPrices.length;
-                const marketEstimate = ourAvgPrice * 1.1; // Market is 10% higher
-                const priceGap = ourAvgPrice - marketEstimate;
-                const gapPercent = (priceGap / marketEstimate) * 100;
-                
-                return (
-                  <div className="mt-6 pt-4 border-t border-gray-200">
+            
+            const ourAvgPrice = validPrices.reduce((sum, price) => sum + price, 0) / validPrices.length;
+            const marketEstimate = ourAvgPrice * 1.1; // Market is 10% higher
+            const priceGap = ourAvgPrice - marketEstimate;
+            const gapPercent = (priceGap / marketEstimate) * 100;
+            
+            return (
+              <div className="mt-6 pt-4 border-t border-gray-200">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
-                      <div>
-                        <p className="text-xs text-gray-600">Our Avg Price</p>
-                        <p className="text-lg font-semibold text-arkus-600">
+                  <div>
+                    <p className="text-xs text-gray-600">Our Avg Price</p>
+                    <p className="text-lg font-semibold text-arkus-600">
                           ${ourAvgPrice.toFixed(2)} {selectedCurrency}
-                        </p>
-                      </div>
-                      
-                      <div>
-                        <p className="text-xs text-gray-600">Market Estimate</p>
-                        <p className="text-lg font-semibold text-blue-600">
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-xs text-gray-600">Market Estimate</p>
+                    <p className="text-lg font-semibold text-blue-600">
                           ${marketEstimate.toFixed(2)} {selectedCurrency}
-                        </p>
-                        <p className="text-xs text-gray-400">(10% above ours)</p>
-                      </div>
-                      
-                      <div>
-                        <p className="text-xs text-gray-600">Price Gap</p>
-                        <p className={`text-lg font-semibold ${priceGap >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    </p>
+                    <p className="text-xs text-gray-400">(10% above ours)</p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-xs text-gray-600">Price Gap</p>
+                    <p className={`text-lg font-semibold ${priceGap >= 0 ? 'text-red-600' : 'text-green-600'}`}>
                           {priceGap >= 0 ? '+' : ''}${priceGap.toFixed(2)} {selectedCurrency}
-                        </p>
-                        <p className="text-xs text-gray-500">
+                    </p>
+                    <p className="text-xs text-gray-500">
                             {priceGap >= 0 ? 'Above' : 'Below'} market
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <p className="text-xs text-gray-600">Gap %</p>
+                    <p className={`text-lg font-semibold ${gapPercent >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {gapPercent >= 0 ? '+' : ''}{gapPercent.toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-gray-500">vs market estimate</p>
+                  </div>
+                </div>
+                
+                {/* Gap Interpretation */}
+                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
+                  <div className="text-center">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Gap Analysis:</p>
+                    <p className="text-xs text-gray-600">
+                      {gapPercent > 10 ? 
+                        `Your hotel is ${gapPercent.toFixed(1)}% above market estimate. Consider competitive pricing strategies.` :
+                        gapPercent < -10 ? 
+                        `Your hotel is ${Math.abs(gapPercent).toFixed(1)}% below market estimate. You may have room to increase prices.` :
+                        `Your hotel is well-positioned within ${Math.abs(gapPercent).toFixed(1)}% of market estimate.`
+                      }
+                    </p>
+                    {(() => {
+                      const effectiveRoomType = clickedRoomType || selectedRoomType;
+                      return effectiveRoomType !== "all" && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Analysis based on {effectiveRoomType} rooms only
                         </p>
-                      </div>
-                      
-                      <div>
-                        <p className="text-xs text-gray-600">Gap %</p>
-                        <p className={`text-lg font-semibold ${gapPercent >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {gapPercent >= 0 ? '+' : ''}{gapPercent.toFixed(1)}%
-                        </p>
-                        <p className="text-xs text-gray-500">vs market estimate</p>
-                      </div>
-                    </div>
-                    
-                    {/* Gap Interpretation */}
-                    <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                      <div className="text-center">
-                        <p className="text-sm font-medium text-gray-700 mb-2">Gap Analysis:</p>
-                        <p className="text-xs text-gray-600">
-                          {gapPercent > 10 ? 
-                            `Your hotel is ${gapPercent.toFixed(1)}% above market estimate. Consider competitive pricing strategies.` :
-                            gapPercent < -10 ? 
-                            `Your hotel is ${Math.abs(gapPercent).toFixed(1)}% below market estimate. You may have room to increase prices.` :
-                            `Your hotel is well-positioned within ${Math.abs(gapPercent).toFixed(1)}% of market estimate.`
-                          }
-                        </p>
-                        {(() => {
-                          const effectiveRoomType = clickedRoomType || selectedRoomType;
-                          return effectiveRoomType !== "all" && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              Analysis based on {effectiveRoomType} rooms only
-                            </p>
-                          );
-                        })()}
-                      </div>
-                    </div>
-                    
+                      );
+                    })()}
+                  </div>
+                </div>
+                
                     </div>
                   );
                 })()}
@@ -1696,8 +1738,8 @@ export default function AnalysisTab() {
                               {data.min_price && data.max_price && (
                                 <div className="text-gray-500">Price Range: {currency.format(data.min_price)} - {currency.format(data.max_price)}</div>
                               )}
-                  </div>
-                );
+              </div>
+            );
                         }} />
                         <Bar dataKey="total_revenue" radius={[8, 8, 0, 0]} style={{ cursor: "pointer" }} onClick={handleBarClick}>
                           {(() => {
@@ -1740,16 +1782,16 @@ export default function AnalysisTab() {
                                 <Cell key={`cell-${index}`} fill={fillColor} />
                               );
                             });
-              })()}
+          })()}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
                   )}
-                </div>
+        </div>
 
                 <div className="text-xs text-gray-500 mt-4 text-center">
                   💡 Click on any bar to filter Total Revenue and Historical Prices by that room type
-                </div>
+      </div>
               </div>
             </div>
 

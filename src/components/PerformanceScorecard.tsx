@@ -5,14 +5,25 @@ interface PerformanceScorecardProps {
   userHotelName: string;
   positionIndex: number | null;
   performancePercentage: number | null;
+  summaryPosition?: number | null; // New prop for position from Summary Tab
 }
 
 const PerformanceScorecard = memo(({
   revenuePerformanceData,
   userHotelName,
   positionIndex,
-  performancePercentage
+  performancePercentage,
+  summaryPosition
 }: PerformanceScorecardProps) => {
+  
+  // Debug: Log the props to see what we're receiving
+  console.log('PerformanceScorecard Props:', {
+    revenuePerformanceData,
+    userHotelName,
+    positionIndex,
+    performancePercentage,
+    summaryPosition
+  });
   // Calculate real metrics from the data
   const calculateMetrics = () => {
     if (!revenuePerformanceData || revenuePerformanceData.length === 0) {
@@ -60,8 +71,39 @@ const PerformanceScorecard = memo(({
     const occupancyEfficiency = 85; // Our occupancy rate
     const competitiveAdvantage = Math.min(100, revenuePerformance + 15);
 
+    // Calculate position from Summary Tab (sorted by revenue descending)
+    const calculateSummaryPosition = () => {
+      if (!revenuePerformanceData || revenuePerformanceData.length === 0) return null;
+      
+      // Debug: Log the data to see what we're working with
+      console.log('Revenue Performance Data:', revenuePerformanceData);
+      console.log('User Hotel Name:', userHotelName);
+      
+      // Sort hotels by revenue in descending order (highest revenue first)
+      const sortedHotels = [...revenuePerformanceData].sort((a, b) => {
+        // Ensure revenue is a number and handle edge cases
+        const revenueA = typeof a.revenue === 'number' ? a.revenue : 0;
+        const revenueB = typeof b.revenue === 'number' ? b.revenue : 0;
+        return revenueB - revenueA;
+      });
+      
+      console.log('Sorted Hotels:', sortedHotels);
+      
+      // Find our hotel's position in the sorted list
+      const ourHotelIndex = sortedHotels.findIndex(item => 
+        item.hotel === userHotelName || item.hotel === "Our Hotel"
+      );
+      
+      console.log('Our Hotel Index:', ourHotelIndex);
+      
+      const position = ourHotelIndex >= 0 ? ourHotelIndex + 1 : null;
+      console.log('Calculated Position:', position);
+      
+      return position;
+    };
+
     return {
-      position: positionIndex,
+      position: calculateSummaryPosition(), // Always use calculated position from Summary logic
       performance: performancePercentage,
       occupancy: occupancyEfficiency,
       marketPosition: Math.round(revenuePerformance),
@@ -72,25 +114,25 @@ const PerformanceScorecard = memo(({
   const metrics = calculateMetrics();
 
   return (
-    <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full">
+    <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300 h-full">
       {/* Header Section - Fixed height */}
-      <div className="h-16 flex items-center gap-3 mb-6">
-        <div className="p-2 bg-emerald-100 rounded-lg">
-          <svg className="text-emerald-600 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div className="h-12 flex items-center gap-3 mb-4">
+        <div className="p-1.5 bg-emerald-100 rounded-lg">
+          <svg className="text-emerald-600 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
           </svg>
         </div>
         <div>
-          <p className="text-sm font-medium text-gray-700">Performance Scorecard</p>
+          <p className="text-xs font-medium text-gray-700">Performance Scorecard</p>
         </div>
       </div>
       
       {/* Content Section - Fixed height with grid */}
-      <div className="h-32 grid grid-cols-3 gap-3">
+      <div className="h-24 grid grid-cols-3 gap-2">
         {/* Market Position Gauge */}
         <div className="text-center flex flex-col justify-center">
-          <div className="relative w-16 h-16 mx-auto mb-2">
-            <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+          <div className="relative w-12 h-12 mx-auto mb-1.5">
+            <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
               <path
                 className="text-gray-200"
                 stroke="currentColor"
@@ -102,7 +144,7 @@ const PerformanceScorecard = memo(({
                 className="text-emerald-500"
                 stroke="currentColor"
                 strokeWidth="2.5"
-                strokeDasharray={`${metrics.position && revenuePerformanceData.length > 0 ? ((revenuePerformanceData.length - metrics.position + 1) / revenuePerformanceData.length) * 100 : 0}, 100`}
+                strokeDasharray={`${metrics.position ? 100 : 0}, 100`}
                 strokeDashoffset="0"
                 fill="none"
                 d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
@@ -113,13 +155,15 @@ const PerformanceScorecard = memo(({
             </div>
           </div>
           <p className="text-xs text-gray-600 font-medium">Position</p>
-          <p className="text-xs text-gray-500">of {revenuePerformanceData.length || 0}</p>
+          <p className="text-xs text-gray-500">
+            of {revenuePerformanceData.length || 0}
+          </p>
         </div>
         
         {/* Revenue Performance Gauge */}
         <div className="text-center flex flex-col justify-center">
-          <div className="relative w-16 h-16 mx-auto mb-2">
-            <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+          <div className="relative w-12 h-12 mx-auto mb-1.5">
+            <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
               <path
                 className="text-gray-200"
                 stroke="currentColor"
@@ -147,8 +191,8 @@ const PerformanceScorecard = memo(({
         
         {/* Competitive Advantage Gauge */}
         <div className="text-center flex flex-col justify-center">
-          <div className="relative w-16 h-16 mx-auto mb-2">
-            <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 36 36">
+          <div className="relative w-12 h-12 mx-auto mb-1.5">
+            <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 36 36">
               <path
                 className="text-gray-200"
                 stroke="currentColor"
@@ -175,14 +219,7 @@ const PerformanceScorecard = memo(({
         </div>
       </div>
 
-      {/* Bottom Section - Fixed height */}
-      <div className="h-16 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-xs text-gray-500">
-            {revenuePerformanceData.length > 0 ? `${revenuePerformanceData.length} hotels analyzed` : 'No data available'}
-          </p>
-        </div>
-      </div>
+
     </div>
   );
 });

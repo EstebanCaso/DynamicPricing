@@ -7,21 +7,17 @@ interface PerformanceRadarChartProps {
     ourHotel: number;
     marketAvg: number;
     fullMark: number;
-    ourValue: number;
-    marketValue: number;
   }>;
   loading: boolean;
   currency: IntlNumberFormat;
   userHotelName: string;
-  revenuePerformanceData: any[];
 }
 
 export default function PerformanceRadarChart({ 
   data, 
   loading, 
   currency,
-  userHotelName,
-  revenuePerformanceData
+  userHotelName 
 }: PerformanceRadarChartProps) {
   if (loading) {
     return (
@@ -34,7 +30,7 @@ export default function PerformanceRadarChart({
     );
   }
 
-  if (data.length === 0 || !revenuePerformanceData || revenuePerformanceData.length === 0) {
+  if (data.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-gray-500">
         <div className="text-center">
@@ -46,46 +42,13 @@ export default function PerformanceRadarChart({
     );
   }
 
-  // Calculate summary metrics that match the PerformanceScorecard
-  const calculateSummaryMetrics = () => {
-    if (!revenuePerformanceData || revenuePerformanceData.length === 0) {
-      return { revenuePerformance: "N/A", competitiveAdvantage: "N/A" };
-    }
-
-    const ourHotel = revenuePerformanceData.find(item => 
-      item.hotel === userHotelName || item.hotel === "Our Hotel"
-    );
-
-    if (!ourHotel) {
-      return { revenuePerformance: "N/A", competitiveAdvantage: "N/A" };
-    }
-
-    const competitors = revenuePerformanceData.filter(item => 
-      item.hotel !== userHotelName && item.hotel !== "Our Hotel"
-    );
-
-    const marketAvgRevenue = competitors && competitors.length > 0 
-      ? competitors.reduce((sum, item) => sum + (item.revenue || 0), 0) / competitors.length 
-      : ourHotel.revenue;
-
-    const revenuePerformance = Math.min(100, (ourHotel.revenue / marketAvgRevenue) * 100);
-    const competitiveAdvantage = Math.min(100, revenuePerformance + 15);
-
-    return {
-      revenuePerformance: Math.round(revenuePerformance),
-      competitiveAdvantage: Math.round(competitiveAdvantage)
-    };
-  };
-
-  const summaryMetrics = calculateSummaryMetrics();
-
   return (
     <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full flex flex-col">
       <div className="flex items-center justify-between mb-6">
         <h3 className="text-lg font-semibold text-gray-900">Performance Radar Analysis</h3>
         <div className="flex items-center gap-2">
           <span className="text-sm text-green-600 bg-green-50 px-3 py-1 rounded-lg">
-            {revenuePerformanceData.length} hotels analyzed
+            {data.length} metrics analyzed
           </span>
         </div>
       </div>
@@ -122,18 +85,24 @@ export default function PerformanceRadarChart({
         </ResponsiveContainer>
       </div>
       
-      {/* Performance Summary - Matching PerformanceScorecard metrics */}
+      {/* Performance Summary */}
       <div className="mt-6 pt-4 border-t border-gray-200">
         <div className="grid grid-cols-2 gap-4 text-center">
           <div className="p-3 bg-arkus-50 rounded-lg">
             <div className="text-2xl font-bold text-arkus-600">
-              {summaryMetrics.revenuePerformance}
+              {(() => {
+                const revenueMetric = data.find(item => item.metric === "Revenue Performance");
+                return revenueMetric ? Math.round(revenueMetric.ourHotel) : "N/A";
+              })()}
             </div>
             <div className="text-xs text-arkus-700">Revenue Performance</div>
           </div>
           <div className="p-3 bg-emerald-50 rounded-lg">
             <div className="text-2xl font-bold text-emerald-600">
-              {summaryMetrics.competitiveAdvantage}
+              {(() => {
+                const competitiveMetric = data.find(item => item.metric === "Competitive Advantage");
+                return competitiveMetric ? Math.round(competitiveMetric.ourHotel) : "N/A";
+              })()}
             </div>
             <div className="text-xs text-emerald-700">Competitive Advantage</div>
           </div>

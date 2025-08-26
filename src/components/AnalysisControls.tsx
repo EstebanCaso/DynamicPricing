@@ -36,21 +36,11 @@ const AnalysisControls = memo(({
   setClickedRoomType
 }: AnalysisControlsProps) => {
   return (
-    <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full">
-      {/* Header Section - Fixed height */}
-      <div className="h-16 flex items-center gap-3 mb-6">
-        <div className="p-2 bg-arkus-100 rounded-lg">
-          <svg className="text-arkus-600 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-          </svg>
-        </div>
-        <div>
-          <p className="text-sm font-medium text-gray-700">Room Type Filter</p>
-        </div>
-      </div>
+    <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300 h-full">
+
 
       {/* Content Section - Fixed height with grid */}
-      <div className="h-32 grid grid-cols-1 gap-3">
+      <div className="h-24 grid grid-cols-1 gap-2">
         {/* Room Type Selection */}
         <div className="space-y-1">
           <label className="block text-xs font-medium text-gray-600">Room Type</label>
@@ -115,7 +105,7 @@ const AnalysisControls = memo(({
       </div>
 
       {/* Bottom Section - Fixed height */}
-      <div className="h-16 flex items-end">
+      <div className="h-12 flex items-end">
         {(selectedRoomType !== "all" || clickedRoomType) && (
           <button
             onClick={() => {
