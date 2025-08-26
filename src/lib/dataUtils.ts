@@ -5,6 +5,9 @@
 
 import { supabase } from './supabaseClient';
 
+// Type definitions for data utilities
+export type IntlNumberFormat = Intl.NumberFormat;
+
 // ===== UNIFIED TABLE NAMES =====
 export const TABLES = {
   USER_HOTEL: 'hotel_usuario',     // Standardize on lowercase

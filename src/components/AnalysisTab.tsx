@@ -1116,9 +1116,6 @@ export default function AnalysisTab() {
               todayAverageRevenue={todayAverageRevenue}
               clickedRoomType={clickedRoomType}
               currency={currency}
-              revenuePerformanceData={revenuePerformanceData}
-              userHotelName={userHotelName}
-              performanceDeltaPerc={performanceDeltaPerc}
               sparkData={sparkData}
             />
 
