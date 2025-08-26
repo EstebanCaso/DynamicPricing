@@ -17,11 +17,6 @@ import {
   Cell,
   Brush,
   ReferenceArea,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
 } from "recharts";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
@@ -46,6 +41,7 @@ import HistoricalPricesChart from "./HistoricalPricesChart";
 import PriceStats from "./PriceStats";
 import RevenueByRoomTypeChart from "./RevenueByRoomTypeChart";
 import AnalysisControls from "./AnalysisControls";
+import PerformanceRadarChart from "./PerformanceRadarChart";
 
 type HistoricalPoint = {
   day: string;
@@ -1088,44 +1084,50 @@ export default function AnalysisTab() {
       {/* Content - Only show when not loading and no errors */}
       {!loading && !error && (
         <>
-          {/* Insight bar - compact, premium */}
+          {/* Insight bar - compact, premium with consistent heights */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Global Filters and Controls - Glass Card */}
-            <AnalysisControls
-              selectedCurrency={selectedCurrency}
-              setSelectedCurrency={setSelectedCurrency}
-              selectedRoomType={selectedRoomType}
-              setSelectedRoomType={setSelectedRoomType}
-              uniqueRoomTypes={uniqueRoomTypes}
-              range={range}
-              setRange={setRange}
-              targetMin={targetMin}
-              setTargetMin={setTargetMin}
-              targetMax={targetMax}
-              setTargetMax={setTargetMax}
-              events={events}
-              setEvents={setEvents}
-              clickedRoomType={clickedRoomType}
-              setClickedRoomType={setClickedRoomType}
-            />
-
-
-
-            <RevenueMetrics
-              loading={loading}
-              todayAverageRevenue={todayAverageRevenue}
-              clickedRoomType={clickedRoomType}
-              currency={currency}
-              sparkData={sparkData}
-            />
-
-            <PerformanceScorecard
-              revenuePerformanceData={revenuePerformanceData}
-              userHotelName={userHotelName}
-              positionIndex={positionIndex}
-              performancePercentage={performancePercentage}
-            />
+            <div className="h-[280px]">
+              <AnalysisControls
+                selectedCurrency={selectedCurrency}
+                setSelectedCurrency={setSelectedCurrency}
+                selectedRoomType={selectedRoomType}
+                setSelectedRoomType={setSelectedRoomType}
+                uniqueRoomTypes={uniqueRoomTypes}
+                range={range}
+                setRange={setRange}
+                targetMin={targetMin}
+                setTargetMin={setTargetMin}
+                targetMax={targetMax}
+                setTargetMax={setTargetMax}
+                events={events}
+                setEvents={setEvents}
+                clickedRoomType={clickedRoomType}
+                setClickedRoomType={setClickedRoomType}
+              />
             </div>
+
+            {/* Avg Revenue/Booking */}
+            <div className="h-[280px]">
+              <RevenueMetrics
+                loading={loading}
+                todayAverageRevenue={todayAverageRevenue}
+                clickedRoomType={clickedRoomType}
+                currency={currency}
+                sparkData={sparkData}
+              />
+            </div>
+
+            {/* Performance Scorecard */}
+            <div className="h-[280px]">
+              <PerformanceScorecard
+                revenuePerformanceData={revenuePerformanceData}
+                userHotelName={userHotelName}
+                positionIndex={positionIndex}
+                performancePercentage={performancePercentage}
+              />
+            </div>
+          </div>
 
           {/* Charts Grid - Perfectly aligned with consistent heights */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1159,8 +1161,8 @@ export default function AnalysisTab() {
                       </div>
                     </div>
                   ) : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <RadarChart data={(() => {
+                  <PerformanceRadarChart
+                    data={(() => {
                       // Transform data for radar chart
                       if (revenuePerformanceData.length === 0) return [];
                       
@@ -1214,75 +1216,31 @@ export default function AnalysisTab() {
                           metric: "Occupancy Efficiency",
                           ourHotel: 85, // Our occupancy rate
                           marketAvg: 80, // Market average
-                            fullMark: 120,
+                          fullMark: 120,
                           ourValue: 85,
                           marketValue: 80
                         },
                         {
                           metric: "Competitive Advantage",
-                            ourHotel: Math.min(100, ((ourHotel.revenue / marketAvgRevenue) * 100) + 15), // Bonus for being above market
+                          ourHotel: Math.min(100, ((ourHotel.revenue / marketAvgRevenue) * 100) + 15), // Bonus for being above market
                           marketAvg: 100,
                           fullMark: 120,
-                            ourValue: ourHotel.revenue,
+                          ourValue: ourHotel.revenue,
                           marketValue: marketAvgRevenue
                         }
                       ];
                       
                       return radarData;
-                      })()}>
-                      <PolarGrid stroke="#e5e7eb" />
-                        <PolarAngleAxis dataKey="metric" tick={{ fill: "#6b7280", fontSize: 10 }} />
-                        <PolarRadiusAxis tick={{ fill: "#9ca3af", fontSize: 8 }} />
-                      <Radar
-                        name="Our Hotel"
-                        dataKey="ourHotel"
-                        stroke="#ff0000"
-                        fill="#ff0000"
-                        fillOpacity={0.3}
-                        strokeWidth={2}
-                      />
-                      <Radar
-                        name="Market Average"
-                        dataKey="marketAvg"
-                        stroke="#94a3b8"
-                          fill="none"
-                        strokeDasharray="6 6"
-                          strokeWidth={2}
-                      />
-                      <Legend />
-                    </RadarChart>
-                  </ResponsiveContainer>
+                    })()}
+                    loading={loading}
+                    currency={currency}
+                    userHotelName={userHotelName}
+                    revenuePerformanceData={revenuePerformanceData}
+                  />
                 )}
               </div>
               
-                {/* Key Metrics Below Chart */}
-                {revenuePerformanceData.length > 0 && (
-                  <div className="mt-6 pt-4 border-t border-gray-200">
-                    <div className="grid grid-cols-2 gap-4 text-center">
-                      <div>
-                        <p className="text-xs text-gray-600">Market Position</p>
-                        <p className="text-lg font-semibold text-emerald-600">1</p>
-                      </div>
-                        <div>
-                        <p className="text-xs text-gray-600">Performance vs Market</p>
-                        <p className="text-lg font-semibold text-blue-600">+217.7%</p>
-                        </div>
-                        <div>
-                        <p className="text-xs text-gray-600">Occupancy Rate</p>
-                        <p className="text-lg font-semibold text-purple-600">85%</p>
-                        </div>
-                        <div>
-                        <p className="text-xs text-gray-600">Revenue per Room</p>
-                        <p className="text-lg font-semibold text-arkus-600">
-                          {todayAverageRevenue !== null 
-                            ? currency.format(todayAverageRevenue) 
-                            : "$0"
-                          }
-                        </p>
-                        </div>
-                      </div>
-                    </div>
-                )}
+
               </div>
             </div>
 
