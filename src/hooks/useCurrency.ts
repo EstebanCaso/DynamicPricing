@@ -124,3 +124,4 @@ export function useCurrency(): UseCurrencyReturn {
     formatPrice,
   };
 }
+
