@@ -16,14 +16,7 @@ const PerformanceScorecard = memo(({
   summaryPosition
 }: PerformanceScorecardProps) => {
   
-  // Debug: Log the props to see what we're receiving
-  console.log('PerformanceScorecard Props:', {
-    revenuePerformanceData,
-    userHotelName,
-    positionIndex,
-    performancePercentage,
-    summaryPosition
-  });
+
   // Calculate real metrics from the data
   const calculateMetrics = () => {
     if (!revenuePerformanceData || revenuePerformanceData.length === 0) {
@@ -71,39 +64,8 @@ const PerformanceScorecard = memo(({
     const occupancyEfficiency = 85; // Our occupancy rate
     const competitiveAdvantage = Math.min(100, revenuePerformance + 15);
 
-    // Calculate position from Summary Tab (sorted by revenue descending)
-    const calculateSummaryPosition = () => {
-      if (!revenuePerformanceData || revenuePerformanceData.length === 0) return null;
-      
-      // Debug: Log the data to see what we're working with
-      console.log('Revenue Performance Data:', revenuePerformanceData);
-      console.log('User Hotel Name:', userHotelName);
-      
-      // Sort hotels by revenue in descending order (highest revenue first)
-      const sortedHotels = [...revenuePerformanceData].sort((a, b) => {
-        // Ensure revenue is a number and handle edge cases
-        const revenueA = typeof a.revenue === 'number' ? a.revenue : 0;
-        const revenueB = typeof b.revenue === 'number' ? b.revenue : 0;
-        return revenueB - revenueA;
-      });
-      
-      console.log('Sorted Hotels:', sortedHotels);
-      
-      // Find our hotel's position in the sorted list
-      const ourHotelIndex = sortedHotels.findIndex(item => 
-        item.hotel === userHotelName || item.hotel === "Our Hotel"
-      );
-      
-      console.log('Our Hotel Index:', ourHotelIndex);
-      
-      const position = ourHotelIndex >= 0 ? ourHotelIndex + 1 : null;
-      console.log('Calculated Position:', position);
-      
-      return position;
-    };
-
     return {
-      position: calculateSummaryPosition(), // Always use calculated position from Summary logic
+      position: positionIndex, // Use positionIndex from AnalysisTab (already calculated correctly)
       performance: performancePercentage,
       occupancy: occupancyEfficiency,
       marketPosition: Math.round(revenuePerformance),

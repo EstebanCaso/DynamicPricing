@@ -36,8 +36,21 @@ const AnalysisControls = memo(({
   setClickedRoomType
 }: AnalysisControlsProps) => {
   return (
-    <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300 h-full">
+    <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300 h-full relative">
 
+      {/* Clear Filters Button - Positioned in top right corner */}
+      {((selectedRoomType !== "all" && selectedRoomType !== "") || clickedRoomType) && (
+        <button
+          onClick={() => {
+            setSelectedRoomType("all");
+            setClickedRoomType(null);
+          }}
+          className="absolute top-2 right-2 text-xs bg-arkus-100 text-arkus-700 px-2 py-1 rounded-lg hover:bg-arkus-200 transition-all duration-200 backdrop-blur-sm border border-arkus-200 z-10"
+          title="Clear Filters"
+        >
+          ✕
+        </button>
+      )}
 
       {/* Content Section - Fixed height with grid */}
       <div className="h-24 grid grid-cols-1 gap-2">
@@ -104,20 +117,7 @@ const AnalysisControls = memo(({
         </div>
       </div>
 
-      {/* Bottom Section - Fixed height */}
-      <div className="h-12 flex items-end">
-        {(selectedRoomType !== "all" || clickedRoomType) && (
-          <button
-            onClick={() => {
-              setSelectedRoomType("all");
-              setClickedRoomType(null);
-            }}
-            className="w-full text-sm bg-glass-200 text-gray-600 px-4 py-2 rounded-lg hover:bg-glass-300 transition-all duration-200 backdrop-blur-sm"
-          >
-            Clear Filters
-          </button>
-        )}
-      </div>
+
     </div>
   );
 });

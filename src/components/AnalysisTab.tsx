@@ -1023,9 +1023,21 @@ export default function AnalysisTab() {
   }, [ourHotelEntry, marketAvg]);
 
   const positionIndex = useMemo(() => {
-    if (!ourHotelEntry) return null as number | null;
-    const idx = revenuePerformanceData.findIndex((item) => item.hotel === userHotelName || item.hotel === "Our Hotel");
-    return idx >= 0 ? idx + 1 : null;
+    if (!ourHotelEntry || !revenuePerformanceData || revenuePerformanceData.length === 0) return null as number | null;
+    
+    // Sort hotels by revenue in descending order (highest revenue first)
+    const sortedHotels = [...revenuePerformanceData].sort((a, b) => {
+      const revenueA = typeof a.revenue === 'number' ? a.revenue : 0;
+      const revenueB = typeof b.revenue === 'number' ? b.revenue : 0;
+      return revenueB - revenueA;
+    });
+    
+    // Find our hotel's position in the sorted list
+    const ourHotelIndex = sortedHotels.findIndex((item) => 
+      item.hotel === userHotelName || item.hotel === "Our Hotel"
+    );
+    
+    return ourHotelIndex >= 0 ? ourHotelIndex + 1 : null;
   }, [revenuePerformanceData, ourHotelEntry, userHotelName]);
 
   const performancePercentage = useMemo(() => {
