@@ -6,8 +6,8 @@ interface AnalysisControlsProps {
   selectedRoomType: string;
   setSelectedRoomType: (type: string) => void;
   uniqueRoomTypes: string[];
-  range: 7 | 30 | 90;
-  setRange: (range: 7 | 30 | 90) => void;
+  range: 1 | 7 | 30 | 90;
+  setRange: (range: 1 | 7 | 30 | 90) => void;
   targetMin: number;
   setTargetMin: (min: number) => void;
   targetMax: number;
@@ -77,7 +77,7 @@ const AnalysisControls = memo(({
         <div className="space-y-1">
           <label className="block text-xs font-medium text-gray-600">Date Range</label>
           <div className="inline-flex rounded-lg border border-glass-300 bg-glass-50 p-1 backdrop-blur-sm">
-            {([7, 30, 90] as const).map((r) => (
+            {([1, 7, 30, 90] as const).map((r) => (
                           <button
               key={r}
               onClick={() => setRange(r)}

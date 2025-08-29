@@ -89,7 +89,7 @@ export default function AnalysisTab() {
     return cleanPrice(priceString).value;
   }, []);
 
-  const [range, setRange] = useState<7 | 30 | 90>(30);
+  const [range, setRange] = useState<1 | 7 | 30 | 90>(30);
 
   // Supabase data states
   const [supabaseData, setSupabaseData] = useState<ProcessedHotelData[]>([]);
@@ -402,9 +402,10 @@ export default function AnalysisTab() {
 
   const dateRange = useMemo(() => {
     if (!range || range <= 0) return null as null | { rangeStart: Date; endDate: Date };
-    const endDate = new Date("2025-10-30");
+    const today = new Date();
+    const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const rangeStart = new Date(endDate);
-    rangeStart.setDate(endDate.getDate() - range);
+    rangeStart.setDate(endDate.getDate() - (range - 1));
     return { rangeStart, endDate };
   }, [range]);
 
@@ -429,9 +430,10 @@ export default function AnalysisTab() {
                 }
                 
                 if (range && range > 0) {
-                  const endDate = new Date("2025-10-30");
+                  const today = new Date();
+                  const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
                   const rangeStart = new Date(endDate);
-                  rangeStart.setDate(endDate.getDate() - range);
+                  rangeStart.setDate(endDate.getDate() - (range - 1));
                   filteredData = filteredData.filter((item) => {
                         const checkinDate = item.checkin_date;
                     if (!checkinDate) return false;
@@ -898,9 +900,10 @@ export default function AnalysisTab() {
               }
               
               if (range && range > 0) {
-                const endDate = new Date("2025-10-30");
+                const today = new Date();
+                const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
                 const rangeStart = new Date(endDate);
-                rangeStart.setDate(endDate.getDate() - range);
+                rangeStart.setDate(endDate.getDate() - (range - 1));
                 filteredData = filteredData.filter((item) => {
                       const checkinDate = item.checkin_date;
                   if (!checkinDate) return false;
@@ -1080,9 +1083,10 @@ export default function AnalysisTab() {
             }
             
             if (range && range > 0) {
-              const endDate = new Date("2025-10-30");
+              const today = new Date();
+              const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
               const rangeStart = new Date(endDate);
-              rangeStart.setDate(endDate.getDate() - range);
+              rangeStart.setDate(endDate.getDate() - (range - 1));
               filteredData = filteredData.filter((item) => {
                     const checkinDate = item.checkin_date;
                 if (!checkinDate) return false;
