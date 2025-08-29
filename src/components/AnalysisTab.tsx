@@ -28,18 +28,17 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { 
-  TABLES, 
-  COLUMNS, 
-  cleanPrice, 
-  convertCurrency, 
   standardizeRoomType,
   fetchUserHotelData,
   fetchCompetitorData,
-  formatCurrency,
   logDataFlow,
+  cleanPrice,
   type Currency,
   type ProcessedHotelData 
 } from "@/lib/dataUtils";
+import { useCurrencyConversion } from "@/hooks/useCurrencyConversion";
+import { useRevenueAnalysis } from "@/hooks/useRevenueAnalysis";
+import { useHistoricalData } from "@/hooks/useHistoricalData";
 import RevenueMetrics from "./RevenueMetrics";
 import PerformanceScorecard from "./PerformanceScorecard";
 import HistoricalPricesChart from "./HistoricalPricesChart";
@@ -52,11 +51,6 @@ type HistoricalPoint = {
   revenue: number;
 };
 
-type DemandPoint = {
-  day: string;
-  requests: number;
-};
-
 type RevenuePoint = {
   hotel: string;
   revenue: number;
@@ -64,192 +58,37 @@ type RevenuePoint = {
   color?: string;
 };
 
-type GapPoint = {
-  day: string;
-  ours: number;
-  marketAvg: number;
-};
 
-const computeDemand = (price: number) => {
-  const base = 1400 - Math.max(0, price - 80) * 6;
-  const noise = (Math.random() - 0.5) * 60;
-  return Math.max(400, Math.round(base + noise));
-};
-
-// Removed static revenuePerformance - now using dynamic revenuePerformanceData
-
-const gapSeries: GapPoint[] = [
-  { day: "M", ours: 180, marketAvg: 190 },
-  { day: "T", ours: 186, marketAvg: 200 },
-  { day: "W", ours: 178, marketAvg: 188 },
-  { day: "T", ours: 195, marketAvg: 210 },
-  { day: "F", ours: 200, marketAvg: 215 },
-  { day: "S", ours: 194, marketAvg: 208 },
-  { day: "S", ours: 185, marketAvg: 198 },
-];
 
 export default function AnalysisTab() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>("MXN");
   
-  // Currency conversion state and functions with session caching
-  const [exchangeRate, setExchangeRate] = useState<number>(18.5); // Default fallback
-  const [isLoadingRate, setIsLoadingRate] = useState<boolean>(false);
-  const [lastRateFetch, setLastRateFetch] = useState<number>(0);
+  // Use custom hooks for better organization
+  const {
+    exchangeRate,
+    isLoadingRate,
+    lastRateFetch,
+    convertPriceToSelectedCurrency,
+    currency,
+    numberFmt,
+    fetchExchangeRate
+  } = useCurrencyConversion(selectedCurrency);
 
-  // Fetch real-time exchange rate with session caching
-  const fetchExchangeRate = useCallback(async () => {
-    if (selectedCurrency === "MXN") return; // No need to fetch if we're already in MXN
-    
-    // Check if we have a cached rate from this session (valid for 24 hours)
-    const now = Date.now();
-    const sessionCacheKey = 'exchangeRateCache';
-    const cachedData = sessionStorage.getItem(sessionCacheKey);
-    
-    if (cachedData) {
-      try {
-        const { rate, timestamp } = JSON.parse(cachedData);
-        const cacheAge = now - timestamp;
-        const cacheValid = cacheAge < 24 * 60 * 60 * 1000; // 24 hours
-        
-        if (cacheValid) {
-          setExchangeRate(rate);
-          setLastRateFetch(timestamp);
-          console.log('Using cached exchange rate:', rate);
-          return;
-        }
-      } catch (error) {
-        console.warn('Failed to parse cached exchange rate');
-      }
-    }
-    
-    setIsLoadingRate(true);
-    try {
-      const response = await fetch(`/api/exchange-rate?from=MXN&to=USD`);
-      if (response.ok) {
-        const data = await response.json();
-        const newRate = data.rate;
-        
-        // Cache the new rate in session storage
-        const cacheData = {
-          rate: newRate,
-          timestamp: now
-        };
-        sessionStorage.setItem(sessionCacheKey, JSON.stringify(cacheData));
-        
-        setExchangeRate(newRate);
-        setLastRateFetch(now);
-        console.log('Fetched new exchange rate:', newRate);
-      } else {
-        console.warn('Failed to fetch exchange rate, using fallback');
-        setExchangeRate(18.5); // Fallback rate
-      }
-    } catch (error) {
-      console.error('Error fetching exchange rate:', error);
-      setExchangeRate(18.5); // Fallback rate
-    } finally {
-      setIsLoadingRate(false);
-    }
-  }, [selectedCurrency]);
 
-  // Convert price from MXN to USD for display only
-  const convertToUSD = useCallback((priceInMXN: number): number => {
-    if (selectedCurrency === "MXN") return priceInMXN;
-    return priceInMXN / exchangeRate;
-  }, [selectedCurrency, exchangeRate]);
 
-  // Convert price from USD to MXN for display only
-  const convertToMXN = useCallback((priceInUSD: number): number => {
-    if (selectedCurrency === "MXN") return priceInUSD;
-    return priceInUSD * exchangeRate;
-  }, [selectedCurrency, exchangeRate]);
 
-  // Enhanced cleanPrice function - extracts currency and numeric value
-  const cleanPrice = useCallback((priceString: string | number): { value: number; currency: string } => {
-    if (typeof priceString === 'number') {
-      // If it's already a number, assume it's in MXN
-      return { value: priceString, currency: 'MXN' };
-    }
-    
-    if (typeof priceString === 'string') {
-      const trimmed = priceString.trim();
-      
-      // Extract currency (MXN, USD, $, etc.)
-      let currency = 'MXN'; // Default
-      if (trimmed.includes('MXN')) {
-        currency = 'MXN';
-      } else if (trimmed.includes('USD')) {
-        currency = 'USD';
-      } else if (trimmed.includes('$')) {
-        currency = 'USD';
-      }
-      
-      // Remove currency symbols and commas, then parse numeric value
-      const cleaned = trimmed
-        .replace(/MXN|USD|\$/gi, '') // Remove currency symbols
-        .replace(/,/g, '') // Remove commas
-        .trim();
-      
-      const price = parseFloat(cleaned);
-      
-      if (isNaN(price)) {
-        return { value: 0, currency };
-      }
-      
-      return { value: price, currency };
-    }
-    
-    return { value: 0, currency: 'MXN' };
-  }, []);
 
-  // Helper function to get just the numeric value (for backward compatibility)
+
+
+
+
+  // Helper function to get just the numeric value using dataUtils
   const getPriceValue = useCallback((priceString: string | number): number => {
     return cleanPrice(priceString).value;
-  }, [cleanPrice]);
+  }, []);
 
-  // Helper function to convert price to selected currency using unified function
-  const convertPriceToSelectedCurrency = useCallback((price: number, originalCurrency: Currency = 'MXN'): number => {
-    const convertedPrice = convertCurrency(price, originalCurrency, selectedCurrency, exchangeRate);
-    
-    if (originalCurrency !== selectedCurrency) {
-      console.log(`💱 Converting ${price} ${originalCurrency} → ${convertedPrice.toFixed(2)} ${selectedCurrency} (rate: ${exchangeRate})`);
-    }
-    
-    return convertedPrice;
-  }, [selectedCurrency, exchangeRate]);
-
-  // Enhanced currency formatter
-  const currency = useMemo(() => {
-    return new Intl.NumberFormat(selectedCurrency === "USD" ? "en-US" : "es-MX", {
-    style: "currency",
-    currency: selectedCurrency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    });
-  }, [selectedCurrency]);
-
-  // Fetch exchange rate when currency changes
-  useEffect(() => {
-    fetchExchangeRate();
-  }, [fetchExchangeRate]);
-
-  // Helper function to convert price for display based on selected currency
-  const displayPrice = useCallback((priceInMXN: number): number => {
-    if (selectedCurrency === "MXN") return priceInMXN;
-    return convertToUSD(priceInMXN);
-  }, [selectedCurrency, convertToUSD]);
-
-  // Helper function to format price for display with proper currency
-  const formatDisplayPrice = useCallback((priceInMXN: number): string => {
-    const displayValue = displayPrice(priceInMXN);
-    return currency.format(displayValue);
-  }, [displayPrice, currency]);
-
-  const numberFmt = new Intl.NumberFormat(selectedCurrency === "MXN" ? "es-MX" : "en-US");
-
-  const [showOurs, setShowOurs] = useState(true);
-  const [showMarket, setShowMarket] = useState(true);
   const [range, setRange] = useState<7 | 30 | 90>(30);
 
   // Supabase data states
@@ -261,18 +100,12 @@ export default function AnalysisTab() {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
   const [todayAverageRevenue, setTodayAverageRevenue] = useState<number | null>(null);
-  const [historicalPrices, setHistoricalPrices] = useState<HistoricalPoint[]>([]);
   const [revenuePerformanceData, setRevenuePerformanceData] = useState<RevenuePoint[]>([]);
   const [competitorData, setCompetitorData] = useState<any[]>([]);
 
   // Filter states for dynamic revenue analysis
   const [selectedRoomType, setSelectedRoomType] = useState<string>("all");
-  const [selectedDate, setSelectedDate] = useState<string>("");
-  const [viewMode, setViewMode] = useState<"total" | "by-room" | "by-date" | "specific">("total");
   const [clickedRoomType, setClickedRoomType] = useState<string | null>(null);
-  
-  // State to preserve room type order when switching currencies
-  const [roomTypeOrder, setRoomTypeOrder] = useState<string[]>([]);
 
   const [targetMin, setTargetMin] = useState<number>(() => Number(searchParams.get("tmn")) || 95);
   const [targetMax, setTargetMax] = useState<number>(() => Number(searchParams.get("tmx")) || 115);
@@ -280,6 +113,40 @@ export default function AnalysisTab() {
     const raw = searchParams.get("ev");
     if (!raw) return ["Aug 7", "Aug 9"];
     return raw.split(",").map((s) => decodeURIComponent(s.trim())).filter(Boolean);
+  });
+
+  // Use custom hooks for better organization
+  const {
+    filteredSupabaseData,
+    avgFilteredPrice,
+    priceStats,
+    revenueByRoomTypeData,
+    uniqueRoomTypes
+  } = useRevenueAnalysis({
+    supabaseData,
+    selectedRoomType,
+    clickedRoomType,
+    range,
+    selectedCurrency,
+    convertPriceToSelectedCurrency
+  });
+
+  const {
+    historicalPrices,
+    rangedData,
+    brush,
+    setBrush,
+    visibleData,
+    averageHistorical,
+    sparkData,
+    processHistoricalRevenue,
+    calculateDynamicRevenue
+  } = useHistoricalData({
+    supabaseData,
+    selectedRoomType,
+    clickedRoomType,
+    range,
+    convertPriceToSelectedCurrency
   });
 
   // Using unified standardizeRoomType function from dataUtils
@@ -300,120 +167,9 @@ export default function AnalysisTab() {
     }
   };
 
-  // Function to process Supabase data into historical revenue format
-  const processHistoricalRevenue = (data: any[]) => {
-    try {
-      if (!data || data.length === 0) {
-        setHistoricalPrices([]);
-        return;
-      }
 
-      let filteredData = data;
-      const effectiveRoomType = clickedRoomType || selectedRoomType;
-      if (effectiveRoomType !== "all") {
-        filteredData = data.filter((item) => standardizeRoomType(item.room_type) === effectiveRoomType);
-      }
 
-      const dailyRevenue: Record<string, number> = {};
-          filteredData.forEach((item) => {
-      const checkinDate = item.checkin_date;
-        if (!checkinDate) return;
-        let dateStr = checkinDate;
-        if (checkinDate.includes("T")) {
-          dateStr = checkinDate.split("T")[0];
-        }
-      // Use processed price and convert to selected currency
-      const price = convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
-        if (price > 0) {
-          if (!dailyRevenue[dateStr]) {
-            dailyRevenue[dateStr] = 0;
-          }
-          dailyRevenue[dateStr] += price;
-        }
-      });
 
-      const historicalData: HistoricalPoint[] = Object.entries(dailyRevenue)
-        .map(([date, revenue]) => {
-          const dateObj = new Date(date);
-          const label = new Intl.DateTimeFormat("en-US", {
-            month: "short",
-            day: "numeric",
-          }).format(dateObj);
-          return { day: label, revenue: Math.round(revenue) };
-        })
-        .sort((a, b) => {
-          const dateA = new Date(Object.keys(dailyRevenue).find((key) =>
-            new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(key)) === a.day
-          ) || "");
-          const dateB = new Date(Object.keys(dailyRevenue).find((key) =>
-            new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(key)) === b.day
-          ) || "");
-          return dateA.getTime() - dateB.getTime();
-        });
-
-      setHistoricalPrices(historicalData);
-    } catch (err) {
-      console.error("Error processing historical revenue:", err);
-      setHistoricalPrices([]);
-    }
-  };
-
-  // Function to calculate dynamic revenue based on filters and range
-  const calculateDynamicRevenue = () => {
-    try {
-      if (supabaseData.length === 0) {
-        setTodayAverageRevenue(null);
-        return;
-      }
-
-      let filteredData = supabaseData;
-      const effectiveRoomType = clickedRoomType || selectedRoomType;
-      if (effectiveRoomType !== "all") {
-        filteredData = filteredData.filter((item) => standardizeRoomType(item.room_type) === effectiveRoomType);
-      }
-
-      if (selectedDate) {
-        filteredData = filteredData.filter((item) => {
-          const checkinDate = item.checkin_date;
-          if (!checkinDate) return false;
-          let dateStr = checkinDate;
-          if (checkinDate.includes("T")) {
-            dateStr = checkinDate.split("T")[0];
-          }
-          return dateStr === selectedDate;
-        });
-      }
-
-      if (range && range > 0) {
-        const endDate = new Date("2025-10-30");
-        const rangeStart = new Date(endDate);
-        rangeStart.setDate(endDate.getDate() - range);
-
-        filteredData = filteredData.filter((item) => {
-          const checkinDate = item.checkin_date;
-          if (!checkinDate) return false;
-          let dateStr = checkinDate;
-          if (checkinDate.includes("T")) {
-            dateStr = checkinDate.split("T")[0];
-          }
-          const itemDate = new Date(dateStr);
-          return itemDate >= rangeStart && itemDate <= endDate;
-        });
-      }
-
-      const totalRevenue = filteredData.reduce((sum, item) => {
-        const price = convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
-        return sum + price;
-      }, 0);
-
-      // Calculate average revenue per room instead of total
-      const averageRevenuePerRoom = filteredData.length > 0 ? totalRevenue / filteredData.length : 0;
-      setTodayAverageRevenue(averageRevenuePerRoom);
-    } catch (err) {
-      console.error("Error calculating dynamic revenue:", err);
-      setTodayAverageRevenue(null);
-    }
-  };
 
   // Function to fetch and process hotel_usuario data using unified functions
   const fetchHotelUsuarioData = async () => {
@@ -500,15 +256,15 @@ export default function AnalysisTab() {
 
         setCompetitorData(competitors);
         
-      // Calculate revenue performance metrics from rooms_jsonb data
+      // Calculate average price performance metrics from rooms_jsonb data
         const performanceData: RevenuePoint[] = [];
         
         // Add user's hotel performance
       if (userHotel) {
-        const userHotelRevenue = calculateHotelRevenue([userHotel]);
+        const userHotelAvgPrice = calculateHotelRevenue([userHotel]); // This actually calculates avg price
           performanceData.push({
           hotel: userHotel.hotel_name || "Our Hotel",
-          revenue: userHotelRevenue,
+          revenue: userHotelAvgPrice, // Using revenue field for avg price to maintain compatibility
           color: "#ff0000"
           });
         }
@@ -516,22 +272,22 @@ export default function AnalysisTab() {
         // Add competitor performance
       competitors.forEach((competitor: any) => {
         if (competitor.rooms_jsonb && typeof competitor.rooms_jsonb === 'object') {
-          const competitorRevenue = calculateHotelRevenueFromJsonb(competitor.rooms_jsonb);
-          if (competitorRevenue > 0) {
+          const competitorAvgPrice = calculateHotelRevenueFromJsonb(competitor.rooms_jsonb);
+          if (competitorAvgPrice > 0) {
                 performanceData.push({
               hotel: competitor.nombre || "Unknown Hotel",
-              revenue: competitorRevenue,
+              revenue: competitorAvgPrice, // Using revenue field for avg price to maintain compatibility
               color: "#94a3b8"
             });
           }
         }
       });
 
-      // Sort by revenue descending
-      performanceData.sort((a, b) => b.revenue - a.revenue);
+      // Sort by average price ascending (lowest price first) to match Summary Tab logic
+      performanceData.sort((a, b) => a.revenue - b.revenue);
       
       setRevenuePerformanceData(performanceData);
-      console.log(`✅ Calculated revenue performance for ${performanceData.length} hotels`);
+      console.log(`✅ Calculated average price performance for ${performanceData.length} hotels`);
       
     } catch (err) {
       console.error('Error fetching competitor data:', err);
@@ -605,84 +361,20 @@ export default function AnalysisTab() {
     }
   }, [supabaseData, userHotelName, selectedCurrency]);
 
-  // Establish room type order when data loads (only once, in MXN)
-  useEffect(() => {
-    if (supabaseData.length > 0 && roomTypeOrder.length === 0 && selectedCurrency === "MXN") {
-      const roomTypeData: Record<string, number> = {};
-      supabaseData.forEach((item: any) => {
-        const roomType = standardizeRoomType(item.room_type);
-        const price = getPriceValue(item.price);
-        if (price > 0) {
-          roomTypeData[roomType] = (roomTypeData[roomType] || 0) + price;
-        }
-      });
 
-      // Sort by total revenue in MXN and preserve this order
-      const sortedRoomTypes = Object.entries(roomTypeData)
-        .sort(([, a], [, b]) => b - a)
-        .map(([roomType]) => roomType);
-      
-      setRoomTypeOrder(sortedRoomTypes);
-    }
-  }, [supabaseData, selectedCurrency, roomTypeOrder.length]);
 
   // Calculate dynamic revenue and process historical revenue whenever supabaseData, filters, currency, or range change
   useEffect(() => {
     if (supabaseData.length > 0) {
-      calculateDynamicRevenue();
+      const avgRevenue = calculateDynamicRevenue();
+      setTodayAverageRevenue(avgRevenue);
       processHistoricalRevenue(supabaseData);
     }
-  }, [supabaseData, selectedRoomType, selectedDate, range, clickedRoomType, selectedCurrency]);
+  }, [supabaseData, selectedRoomType, range, clickedRoomType, selectedCurrency, calculateDynamicRevenue, processHistoricalRevenue]);
 
-  const rangedData = useMemo(() => {
-    const data = historicalPrices;
-    if (!data || data.length === 0) return [];
-    if (range >= data.length) return data;
-    return data.slice(data.length - range);
-  }, [range, historicalPrices]);
 
-  const [brush, setBrush] = useState<{ start: number; end: number } | null>(null);
 
-  useEffect(() => {
-    if (rangedData && rangedData.length > 0) {
-      setBrush({ start: 0, end: Math.max(0, rangedData.length - 1) });
-    } else {
-      setBrush(null);
-    }
-  }, [rangedData]);
 
-  const visibleData = useMemo(() => {
-    if (!rangedData || rangedData.length === 0) return [];
-    if (!brush) return rangedData;
-    const s = Math.max(0, Math.min(brush.start, rangedData.length - 1));
-    const e = Math.max(s, Math.min(brush.end, rangedData.length - 1));
-    return rangedData.slice(s, e + 1);
-  }, [rangedData, brush]);
-
-  const averageHistorical = useMemo(() => {
-    if (!visibleData || visibleData.length === 0) return 0;
-    const total = visibleData.reduce((acc, p) => acc + p.revenue, 0);
-    return total / Math.max(1, visibleData.length);
-  }, [visibleData]);
-
-  // Get unique room types for filter dropdown
-  const uniqueRoomTypes = useMemo(() => {
-    if (!supabaseData || supabaseData.length === 0) return [];
-    const types = new Set<string>();
-    const rawRoomTypes = new Set<string>();
-    
-    supabaseData.forEach((item) => {
-      // Log raw room types for debugging
-      rawRoomTypes.add(item.room_type);
-      const roomType = standardizeRoomType(item.room_type);
-      types.add(roomType);
-    });
-    
-    console.log('🏠 Raw room types from data:', Array.from(rawRoomTypes).sort());
-    console.log('🏷️ Standardized room types:', Array.from(types).sort());
-    
-    return Array.from(types).sort();
-  }, [supabaseData]);
 
   // persist target range and events in URL
   useEffect(() => {
@@ -693,15 +385,7 @@ export default function AnalysisTab() {
     window.history.replaceState({}, "", url.toString());
   }, [targetMin, targetMax, events]);
 
-  // Mini sparkline data for Total Revenue - shows revenue trend
-  const sparkData = useMemo(() => {
-    if (!rangedData || rangedData.length === 0) return [];
-    const dataLength = Math.min(rangedData.length, 14);
-    return rangedData.slice(-dataLength).map((item, i) => ({
-      day: item.day,
-      revenue: item.revenue,
-    }));
-  }, [rangedData, range]);
+
 
   // Mini sparkline data for Rate Position - shows trend data
   const rateSparkData = useMemo(() => {
@@ -724,125 +408,11 @@ export default function AnalysisTab() {
     return { rangeStart, endDate };
   }, [range]);
 
-  const filteredSupabaseData = useMemo(() => {
-    if (!supabaseData || supabaseData.length === 0) return [] as any[];
-    let filtered = supabaseData;
 
-    if (effectiveRoomType !== "all") {
-      filtered = filtered.filter((item) => standardizeRoomType(item.room_type) === effectiveRoomType);
-    }
 
-    if (selectedDate) {
-      filtered = filtered.filter((item) => {
-        const checkinDate = item.checkin_date;
-        if (!checkinDate) return false;
-        let dateStr = checkinDate;
-        if (checkinDate.includes("T")) {
-          dateStr = checkinDate.split("T")[0];
-        }
-        return dateStr === selectedDate;
-      });
-    }
 
-    if (dateRange) {
-      const { rangeStart, endDate } = dateRange;
-      filtered = filtered.filter((item) => {
-        const checkinDate = item.checkin_date;
-        if (!checkinDate) return false;
-        let dateStr = checkinDate;
-        if (checkinDate.includes("T")) {
-          dateStr = checkinDate.split("T")[0];
-        }
-        const itemDate = new Date(dateStr);
-        return itemDate >= rangeStart && itemDate <= endDate;
-      });
-    }
 
-    return filtered;
-  }, [supabaseData, effectiveRoomType, selectedDate, dateRange]);
 
-  const avgFilteredPrice = useMemo(() => {
-    console.log(`🔄 Recalculating Avg Filtered Price in ${selectedCurrency}...`);
-    if (!filteredSupabaseData || filteredSupabaseData.length === 0) return 0;
-    const total = filteredSupabaseData.reduce((sum, item) => {
-      // Always convert in real-time based on current currency selection
-      const price = convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
-      return sum + price;
-    }, 0);
-    const avgPrice = Math.round(total / filteredSupabaseData.length);
-    
-    console.log(`📊 Avg Filtered Price (${selectedCurrency}): ${avgPrice} from ${filteredSupabaseData.length} items`);
-    
-    return avgPrice;
-  }, [filteredSupabaseData, selectedCurrency, cleanPrice, convertPriceToSelectedCurrency]);
-
-  // Calculate price statistics with proper currency conversion for display only
-  const priceStats = useMemo(() => {
-    console.log(`🔄 Recalculating Price Stats in ${selectedCurrency}...`);
-    if (supabaseData.length === 0) return null;
-
-    let filteredData = supabaseData;
-    const effectiveRoomType = clickedRoomType || selectedRoomType;
-    
-    if (effectiveRoomType !== "all") {
-      filteredData = filteredData.filter((item) => 
-        standardizeRoomType(item.room_type) === effectiveRoomType
-      );
-    }
-
-    if (range && range > 0) {
-      const endDate = new Date("2025-10-30");
-      const rangeStart = new Date(endDate);
-      rangeStart.setDate(endDate.getDate() - range);
-      filteredData = filteredData.filter((item) => {
-        const checkinDate = item.checkin_date;
-        if (!checkinDate) return false;
-        let dateStr = checkinDate;
-        if (checkinDate.includes("T")) {
-          dateStr = checkinDate.split("T")[0];
-        }
-        const itemDate = new Date(dateStr);
-        return itemDate >= rangeStart && itemDate <= endDate;
-      });
-    }
-
-    // Calculate prices with real-time currency conversion
-    const validPrices = filteredData
-      .map(item => {
-        return convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
-      })
-      .filter(price => price > 0);
-
-    if (validPrices.length === 0) return null;
-
-    // Calculate statistics in selected currency
-    const avgPrice = validPrices.reduce((sum, price) => sum + price, 0) / validPrices.length;
-    const minPrice = Math.min(...validPrices);
-    const maxPrice = Math.max(...validPrices);
-    const priceRange = maxPrice - minPrice;
-
-    const roomTypes = Array.from(new Set(filteredData.map(item => standardizeRoomType(item.room_type))));
-
-    const result = {
-      avgPrice: Math.round(avgPrice * 100) / 100,
-      priceRange: Math.round(priceRange * 100) / 100,
-      count: validPrices.length,
-      roomTypeCount: roomTypes.length,
-      roomTypes: roomTypes,
-      effectiveRoomType: effectiveRoomType,
-      // These are already in the selected currency
-      displayAvgPrice: avgPrice,
-      displayPriceRange: priceRange
-    };
-    
-    console.log(`📊 Price Stats (${selectedCurrency}):`, {
-      avgPrice: result.avgPrice,
-      count: result.count,
-      effectiveRoomType: result.effectiveRoomType
-    });
-    
-    return result;
-  }, [supabaseData, clickedRoomType, selectedRoomType, range, cleanPrice, standardizeRoomType, convertPriceToSelectedCurrency, selectedCurrency]);
 
   // Calculate historical price series with currency conversion
   const historicalPriceSeries = useMemo(() => {
@@ -946,70 +516,7 @@ export default function AnalysisTab() {
     return revenuePerformanceData.filter((item) => item.hotel !== userHotelName && item.hotel !== "Our Hotel");
   }, [revenuePerformanceData, userHotelName]);
 
-  // Revenue by Room Type data with currency conversion
-  const revenueByRoomTypeData = useMemo(() => {
-    console.log(`🔄 Recalculating Revenue by Room Type in ${selectedCurrency}...`);
-    const filteredData = selectedRoomType !== "all" 
-      ? supabaseData.filter((item) => standardizeRoomType(item.room_type) === selectedRoomType)
-      : supabaseData;
 
-                const roomTypeData: Record<string, { total_revenue: number; count: number; prices: number[] }> = {};
-                
-                        filteredData.forEach((item) => {
-                  const roomType = standardizeRoomType(item.room_type);
-      // Always convert in real-time based on current currency selection
-      const price = convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
-                  
-                  if (price > 0) {
-                    if (!roomTypeData[roomType]) {
-                      roomTypeData[roomType] = { total_revenue: 0, count: 0, prices: [] };
-                    }
-                    roomTypeData[roomType].total_revenue += price;
-                    roomTypeData[roomType].count += 1;
-                    roomTypeData[roomType].prices.push(price);
-                  }
-                });
-                
-                const aggregatedData = Object.entries(roomTypeData).map(([roomType, data]) => ({
-                  room_type: roomType,
-                  total_revenue: data.total_revenue,
-                  avg_price: Math.round(data.total_revenue / data.count),
-                  count: data.count,
-                  min_price: Math.min(...data.prices),
-                  max_price: Math.max(...data.prices)
-                }));
-
-    // Use preserved room type order to maintain visual consistency
-    if (roomTypeOrder.length > 0) {
-      return aggregatedData.sort((a, b) => {
-        const indexA = roomTypeOrder.indexOf(a.room_type);
-        const indexB = roomTypeOrder.indexOf(b.room_type);
-        
-        // If both are in the preserved order, sort by their original position
-        if (indexA !== -1 && indexB !== -1) {
-          return indexA - indexB;
-        }
-        
-        // If only one is in the preserved order, prioritize it
-        if (indexA !== -1) return -1;
-        if (indexB !== -1) return 1;
-        
-        // If neither is in the preserved order, sort by total revenue
-        return b.total_revenue - a.total_revenue;
-      });
-    }
-
-    // Fallback to sorting by total revenue if no preserved order
-    const result = aggregatedData.sort((a, b) => b.total_revenue - a.total_revenue);
-    
-    console.log(`📊 Revenue by Room Type (${selectedCurrency}):`, result.map(item => ({
-      room_type: item.room_type,
-      total_revenue: item.total_revenue,
-      avg_price: item.avg_price
-    })));
-    
-    return result;
-  }, [supabaseData, selectedRoomType, standardizeRoomType, convertPriceToSelectedCurrency, getPriceValue, cleanPrice, roomTypeOrder, selectedCurrency]);
 
   const marketAvg = useMemo(() => {
     if (!competitorsOnly || competitorsOnly.length === 0) return 0;
@@ -1025,16 +532,18 @@ export default function AnalysisTab() {
   const positionIndex = useMemo(() => {
     if (!ourHotelEntry || !revenuePerformanceData || revenuePerformanceData.length === 0) return null as number | null;
     
-    // Sort hotels by revenue in descending order (highest revenue first)
+    // Sort hotels by average price in ascending order (lowest price first) to match Summary Tab logic
+    // This ensures position 1 = lowest average price (best competitive position)
+    // Position 1 = Best competitive pricing, Position N = Highest pricing
     const sortedHotels = [...revenuePerformanceData].sort((a, b) => {
-      const revenueA = typeof a.revenue === 'number' ? a.revenue : 0;
-      const revenueB = typeof b.revenue === 'number' ? b.revenue : 0;
-      return revenueB - revenueA;
+      const avgPriceA = typeof a.revenue === 'number' ? a.revenue : 0; // revenue field contains avg price
+      const avgPriceB = typeof b.revenue === 'number' ? b.revenue : 0; // revenue field contains avg price
+      return avgPriceA - avgPriceB; // Lowest price first
     });
     
     // Find our hotel's position in the sorted list
     const ourHotelIndex = sortedHotels.findIndex((item) => 
-      item.hotel === userHotelName || item.hotel === "Our Hotel"
+      item.hotel === userHotelName || item.hotel === "OurHotel"
     );
     
     return ourHotelIndex >= 0 ? ourHotelIndex + 1 : null;
@@ -1510,56 +1019,47 @@ export default function AnalysisTab() {
                           tickFormatter={(value) => {
                             if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
                             else if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-                            else return `$${value}`;
+                            else return `$${value.toLocaleString()}`;
                           }}
                     />
-                    <Tooltip 
-                      content={({ active, payload, label }) => {
-                        if (!active || !payload?.length) return null;
-                        const data = payload[0].payload;
-                        return (
-                          <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
-                            <div className="font-medium text-gray-900">{label}</div>
-                                <div className="text-gray-700">Our Price: {currency.format(data.ours)}</div>
-                                <div className="text-gray-600">Market Estimate: {currency.format(data.marketAvg)}</div>
-                            <div className={`font-medium ${data.gap >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                  Gap: {data.gapPercent}%
-                            </div>
-                            <div className="text-gray-500">Bookings: {data.ourBookings}</div>
-                            <div className="text-gray-400 text-xs">{data.date}</div>
-                          </div>
-                        );
-                      }}
+                        <Tooltip 
+                          content={({ active, payload, label }) => {
+                            if (!active || !payload?.length) return null;
+                            const data = payload[0].payload;
+                            return (
+                              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
+                                <div className="font-medium text-gray-900">{label}</div>
+                                    <div className="text-gray-700">Our Price: {currency.format(data.ours)}</div>
+                                    <div className="text-gray-600">Market Estimate: {currency.format(data.marketAvg)}</div>
+                                <div className={`font-medium ${data.gap >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                      Gap: {data.gapPercent.toFixed(1)}%
+                                </div>
+                                <div className="text-gray-500">Bookings: {data.ourBookings.toLocaleString()}</div>
+                                <div className="text-gray-400 text-xs">{data.date}</div>
+                              </div>
+                            );
+                          }}
+                        />
+                    <Legend />
+                    <Line 
+                      type="monotone" 
+                      dataKey="marketAvg" 
+                      name="Market Estimate" 
+                      stroke="#94a3b8" 
+                      strokeDasharray="6 6" 
+                      strokeWidth={2} 
+                      dot={false}
+                      fill="url(#colorMarket)"
                     />
-                    <Legend 
-                      onClick={(e: any) => {
-                        if (e.dataKey === "ours") setShowOurs((s) => !s);
-                        if (e.dataKey === "marketAvg") setShowMarket((s) => !s);
-                      }}
+                    <Area 
+                      type="monotone" 
+                      dataKey="ours" 
+                      name="Our Hotel" 
+                      stroke="#ff0000" 
+                      fill="url(#colorOurs)" 
+                      strokeWidth={3}
+                      dot={{ fill: "#ff0000", strokeWidth: 2, r: 3 }}
                     />
-                    {showMarket && (
-                      <Line 
-                        type="monotone" 
-                        dataKey="marketAvg" 
-                        name="Market Estimate" 
-                        stroke="#94a3b8" 
-                        strokeDasharray="6 6" 
-                        strokeWidth={2} 
-                        dot={false}
-                        fill="url(#colorMarket)"
-                      />
-                    )}
-                    {showOurs && (
-                      <Area 
-                        type="monotone" 
-                        dataKey="ours" 
-                        name="Our Hotel" 
-                        stroke="#ff0000" 
-                        fill="url(#colorOurs)" 
-                        strokeWidth={3}
-                        dot={{ fill: "#ff0000", strokeWidth: 2, r: 3 }}
-                      />
-                    )}
                   </AreaChart>
                 </ResponsiveContainer>
               );
@@ -1615,14 +1115,14 @@ export default function AnalysisTab() {
                   <div>
                     <p className="text-xs text-gray-600">Our Avg Price</p>
                     <p className="text-lg font-semibold text-arkus-600">
-                          ${ourAvgPrice.toFixed(2)} {selectedCurrency}
+                          {currency.format(ourAvgPrice)} {selectedCurrency}
                     </p>
                   </div>
                   
                   <div>
                     <p className="text-xs text-gray-600">Market Estimate</p>
                     <p className="text-lg font-semibold text-blue-600">
-                          ${marketEstimate.toFixed(2)} {selectedCurrency}
+                          {currency.format(marketEstimate)} {selectedCurrency}
                     </p>
                     <p className="text-xs text-gray-400">(10% above ours)</p>
                   </div>
@@ -1630,7 +1130,7 @@ export default function AnalysisTab() {
                   <div>
                     <p className="text-xs text-gray-600">Price Gap</p>
                     <p className={`text-lg font-semibold ${priceGap >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {priceGap >= 0 ? '+' : ''}${priceGap.toFixed(2)} {selectedCurrency}
+                          {priceGap >= 0 ? '+' : ''}{currency.format(priceGap)} {selectedCurrency}
                     </p>
                     <p className="text-xs text-gray-500">
                             {priceGap >= 0 ? 'Above' : 'Below'} market

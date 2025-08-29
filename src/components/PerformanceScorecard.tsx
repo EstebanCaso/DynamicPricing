@@ -75,6 +75,14 @@ const PerformanceScorecard = memo(({
 
   const metrics = calculateMetrics();
 
+  // Helper function to calculate gauge percentage for position
+  const getPositionGaugePercentage = () => {
+    if (!metrics.position || !revenuePerformanceData.length) return 0;
+    // Calculate percentage: position 1 = 100% (best competitive position), position N = lower percentage
+    const percentage = Math.max(0, 100 - ((metrics.position - 1) / (revenuePerformanceData.length - 1)) * 100);
+    return Math.round(percentage);
+  };
+
   return (
     <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300 h-full">
       {/* Header Section - Fixed height */}
@@ -106,7 +114,7 @@ const PerformanceScorecard = memo(({
                 className="text-emerald-500"
                 stroke="currentColor"
                 strokeWidth="2.5"
-                strokeDasharray={`${metrics.position ? 100 : 0}, 100`}
+                strokeDasharray={`${getPositionGaugePercentage()}, 100`}
                 strokeDashoffset="0"
                 fill="none"
                 d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
@@ -116,9 +124,9 @@ const PerformanceScorecard = memo(({
               <span className="text-sm font-bold text-gray-700">{metrics.position ?? "N/A"}</span>
             </div>
           </div>
-          <p className="text-xs text-gray-600 font-medium">Position</p>
+          <p className="text-xs text-gray-600 font-medium">Market Position</p>
           <p className="text-xs text-gray-500">
-            of {revenuePerformanceData.length || 0}
+            of {revenuePerformanceData.length || 0} hotels
           </p>
         </div>
         
