@@ -13,14 +13,59 @@ interface RevenueMetricsProps {
   clickedRoomType: string | null;
   currency: Intl.NumberFormat;
   sparkData: Array<{ day: string; revenue: number }>;
+  range: 1 | 7 | 30 | 90;
 }
+
+// Function to generate dynamic date range text
+const getDateRangeText = (range: 1 | 7 | 30 | 90): string => {
+  const today = new Date();
+  const startDate = new Date();
+  
+  switch (range) {
+    case 1:
+      startDate.setDate(today.getDate() - 1);
+      break;
+    case 7:
+      startDate.setDate(today.getDate() - 7);
+      break;
+    case 30:
+      startDate.setDate(today.getDate() - 30);
+      break;
+    case 90:
+      startDate.setDate(today.getDate() - 90);
+      break;
+  }
+  
+  const formatDate = (date: Date): string => {
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric' 
+    });
+  };
+  
+  const formatYear = (date: Date): string => {
+    return date.getFullYear().toString();
+  };
+  
+  const startText = formatDate(startDate);
+  const endText = formatDate(today);
+  const year = formatYear(today);
+  
+  // If same year, don't repeat year
+  if (startDate.getFullYear() === today.getFullYear()) {
+    return `Analyzing ${startText} - ${endText}, ${year}`;
+  } else {
+    return `Analyzing ${startText}, ${startDate.getFullYear()} - ${endText}, ${year}`;
+  }
+};
 
 const RevenueMetrics = memo(({
   loading,
   todayAverageRevenue,
   clickedRoomType,
   currency,
-  sparkData
+  sparkData,
+  range
 }: RevenueMetricsProps) => {
   return (
     <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300">
@@ -63,7 +108,7 @@ const RevenueMetrics = memo(({
             {clickedRoomType ? (
               <span className="text-arkus-600 font-medium">📊 Filtered by: {clickedRoomType}</span>
             ) : (
-              <span>Analyzing Jul 31 - Oct 30, 2025</span>
+              <span>{getDateRangeText(range)}</span>
             )}
           </p>
         </div>

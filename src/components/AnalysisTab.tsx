@@ -654,6 +654,7 @@ export default function AnalysisTab() {
               clickedRoomType={clickedRoomType}
               currency={currency}
               sparkData={sparkData}
+              range={range}
             />
 
             <PerformanceScorecard

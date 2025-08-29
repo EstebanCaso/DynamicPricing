@@ -4,13 +4,12 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { 
   TABLES, 
-  formatCurrency, 
   logDataFlow,
   cleanPrice,
-  convertCurrency,
-  type Currency,
   type ProcessedHotelData 
 } from '@/lib/dataUtils'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import CurrencySelector from './CurrencySelector'
 
 interface Competitor {
   id: string
@@ -66,36 +65,56 @@ export default function CompetitorsTab() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedStars, setSelectedStars] = useState('All')
-  const [selectedCurrency, setSelectedCurrency] = useState<Currency>('MXN')
-  const [exchangeRate, setExchangeRate] = useState<number>(18.5) // Default fallback
+  const { selectedCurrency, exchangeRate, convertPriceToSelectedCurrency, currency } = useCurrency()
+  
+  // New state for competitor selection
+  const [selectedCompetitors, setSelectedCompetitors] = useState<string[]>([])
+  const [showCompetitorSelector, setShowCompetitorSelector] = useState(false)
 
-  // Fetch exchange rate when currency changes
+  // Load selected competitors from localStorage on component mount
   useEffect(() => {
-    const fetchExchangeRate = async () => {
-      if (selectedCurrency === 'MXN') {
-        setExchangeRate(1); // No conversion needed for MXN
-        return;
-      }
-      
+    const saved = localStorage.getItem('selectedCompetitors')
+    if (saved) {
       try {
-        const response = await fetch('/api/exchange-rate');
-        const data = await response.json();
-        if (data.success && data.rate) {
-          setExchangeRate(data.rate);
-          console.log(`💱 Exchange rate updated: 1 USD = ${data.rate} MXN`);
-        }
+        setSelectedCompetitors(JSON.parse(saved))
       } catch (error) {
-        console.error('Failed to fetch exchange rate:', error);
-        // Keep default fallback rate
+        console.error('Error parsing saved competitors:', error)
+        setSelectedCompetitors([])
       }
-    };
+    }
+  }, [])
 
-    fetchExchangeRate();
-  }, [selectedCurrency]);
+  // Save selected competitors to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('selectedCompetitors', JSON.stringify(selectedCompetitors))
+  }, [selectedCompetitors])
+
+  // Toggle competitor selection
+  const toggleCompetitorSelection = (competitorName: string) => {
+    setSelectedCompetitors(prev => {
+      if (prev.includes(competitorName)) {
+        return prev.filter(name => name !== competitorName)
+      } else {
+        return [...prev, competitorName]
+      }
+    })
+  }
+
+  // Clear all selected competitors
+  const clearSelectedCompetitors = () => {
+    setSelectedCompetitors([])
+  }
+
+  // Check if a competitor is selected
+  const isCompetitorSelected = (competitorName: string) => {
+    return selectedCompetitors.includes(competitorName)
+  }
+
+
 
   useEffect(() => {
     fetchCompetitiveData()
-  }, [selectedStars, selectedCurrency])
+  }, [selectedStars])
 
   const fetchCompetitiveData = async () => {
     try {
@@ -178,23 +197,19 @@ export default function CompetitorsTab() {
     }
   }
 
-  // Currency conversion helper
-  const convertPriceToSelectedCurrency = (price: number, originalCurrency: Currency = 'MXN'): number => {
-    const convertedPrice = convertCurrency(price, originalCurrency, selectedCurrency, exchangeRate);
-    if (originalCurrency !== selectedCurrency) {
-      console.log(`💱 Converting ${price} ${originalCurrency} → ${convertedPrice.toFixed(2)} ${selectedCurrency} (rate: ${exchangeRate})`);
-    }
-    return convertedPrice;
-  };
-
   const formatCurrencyValue = (amount: number) => {
     if (typeof amount !== 'number' || isNaN(amount)) {
-      return formatCurrency(0, selectedCurrency)
+      return currency.format(0)
     }
     // Apply currency conversion before formatting
     const convertedAmount = convertPriceToSelectedCurrency(amount, 'MXN');
-    return formatCurrency(convertedAmount, selectedCurrency)
+    return currency.format(convertedAmount)
   }
+
+  // Force re-render when currency changes
+  useEffect(() => {
+    // This will force the component to re-render when currency changes
+  }, [selectedCurrency]);
 
   const formatPercentage = (value: number) => {
     if (typeof value !== 'number' || isNaN(value)) {
@@ -349,17 +364,7 @@ export default function CompetitorsTab() {
       <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center space-x-2">
-              <label className="text-sm font-medium text-gray-700">Currency:</label>
-              <select
-                value={selectedCurrency}
-                onChange={(e) => setSelectedCurrency(e.target.value as Currency)}
-                className="px-3 py-2 border border-glass-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500 bg-glass-50 backdrop-blur-sm"
-              >
-                <option value="MXN">MXN (Pesos)</option>
-                <option value="USD">USD (Dollars)</option>
-              </select>
-            </div>
+            <CurrencySelector />
             
             <div className="flex items-center space-x-2">
               <label className="text-sm font-medium text-gray-700">Star Rating:</label>
@@ -373,6 +378,25 @@ export default function CompetitorsTab() {
                 <option value="4">4 Stars</option>
                 <option value="5">5 Stars</option>
               </select>
+            </div>
+
+            {/* Competitor Selection Button */}
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={() => setShowCompetitorSelector(!showCompetitorSelector)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  selectedCompetitors.length > 0
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                <span className="flex items-center space-x-2">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  <span>Main Competitors ({selectedCompetitors.length})</span>
+                </span>
+              </button>
             </div>
           </div>
 
@@ -403,10 +427,51 @@ export default function CompetitorsTab() {
             )}
           </button>
         </div>
+
+        {/* Competitor Selection Panel */}
+        {showCompetitorSelector && (
+          <div className="mt-4 p-4 bg-glass-50 rounded-xl border border-glass-200">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-medium text-gray-700">Select Your Main Competitors</h4>
+              {selectedCompetitors.length > 0 && (
+                <button
+                  onClick={clearSelectedCompetitors}
+                  className="text-xs text-red-600 hover:text-red-700 font-medium"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
+            
+            {competitorData && competitorData.competitors.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                {competitorData.competitors.map((competitor, index) => (
+                  <label key={index} className="flex items-center space-x-2 cursor-pointer hover:bg-white/50 p-2 rounded-lg transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={isCompetitorSelected(competitor.name)}
+                      onChange={() => toggleCompetitorSelection(competitor.name)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-sm text-gray-700 truncate" title={competitor.name}>
+                      {competitor.name}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500">No competitors available to select</p>
+            )}
+            
+            <div className="mt-3 text-xs text-gray-500">
+              Selected competitors will be highlighted in the table below and saved for future sessions.
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300">
           <div className="text-2xl font-bold text-gray-900">{competitorData.competitorsCount}</div>
           <div className="text-sm text-gray-600">Competitors</div>
@@ -430,17 +495,37 @@ export default function CompetitorsTab() {
           <div className="text-sm text-gray-600">Your Position</div>
           <div className="text-xs text-gray-500">Out of {competitorData.competitorsCount + 1} hotels</div>
         </div>
+        
+        <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300">
+          <div className="text-2xl font-bold text-gray-900">{selectedCompetitors.length}</div>
+          <div className="text-sm text-gray-600">Main Competitors</div>
+          <div className="text-xs text-gray-500">Selected for tracking</div>
+        </div>
       </div>
 
       {/* Competitor Table */}
       <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl transition-all duration-300">
         <div className="p-6 border-b border-glass-200 bg-glass-50">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Competitive Landscape
-          </h3>
-          <p className="text-sm text-gray-600 mt-1">
-            {competitorData.today} • {competitorData.city} • {selectedStars === 'All' ? 'All Ratings' : `${selectedStars}★ Hotels`}
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Competitive Landscape
+              </h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {competitorData.today} • {competitorData.city} • {selectedStars === 'All' ? 'All Ratings' : `${selectedStars}★ Hotels`}
+              </p>
+            </div>
+            {selectedCompetitors.length > 0 && (
+              <div className="text-right">
+                <div className="text-sm font-medium text-blue-700">
+                  {selectedCompetitors.length} Main Competitor{selectedCompetitors.length !== 1 ? 's' : ''} Selected
+                </div>
+                <div className="text-xs text-blue-600">
+                  Highlighted in blue
+                </div>
+              </div>
+            )}
+          </div>
         </div>
         
         <div className="overflow-x-auto">
@@ -499,10 +584,19 @@ export default function CompetitorsTab() {
                   const differencePercent = (competitorData.myAvg || 0) > 0 ? 
                     (difference / (competitorData.myAvg || 0)) * 100 : 0
                   
+                  const isSelected = isCompetitorSelected(competitor.name)
+                  
                   return (
-                    <tr key={index} className="hover:bg-gray-50">
+                    <tr key={index} className={`hover:bg-gray-50 ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{competitor.name}</div>
+                        <div className="flex items-center space-x-2">
+                          <div className="text-sm font-medium text-gray-900">{competitor.name}</div>
+                          {isSelected && (
+                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                              Main Competitor
+                            </span>
+                          )}
+                        </div>
                         <div className="text-xs text-gray-500">{competitorData.city}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -578,6 +672,53 @@ export default function CompetitorsTab() {
           </div>
         </div>
       </div>
+
+      {/* Main Competitors Analysis */}
+      {selectedCompetitors.length > 0 && (
+        <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Main Competitors Analysis</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-4 backdrop-blur-lg bg-purple-500/20 rounded-xl border border-purple-300/30 hover:bg-purple-500/30 transition-all duration-300">
+              <h4 className="font-medium text-purple-900 mb-2">🎯 Focused Tracking</h4>
+              <p className="text-sm text-purple-800">
+                You're tracking {selectedCompetitors.length} main competitors: {selectedCompetitors.slice(0, 3).join(', ')}
+                {selectedCompetitors.length > 3 && ` and ${selectedCompetitors.length - 3} more`}.
+                {(() => {
+                  const selectedCompetitorData = competitorData.competitors.filter(c => selectedCompetitors.includes(c.name))
+                  if (selectedCompetitorData.length === 0) return ''
+                  
+                  const avgSelectedPrice = selectedCompetitorData.reduce((sum, c) => sum + c.avg, 0) / selectedCompetitorData.length
+                  const priceDiff = avgSelectedPrice - (competitorData.myAvg || 0)
+                  const priceDiffPercent = (competitorData.myAvg || 0) > 0 ? (priceDiff / (competitorData.myAvg || 0)) * 100 : 0
+                  
+                  return ` Their average price is ${formatCurrencyValue(avgSelectedPrice)} (${formatPercentage(priceDiffPercent)} vs yours).`
+                })()}
+              </p>
+            </div>
+            
+            <div className="p-4 backdrop-blur-lg bg-orange-500/20 rounded-xl border border-orange-300/30 hover:bg-orange-500/30 transition-all duration-300">
+              <h4 className="font-medium text-orange-900 mb-2">📈 Strategic Insights</h4>
+              <p className="text-sm text-orange-800">
+                {(() => {
+                  const selectedCompetitorData = competitorData.competitors.filter(c => selectedCompetitors.includes(c.name))
+                  if (selectedCompetitorData.length === 0) return 'No selected competitors to analyze.'
+                  
+                  const aboveYou = selectedCompetitorData.filter(c => c.avg > (competitorData.myAvg || 0)).length
+                  const belowYou = selectedCompetitorData.filter(c => c.avg < (competitorData.myAvg || 0)).length
+                  
+                  if (aboveYou > belowYou) {
+                    return `Most of your main competitors (${aboveYou} out of ${selectedCompetitorData.length}) are priced above you, suggesting potential for price optimization.`
+                  } else if (belowYou > aboveYou) {
+                    return `Most of your main competitors (${belowYou} out of ${selectedCompetitors.length}) are priced below you, indicating you may be in a premium position.`
+                  } else {
+                    return `Your main competitors are evenly split between higher and lower pricing, showing balanced market positioning.`
+                  }
+                })()}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

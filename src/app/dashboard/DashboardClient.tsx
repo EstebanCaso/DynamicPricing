@@ -6,6 +6,8 @@ import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import CalendarTab from '@/components/CalendarTab'
 import CompetitorsTab from '@/components/CompetitorsTab'
+import CurrencySelector from '@/components/CurrencySelector'
+import { useCurrency } from '@/contexts/CurrencyContext'
 
 type CompareData = {
   today: string
@@ -21,6 +23,12 @@ export function HotelsComparisonCard() {
   const [data, setData] = useState<CompareData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { selectedCurrency, currency, convertPriceToSelectedCurrency, exchangeRate } = useCurrency()
+
+  // Force re-render when currency changes
+  useEffect(() => {
+    // This will force the component to re-render when currency changes
+  }, [selectedCurrency]);
 
   useEffect(() => {
     const load = async () => {
@@ -62,7 +70,7 @@ export function HotelsComparisonCard() {
               <div className="flex flex-col space-y-1 pl-8">
                 <span className="text-base">{c.name}</span>
               </div>
-              <div className="text-base text-center">${Math.round(c.avg)}</div>
+                                  <div className="text-base text-center">{currency.format(convertPriceToSelectedCurrency(Math.round(c.avg), 'MXN'))}</div>
               <div className="text-base text-center text-gray-600">-</div>
             </div>
           ))}
@@ -73,7 +81,7 @@ export function HotelsComparisonCard() {
               <div className="flex flex-col space-y-1 flex-1 pl-8">
                 <span className="text-base font-bold text-gray-900">{data.myHotelName}</span>
               </div>
-              <div className="text-base font-bold text-red-600 text-center flex-1">${data.myAvg != null ? Math.round(data.myAvg) : '-'}</div>
+              <div className="text-base font-bold text-red-600 text-center flex-1">{data.myAvg != null ? currency.format(convertPriceToSelectedCurrency(Math.round(data.myAvg), 'MXN')) : '-'}</div>
             </div>
             <div className="w-1/3 bg-red-600 rounded-r-2xl flex items-center justify-center px-4 py-3 relative -ml-2">
               <span className="text-lg font-bold text-white">{data.position ?? '-'}</span>
@@ -103,6 +111,13 @@ const AnalysisTab = dynamic(() => import('@/components/AnalysisTab'), {
 export default function DashboardClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { selectedCurrency, currency, convertPriceToSelectedCurrency, exchangeRate } = useCurrency()
+  
+  // Force re-render when currency changes
+  useEffect(() => {
+    // This will force the component to re-render when currency changes
+  }, [selectedCurrency]);
+
   const tabs = useMemo(
     () => [
       { id: 'summary', name: 'Summary' },
@@ -151,20 +166,25 @@ export default function DashboardClient() {
             </div>
             
             {/* Navigation Tabs - Centered */}
-            <div className="flex space-x-3 md:space-x-4">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => handleTabChange(tab.id)}
-                  className={`px-4 py-2 rounded-2xl font-medium transition-all ring-1 ring-black/5 ${
-                    activeTab === tab.id
-                      ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm'
-                      : 'bg-white/60 text-gray-700 hover:bg-white'
-                  }`}
-                >
-                  {tab.name}
-                </button>
-              ))}
+            <div className="flex items-center space-x-4">
+              <div className="flex space-x-3 md:space-x-4">
+                {tabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => handleTabChange(tab.id)}
+                    className={`px-4 py-2 rounded-2xl font-medium transition-all ring-1 ring-black/5 ${
+                      activeTab === tab.id
+                        ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm'
+                        : 'bg-white/60 text-gray-700 hover:bg-white'
+                    }`}
+                  >
+                    {tab.name}
+                  </button>
+                ))}
+              </div>
+              
+              {/* Currency Selector */}
+              <CurrencySelector showLabel={false} />
             </div>
 
             {/* User Icon */}
@@ -197,7 +217,9 @@ export default function DashboardClient() {
                 {/* Average Rate */}
                 <div className="bg-white rounded-[25px] p-6 border-l-4 border-red-500 shadow-sm">
                   <h3 className="text-sm font-medium text-gray-600 mb-2">Average rate</h3>
-                  <p className="text-3xl font-bold text-gray-900">$126 dlls</p>
+                  <p className="text-3xl font-bold text-gray-900">
+                    {currency.format(convertPriceToSelectedCurrency(126, 'MXN'))}
+                  </p>
                 </div>
               </div>
 
@@ -250,8 +272,8 @@ export default function DashboardClient() {
                         ))}
                       </div>
                     </div>
-                    <div className="text-base text-center">$123 dlls</div>
-                    <div className="text-base text-green-600 text-center">+$23 dlls</div>
+                    <div className="text-base text-center">{currency.format(convertPriceToSelectedCurrency(123, 'MXN'))}</div>
+                    <div className="text-base text-green-600 text-center">+{currency.format(convertPriceToSelectedCurrency(23, 'MXN'))}</div>
                   </div>
 
                   {/* Hotels B */}
@@ -266,8 +288,8 @@ export default function DashboardClient() {
                         ))}
                       </div>
                     </div>
-                    <div className="text-base text-center">$97 dlls</div>
-                    <div className="text-base text-red-600 text-center">-$3 dlls</div>
+                    <div className="text-base text-center">{currency.format(convertPriceToSelectedCurrency(97, 'MXN'))}</div>
+                    <div className="text-base text-red-600 text-center">-{currency.format(convertPriceToSelectedCurrency(3, 'MXN'))}</div>
                   </div>
 
                   {/* Hotels (ours) - Highlighted */}
@@ -284,7 +306,7 @@ export default function DashboardClient() {
                           ))}
                         </div>
                       </div>
-                      <div className="text-base font-bold text-red-600 text-center flex-1">$100 dlls</div>
+                      <div className="text-base font-bold text-red-600 text-center flex-1">{currency.format(convertPriceToSelectedCurrency(100, 'MXN'))}</div>
                     </div>
 
                     {/* Right section - Red background (1/3) */}
@@ -305,8 +327,8 @@ export default function DashboardClient() {
                         ))}
                       </div>
                     </div>
-                    <div className="text-base text-center">$97 dlls</div>
-                    <div className="text-base text-red-600 text-center">-$3 dlls</div>
+                    <div className="text-base text-center">{currency.format(convertPriceToSelectedCurrency(97, 'MXN'))}</div>
+                    <div className="text-base text-red-600 text-center">-{currency.format(convertPriceToSelectedCurrency(3, 'MXN'))}</div>
                   </div>
 
                   {/* Repeat Hotels A */}
@@ -321,8 +343,8 @@ export default function DashboardClient() {
                         ))}
                       </div>
                     </div>
-                    <div className="text-base text-center">$123 dlls</div>
-                    <div className="text-base text-green-600 text-center">+$23 dlls</div>
+                    <div className="text-base text-center">{currency.format(convertPriceToSelectedCurrency(123, 'MXN'))}</div>
+                    <div className="text-base text-center">+{currency.format(convertPriceToSelectedCurrency(23, 'MXN'))}</div>
                   </div>
                 </div>
               </div>

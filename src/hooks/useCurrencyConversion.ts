@@ -102,3 +102,4 @@ export const useCurrencyConversion = (selectedCurrency: Currency) => {
     fetchExchangeRate
   };
 };
+

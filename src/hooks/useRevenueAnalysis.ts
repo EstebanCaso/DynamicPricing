@@ -203,3 +203,4 @@ export const useRevenueAnalysis = ({
     uniqueRoomTypes
   };
 };
+

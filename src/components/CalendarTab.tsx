@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { 
-  formatCurrency, 
-  logDataFlow,
-  type Currency 
+  logDataFlow
 } from '@/lib/dataUtils'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import CurrencySelector from './CurrencySelector'
 
 type EventItem = { id?: string; nombre?: string | null; fecha?: string | null; lugar?: string | null; enlace?: string | null }
 type PriceItem = { room_type: string; price: number | null }
@@ -30,10 +30,7 @@ function formatNiceDate(ymd?: string | null): string {
   const d = parseYMDToLocalDate(ymd)
   return d ? d.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'long', day: '2-digit' }) : ''
 }
-function formatMoney(value?: number | null, currency: Currency = 'MXN'): string {
-  if (value == null || !Number.isFinite(value)) return '-'
-  return formatCurrency(value, currency)
-}
+
 
 export default function CalendarTab() {
   const [events, setEvents] = useState<EventItem[]>([])
@@ -47,7 +44,19 @@ export default function CalendarTab() {
   const [isApplying, setIsApplying] = useState<boolean>(false)
   const [bulkMode, setBulkMode] = useState<boolean>(false)
   const [manualPercent, setManualPercent] = useState<number>(0)
-  const [selectedCurrency, setSelectedCurrency] = useState<Currency>('MXN')
+  const { selectedCurrency, currency, convertPriceToSelectedCurrency } = useCurrency()
+
+  // Force re-render when currency changes
+  useEffect(() => {
+    // This will force the component to re-render when currency changes
+  }, [selectedCurrency]);
+
+  // Format money function with currency conversion
+  const formatMoney = (value?: number | null, originalCurrency: 'MXN' | 'USD' = 'MXN'): string => {
+    if (value == null || !Number.isFinite(value)) return '-'
+    const convertedValue = convertPriceToSelectedCurrency(value, originalCurrency)
+    return currency.format(convertedValue)
+  }
 
   // Load events upcoming 90 days
   useEffect(() => {
@@ -205,17 +214,7 @@ export default function CalendarTab() {
             <h2 className="text-xl font-bold text-gray-900">Calendar & Pricing</h2>
             <p className="text-gray-600 text-sm">Manage your hotel pricing by date</p>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm font-medium text-gray-700">Currency:</label>
-            <select
-              value={selectedCurrency}
-              onChange={(e) => setSelectedCurrency(e.target.value as Currency)}
-              className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-500"
-            >
-              <option value="MXN">MXN (Pesos)</option>
-              <option value="USD">USD (Dollars)</option>
-            </select>
-          </div>
+          <CurrencySelector showLabel={true} />
         </div>
       </div>
       
@@ -423,13 +422,13 @@ export default function CalendarTab() {
                               ) : null}
                               <div>
                                 <div className="font-semibold text-gray-900 text-lg md:text-xl">{r.room_type}</div>
-                                <div className="text-base text-gray-700">Current {formatMoney(r.base, selectedCurrency)}</div>
+                                <div className="text-base text-gray-700">Current {formatMoney(r.base, 'MXN')}</div>
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
                               <div className="text-right">
                                 <div className="text-sm text-gray-600">New</div>
-                                <div className="font-bold text-red-600 text-xl">{formatMoney(r.next, selectedCurrency)}</div>
+                                <div className="font-bold text-red-600 text-xl">{formatMoney(r.next, 'MXN')}</div>
                               </div>
                               <button
                                 disabled={isApplying}

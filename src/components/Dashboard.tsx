@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import CurrencySelector from './CurrencySelector'
 import ScrapingCard from './ScrapingCard'
 import PricingCard from './PricingCard'
 import ReportsCard from './ReportsCard'
@@ -10,6 +12,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState('overview')
   const [stats, setStats] = useState<{ totalEvents: number; growthPercent: number; eventsToday: number } | null>(null)
   const [loading, setLoading] = useState(false)
+  const { selectedCurrency, convertPriceToSelectedCurrency, currency } = useCurrency()
 
   useEffect(() => {
     const loadStats = async () => {
@@ -33,14 +36,19 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Welcome Section */}
+      {/* Welcome Section with Currency Selector */}
       <div className="bg-white rounded-lg shadow-sm p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Welcome to Arkus Dynamic Pricing
-        </h1>
-        <p className="text-gray-600">
-          Monitor your pricing strategies and run Python scraping scripts to gather market data.
-        </p>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 mb-2">
+              Welcome to Arkus Dynamic Pricing
+            </h1>
+            <p className="text-gray-600">
+              Monitor your pricing strategies and run Python scraping scripts to gather market data.
+            </p>
+          </div>
+          <CurrencySelector />
+        </div>
       </div>
 
       {/* Quick Stats */}
