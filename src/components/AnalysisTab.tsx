@@ -259,20 +259,29 @@ export default function AnalysisTab() {
       // Calculate average price performance metrics from rooms_jsonb data
         const performanceData: RevenuePoint[] = [];
         
-        // Add user's hotel performance
-      if (userHotel) {
-        const userHotelAvgPrice = calculateHotelRevenue([userHotel]); // This actually calculates avg price
+        // Build current date range (normalized to 00:00)
+        const today = new Date();
+        const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        const rangeStart = new Date(endDate);
+        rangeStart.setDate(endDate.getDate() - (range - 1));
+
+        // Add user's hotel performance using filteredSupabaseData (respects filters)
+        if (filteredSupabaseData && filteredSupabaseData.length > 0) {
+          const converted = filteredSupabaseData
+            .map((item: any) => convertPriceToSelectedCurrency(item.processed_price, item.processed_currency))
+            .filter((v: number) => v > 0);
+          const userHotelAvgPrice = converted.length > 0 ? (converted.reduce((a: number, b: number) => a + b, 0) / converted.length) : 0;
           performanceData.push({
-          hotel: userHotel.hotel_name || "Our Hotel",
-          revenue: userHotelAvgPrice, // Using revenue field for avg price to maintain compatibility
-          color: "#ff0000"
+            hotel: userHotel.hotel_name || "Our Hotel",
+            revenue: userHotelAvgPrice, // Using revenue field for avg price to maintain compatibility
+            color: "#ff0000"
           });
         }
         
         // Add competitor performance
       competitors.forEach((competitor: any) => {
         if (competitor.rooms_jsonb && typeof competitor.rooms_jsonb === 'object') {
-          const competitorAvgPrice = calculateHotelRevenueFromJsonb(competitor.rooms_jsonb);
+          const competitorAvgPrice = calculateHotelRevenueFromJsonb(competitor.rooms_jsonb, rangeStart, endDate);
           if (competitorAvgPrice > 0) {
                 performanceData.push({
               hotel: competitor.nombre || "Unknown Hotel",
@@ -294,13 +303,18 @@ export default function AnalysisTab() {
     }
   };
 
-  // Helper function to calculate average hotel revenue per room from rooms_jsonb data
-  const calculateHotelRevenueFromJsonb = (roomsJsonb: any): number => {
+  // Helper function to calculate average price from rooms_jsonb data with optional date filtering
+  const calculateHotelRevenueFromJsonb = (roomsJsonb: any, rangeStart?: Date, endDate?: Date): number => {
     let totalRevenue = 0;
     let roomCount = 0;
     
     if (roomsJsonb && typeof roomsJsonb === 'object') {
       Object.entries(roomsJsonb).forEach(([date, rooms]: [string, any]) => {
+        // Apply date filter if provided
+        if (rangeStart && endDate) {
+          const d = new Date(date);
+          if (d < rangeStart || d > endDate) return;
+        }
         if (Array.isArray(rooms)) {
           rooms.forEach((room: any) => {
             if (room.price) {
@@ -354,12 +368,12 @@ export default function AnalysisTab() {
     fetchHotelUsuarioData();
   }, []);
 
-  // Fetch competitor data when user data or currency is available/changes
+  // Fetch competitor data when user data, filters, or currency change
   useEffect(() => {
     if (supabaseData.length > 0 && userHotelName) {
       fetchCompetitorData();
     }
-  }, [supabaseData, userHotelName, selectedCurrency]);
+  }, [supabaseData, userHotelName, selectedCurrency, selectedRoomType, clickedRoomType, range]);
 
 
 
