@@ -6,6 +6,8 @@ import {
   convertCurrency,
   type Currency 
 } from '@/lib/dataUtils'
+import { useCurrency } from '@/contexts/CurrencyContext'
+import CurrencySelector from './CurrencySelector'
 
 type CompareData = {
   today: string
@@ -23,34 +25,17 @@ export default function HotelsComparisonCard() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedStars, setSelectedStars] = useState<number | null>(null)
-  const [selectedCurrency, setSelectedCurrency] = useState<Currency>('MXN')
-  const [exchangeRate, setExchangeRate] = useState<number>(18.5) // Default fallback
   const scrollRef = useRef<HTMLDivElement | null>(null)
   const userRowRef = useRef<HTMLTableRowElement | null>(null)
 
-  // Fetch exchange rate when currency changes
-  useEffect(() => {
-    const fetchExchangeRate = async () => {
-      if (selectedCurrency === 'MXN') {
-        setExchangeRate(1); // No conversion needed for MXN
-        return;
-      }
-      
-      try {
-        const response = await fetch('/api/exchange-rate');
-        const data = await response.json();
-        if (data.success && data.rate) {
-          setExchangeRate(data.rate);
-          console.log(`💱 Exchange rate updated: 1 USD = ${data.rate} MXN`);
-        }
-      } catch (error) {
-        console.error('Failed to fetch exchange rate:', error);
-        // Keep default fallback rate
-      }
-    };
+  // Use global currency context
+  const { selectedCurrency, convertPriceToSelectedCurrency } = useCurrency()
 
-    fetchExchangeRate();
-  }, [selectedCurrency]);
+  // Force re-render when currency changes (without reloading data)
+  useEffect(() => {
+    // This will force the component to re-render when currency changes
+    // but won't reload the data from the API
+  }, [selectedCurrency])
 
   useEffect(() => {
     const load = async () => {
@@ -72,7 +57,7 @@ export default function HotelsComparisonCard() {
       }
     }
     load()
-  }, [selectedStars, selectedCurrency])
+  }, [selectedStars]) // Solo recargar cuando cambien los filtros de estrellas
 
   const hasCompetitors = (data?.competitorsCount || 0) > 0
   const rows = useMemo(() => {
@@ -101,21 +86,20 @@ export default function HotelsComparisonCard() {
     container.scrollTop = Math.max(0, delta - Math.round(container.clientHeight * 0.3))
   }, [rows])
 
-  // Currency conversion helper
-  const convertPriceToSelectedCurrency = (price: number, originalCurrency: Currency = 'MXN'): number => {
-    const convertedPrice = convertCurrency(price, originalCurrency, selectedCurrency, exchangeRate);
-    if (originalCurrency !== selectedCurrency) {
-      console.log(`💱 Converting ${price} ${originalCurrency} → ${convertedPrice.toFixed(2)} ${selectedCurrency} (rate: ${exchangeRate})`);
-    }
-    return convertedPrice;
-  };
-
+  // Currency conversion helper with smooth transitions
   const formatMoney = (value: number | null | undefined) => {
     if (value == null || !Number.isFinite(value as number)) return '-'
     // Apply currency conversion before formatting
     const convertedAmount = convertPriceToSelectedCurrency(value as number, 'MXN');
     return formatCurrency(convertedAmount, selectedCurrency);
   }
+
+  // Animated value component for smooth currency transitions
+  const AnimatedValue = ({ value, className = "" }: { value: string, className?: string }) => (
+    <div className={`transition-all duration-500 ease-in-out ${className}`}>
+      {value}
+    </div>
+  )
 
   const Star = ({ filled }: { filled: boolean }) => (
     <svg width="16" height="16" viewBox="0 0 24 24" fill={filled ? '#ff0000' : 'none'} stroke="#ff0000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -166,10 +150,61 @@ export default function HotelsComparisonCard() {
   if (loading) {
     return (
       <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-all duration-300">
-        <div className="animate-pulse space-y-4">
-          <div className="h-4 bg-glass-300 rounded w-1/4"></div>
-          <div className="h-4 bg-glass-300 rounded w-1/2"></div>
-          <div className="h-4 bg-glass-300 rounded w-3/4"></div>
+        {/* Header Skeleton */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="space-y-2">
+            <div className="h-8 bg-gradient-to-r from-glass-200 to-glass-300 rounded-lg w-48 animate-pulse"></div>
+            <div className="h-4 bg-gradient-to-r from-glass-200 to-glass-300 rounded w-32 animate-pulse"></div>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="h-10 bg-gradient-to-r from-glass-200 to-glass-300 rounded-lg w-32 animate-pulse"></div>
+            <div className="h-10 bg-gradient-to-r from-glass-200 to-glass-300 rounded-lg w-24 animate-pulse"></div>
+          </div>
+        </div>
+
+        {/* Stats Skeleton */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="backdrop-blur-sm bg-glass-200 border border-glass-300 rounded-xl p-4 text-center">
+              <div className="h-8 bg-gradient-to-r from-glass-200 to-glass-300 rounded-lg w-20 mx-auto mb-2 animate-pulse"></div>
+              <div className="h-4 bg-gradient-to-r from-glass-200 to-glass-300 rounded w-24 mx-auto animate-pulse"></div>
+            </div>
+          ))}
+        </div>
+
+        {/* Table Skeleton */}
+        <div className="overflow-hidden rounded-xl border border-glass-300">
+          <div className="overflow-x-auto">
+            <div className="max-h-[410px] overflow-y-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="bg-glass-200 border-b border-glass-300">
+                    {['Rank', 'Hotel Name', 'Stars', 'Average Price'].map((header, i) => (
+                      <th key={i} className="px-4 py-3 text-left">
+                        <div className="h-4 bg-gradient-to-r from-glass-200 to-glass-300 rounded w-16 animate-pulse"></div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {[1, 2, 3, 4, 5].map((row) => (
+                    <tr key={row} className="border-b border-glass-200">
+                      {[1, 2, 3, 4].map((cell) => (
+                        <td key={cell} className="px-4 py-3">
+                          <div className="h-4 bg-gradient-to-r from-glass-200 to-glass-300 rounded w-12 animate-pulse"></div>
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer Skeleton */}
+        <div className="mt-4 text-center">
+          <div className="h-4 bg-gradient-to-r from-glass-200 to-glass-300 rounded w-48 mx-auto animate-pulse"></div>
         </div>
       </div>
     )
@@ -204,17 +239,7 @@ export default function HotelsComparisonCard() {
         </div>
         <div className="flex items-center gap-4">
           {/* Currency Selector */}
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-gray-700">Currency:</span>
-            <select
-              value={selectedCurrency}
-              onChange={(e) => setSelectedCurrency(e.target.value as Currency)}
-              className="text-sm px-3 py-2 border border-glass-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-arkus-500 bg-glass-50 backdrop-blur-sm"
-            >
-              <option value="MXN">MXN</option>
-              <option value="USD">USD</option>
-            </select>
-          </div>
+          <CurrencySelector />
           <StarsFilter />
         </div>
       </div>
@@ -222,16 +247,25 @@ export default function HotelsComparisonCard() {
       {/* Summary Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="backdrop-blur-sm bg-glass-200 border border-glass-300 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-arkus-600">{formatMoney(data.myAvg)}</div>
+          <AnimatedValue 
+            value={formatMoney(data.myAvg)} 
+            className="text-2xl font-bold text-arkus-600"
+          />
           <div className="text-sm text-gray-600">My Hotel Average</div>
         </div>
         <div className="backdrop-blur-sm bg-glass-200 border border-glass-300 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-gray-700">{formatMoney(data.competitorsAvg)}</div>
+          <AnimatedValue 
+            value={formatMoney(data.competitorsAvg)} 
+            className="text-2xl font-bold text-gray-700"
+          />
           <div className="text-sm text-gray-600">Competitors Average</div>
         </div>
         <div className="backdrop-blur-sm bg-glass-200 border border-glass-300 rounded-xl p-4 text-center">
-          <div className="text-2xl font-bold text-emerald-600">{data.position || '-'}</div>
-          <div className="text-sm text-gray-600">Your Position</div>
+          <AnimatedValue 
+            value={data.position ? `#${data.position}` : '-'} 
+            className="text-2xl font-bold text-emerald-600"
+          />
+          <div className="text-sm text-gray-600">Position</div>
         </div>
       </div>
 
