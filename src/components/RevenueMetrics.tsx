@@ -80,18 +80,9 @@ const RevenueMetrics = memo(({
       </div>
 
       {/* Content Section */}
-      <div className="h-24 flex items-center justify-between">
-        <div className="flex-1">
-          <div className="text-3xl md:text-4xl font-bold text-gray-900 group-hover:text-emerald-600 transition-all duration-500 ease-in-out">
-            {currency.format(todayAverageRevenue || 0)}
-          </div>
-        </div>
-        <div className="ml-4">
-          <div className="w-16 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg p-2 group-hover:from-blue-200 group-hover:to-blue-300 transition-all duration-300">
-            <svg className="w-full h-full text-blue-600" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
-            </svg>
-          </div>
+      <div className="h-24 flex items-center justify-center">
+        <div className="text-3xl md:text-4xl font-bold text-gray-900 group-hover:text-emerald-600 transition-all duration-500 ease-in-out">
+          {currency.format(todayAverageRevenue || 0)}
         </div>
       </div>
 

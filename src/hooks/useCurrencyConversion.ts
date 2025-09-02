@@ -77,7 +77,7 @@ export const useCurrencyConversion = (selectedCurrency: Currency) => {
     return new Intl.NumberFormat(selectedCurrency === "USD" ? "en-US" : "es-MX", {
       style: "currency",
       currency: selectedCurrency,
-      minimumFractionDigits: 0,
+      minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
   }, [selectedCurrency]);
