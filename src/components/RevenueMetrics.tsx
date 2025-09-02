@@ -68,53 +68,43 @@ const RevenueMetrics = memo(({
   range
 }: RevenueMetricsProps) => {
   return (
-    <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300">
-      {/* Header Section - Fixed height */}
+    <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-4 hover:shadow-2xl transition-all duration-300 group">
+      {/* Header Section */}
       <div className="h-12 flex items-center gap-3 mb-4">
-        <div className="p-1.5 bg-arkus-100 rounded-lg">
-          <svg className="text-arkus-600 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 1v22M4 9l8-8 8 8" />
+        <div className="p-1.5 rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-600 text-white group-hover:from-emerald-600 group-hover:to-emerald-700 transition-all duration-300">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
           </svg>
         </div>
-        <div>
-          <p className="text-xs font-medium text-gray-700">Avg Revenue per Booking</p>
-        </div>
+        <h3 className="text-xs font-medium text-gray-700 group-hover:text-gray-800 transition-colors duration-300">Avg Revenue per Booking</h3>
       </div>
-      
-      {/* Content Section - Price and Chart in same row */}
-      <div className="flex items-center justify-between h-24">
+
+      {/* Content Section */}
+      <div className="h-24 flex items-center justify-between">
         <div className="flex-1">
-          <p className="text-3xl md:text-4xl font-bold text-gray-900">
-            {loading ? "..." : todayAverageRevenue !== null ? currency.format(todayAverageRevenue) : "$0"}
-          </p>
+          <div className="text-3xl md:text-4xl font-bold text-gray-900 group-hover:text-emerald-600 transition-all duration-500 ease-in-out">
+            {currency.format(todayAverageRevenue || 0)}
+          </div>
         </div>
-
-        {/* Sparkline Chart */}
-        <div className="w-24 h-8 ml-4">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={sparkData.length > 0 ? sparkData : [{ day: "1", revenue: 0 }]} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
-              <XAxis dataKey="day" hide />
-              <YAxis hide domain={["dataMin", "dataMax"]} />
-              <Line type="monotone" dataKey="revenue" stroke="#ff0000" strokeWidth={2} dot={false} />
-            </LineChart>
-          </ResponsiveContainer>
+        <div className="ml-4">
+          <div className="w-16 h-12 bg-gradient-to-br from-blue-100 to-blue-200 rounded-lg p-2 group-hover:from-blue-200 group-hover:to-blue-300 transition-all duration-300">
+            <svg className="w-full h-full text-blue-600" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/>
+            </svg>
+          </div>
         </div>
       </div>
 
-      {/* Footer Section - Dates and Room Type Filter */}
+      {/* Footer Section */}
       <div className="h-12 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-xs text-gray-500">
-            {clickedRoomType ? (
-              <span className="text-arkus-600 font-medium">📊 Filtered by: {clickedRoomType}</span>
-            ) : (
-              <span>{getDateRangeText(range)}</span>
-            )}
-          </p>
-        </div>
+        <span className="text-xs text-gray-500 group-hover:text-gray-600 transition-colors duration-300">
+          {clickedRoomType ? (
+            <span className="text-arkus-600 font-medium">📊 Filtered by: {clickedRoomType}</span>
+          ) : (
+            getDateRangeText(range)
+          )}
+        </span>
       </div>
-      
-
     </div>
   );
 });
