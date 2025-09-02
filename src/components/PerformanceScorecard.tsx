@@ -5,7 +5,7 @@ interface PerformanceScorecardProps {
   userHotelName: string;
   positionIndex: number | null;
   performancePercentage: number | null;
-  summaryPosition?: number | null; // New prop for position from Summary Tab
+  summaryPosition?: number | null;
 }
 
 const PerformanceScorecard = memo(({
@@ -16,7 +16,6 @@ const PerformanceScorecard = memo(({
   summaryPosition
 }: PerformanceScorecardProps) => {
   
-
   // Calculate real metrics from the data
   const calculateMetrics = () => {
     if (!revenuePerformanceData || revenuePerformanceData.length === 0) {
@@ -188,8 +187,6 @@ const PerformanceScorecard = memo(({
           <p className="text-xs text-gray-500">Advantage</p>
         </div>
       </div>
-
-
     </div>
   );
 });
