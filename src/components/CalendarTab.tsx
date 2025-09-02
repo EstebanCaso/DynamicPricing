@@ -331,19 +331,28 @@ export default function CalendarTab() {
                     <div className="text-xl text-gray-700">{formatNiceDate(selectedDate)}</div>
                   </div>
                 </div>
-                {/* Eventos del día con tipografía grande */}
+                {/* Eventos del día con altura máxima y truncamiento */}
                 {eventsByDate.get(selectedDate)?.length ? (
-                  <div className="mb-4 space-y-3">
-                    {eventsByDate.get(selectedDate)!.map((event, i) => (
-                      <div key={i} className="flex items-center justify-between">
-                        <div className="text-2xl font-semibold text-gray-900">{event.nombre || 'Event'}</div>
-                        {event.enlace && (
-                          <a href={event.enlace} target="_blank" rel="noopener noreferrer" className="text-base text-red-600 hover:text-red-700 underline">
-                            Visit site 🔗
-                          </a>
-                        )}
+                  <div className="mb-4">
+                    <div className="max-h-[200px] overflow-y-auto pr-2">
+                      <div className="space-y-3">
+                        {eventsByDate.get(selectedDate)!.map((event, i) => (
+                          <div key={i} className="flex items-center justify-between">
+                            <div 
+                              className="text-2xl font-semibold text-gray-900 truncate max-w-[400px]"
+                              title={event.nombre || 'Event'}
+                            >
+                              {event.nombre || 'Event'}
+                            </div>
+                            {event.enlace && (
+                              <a href={event.enlace} target="_blank" rel="noopener noreferrer" className="text-base text-red-600 hover:text-red-700 underline flex-shrink-0 ml-2">
+                                Visit site 🔗
+                              </a>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    </div>
                   </div>
                 ) : null}
                 {loadingPrices ? (
@@ -373,9 +382,9 @@ export default function CalendarTab() {
                             setSelectAll(true)
                             setBulkMode(true)
                           }}
-                          className={`${bulkMode ? 'bg-red-600 text-white hover:bg-red-700 border border-red-600' : 'bg-white/60 text-gray-900 hover:bg-white border border-white/70'} px-3 py-2 rounded-lg`}
+                          className={`${bulkMode ? 'bg-red-600 text-white hover:bg-red-700 border border-red-600' : 'bg-white/20 text-gray-900 hover:bg-white border border-red/20'} px-3 py-2 rounded-lg`}
                         >
-                          {bulkMode ? 'Done' : 'Select to apply'}
+                          {bulkMode ? 'Cancel' : 'Select to apply'}
                         </button>
                       </div>
                       {dayHasEvents ? (

@@ -272,47 +272,47 @@ export default function HotelsComparisonCard() {
       {/* Table */}
       <div className="overflow-hidden rounded-xl border border-glass-300">
         <div className="overflow-x-auto">
-          <div ref={scrollRef} className="max-h-[410px] overflow-y-auto">
+          <div ref={scrollRef} className="max-h-[410px] overflow-y-auto pr-2">
             <table className="w-full">
-            <thead>
-              <tr className="bg-glass-200 border-b border-glass-300">
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Rank</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Hotel Name</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Stars</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700">Average Price</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((row, index) => (
-                <tr
-                  key={index}
-                  ref={row.isUser ? userRowRef : null}
-                  className={`border-b border-glass-200 transition-all duration-200 ${
-                    row.isUser 
-                      ? 'bg-arkus-50 border-l-4 border-arkus-500' 
-                      : 'hover:bg-glass-50'
-                  }`}
-                >
-                  <td className="px-4 py-3 text-sm text-gray-700">
-                    {row.rank ? `#${row.rank}` : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {row.name}
-                    {row.isUser && (
-                      <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-arkus-100 text-arkus-800">
-                        YOU
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-700">
-                    {row.estrellas ? <StarsRow count={row.estrellas} /> : '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm font-semibold text-gray-900">
-                    {formatMoney(row.avg)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
+                <thead className="sticky top-0 z-10">
+                  <tr className="bg-white/90 backdrop-blur-3xl border-b border-glass-300 shadow-sm">
+                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Rank</th>
+                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Hotel Name</th>
+                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Stars</th>
+                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-800">Average Price</th>
+                 </tr>
+               </thead>
+              <tbody>
+                {rows.map((row, index) => (
+                  <tr
+                    key={index}
+                    ref={row.isUser ? userRowRef : null}
+                    className={`border-b border-glass-200 transition-all duration-200 ${
+                      row.isUser 
+                        ? 'bg-arkus-50 border-l-4 border-arkus-500' 
+                        : 'hover:bg-glass-50'
+                    }`}
+                  >
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {row.rank ? `#${row.rank}` : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                      {row.name}
+                      {row.isUser && (
+                        <span className="ml-2 inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-arkus-100 text-arkus-800">
+                          YOU
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-700">
+                      {row.estrellas ? <StarsRow count={row.estrellas} /> : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-gray-900">
+                      {formatMoney(row.avg)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
             </table>
           </div>
         </div>
