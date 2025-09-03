@@ -22,6 +22,10 @@ import {
   PolarAngleAxis,
   PolarRadiusAxis,
   Radar,
+  PieChart,
+  Pie,
+  ScatterChart,
+  Scatter,
 } from "recharts";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
@@ -39,12 +43,13 @@ import {
 import { useCurrencyConversion } from "@/hooks/useCurrencyConversion";
 import { useRevenueAnalysis } from "@/hooks/useRevenueAnalysis";
 import { useHistoricalData } from "@/hooks/useHistoricalData";
-import RevenueMetrics from "./RevenueMetrics";
-import PerformanceScorecard from "./PerformanceScorecard";
+import { runCompleteTestSuite, type AnalyticsTestSuite } from "@/lib/analyticsTestSuite";
+
 import HistoricalPricesChart from "./HistoricalPricesChart";
 import PriceStats from "./PriceStats";
 import RevenueByRoomTypeChart from "./RevenueByRoomTypeChart";
 import AnalysisControls from "./AnalysisControls";
+import MarketPositionCard from "./MarketPositionCard";
 
 type HistoricalPoint = {
   day: string;
@@ -90,6 +95,7 @@ export default function AnalysisTab() {
   }, []);
 
   const [range, setRange] = useState<1 | 7 | 30 | 90>(30);
+  const [selectedMonth, setSelectedMonth] = useState<string>(new Date().toISOString().split('T')[0]);
 
   // Supabase data states
   const [supabaseData, setSupabaseData] = useState<ProcessedHotelData[]>([]);
@@ -102,6 +108,7 @@ export default function AnalysisTab() {
   const [todayAverageRevenue, setTodayAverageRevenue] = useState<number | null>(null);
   const [revenuePerformanceData, setRevenuePerformanceData] = useState<RevenuePoint[]>([]);
   const [competitorData, setCompetitorData] = useState<any[]>([]);
+  const [testResults, setTestResults] = useState<AnalyticsTestSuite | null>(null);
 
   // Filter states for dynamic revenue analysis
   const [selectedRoomType, setSelectedRoomType] = useState<string>("all");
@@ -177,39 +184,71 @@ export default function AnalysisTab() {
       setLoading(true);
       setError(null);
 
+      console.log('🚀 Starting data validation process...');
+
       const user = await getCurrentUser();
 
       if (!user?.id) {
+        console.error('❌ Data Validation Failed: No authenticated user');
         throw new Error('User not authenticated');
       }
 
+      console.log(`✅ User authenticated: ${user.id}`);
       logDataFlow('AnalysisTab', { userId: user.id }, 'Fetching user hotel data');
 
       // Use unified data fetching function
       const processedData = await fetchUserHotelData(user.id);
 
+      console.log(`📊 Data Validation Results:`);
+      console.log(`   - Records found: ${processedData.length}`);
+      
       if (processedData.length === 0) {
+        console.warn('⚠️ Data Validation Warning: No hotel data found for user');
+        console.log('💡 Suggestion: Check if user has data in hotel_usuario table');
         setSupabaseData([]);
         return;
+      }
+
+      // Validate data quality
+      const validRecords = processedData.filter(item => 
+        item.hotel_name && 
+        item.checkin_date && 
+        item.processed_price > 0
+      );
+
+      console.log(`   - Valid records: ${validRecords.length}/${processedData.length}`);
+      console.log(`   - Hotel name: ${processedData[0]?.hotel_name || 'Not set'}`);
+      console.log(`   - Date range: ${processedData[0]?.checkin_date} to ${processedData[processedData.length - 1]?.checkin_date}`);
+      console.log(`   - Price range: $${Math.min(...processedData.map(p => p.processed_price))} - $${Math.max(...processedData.map(p => p.processed_price))}`);
+
+      if (validRecords.length !== processedData.length) {
+        console.warn(`⚠️ Data Quality Issue: ${processedData.length - validRecords.length} records have missing/invalid data`);
       }
 
       // Set user hotel name from the first hotel
       if (processedData.length > 0 && processedData[0].hotel_name) {
         setUserHotelName(processedData[0].hotel_name);
+        console.log(`✅ Hotel name set: ${processedData[0].hotel_name}`);
       }
 
       logDataFlow('AnalysisTab', { 
         count: processedData.length, 
+        validCount: validRecords.length,
         hotelName: processedData[0]?.hotel_name,
         samplePrice: processedData[0]?.processed_price 
       }, 'Processed user hotel data');
 
       setSupabaseData(processedData);
+      console.log('✅ User hotel data loaded successfully');
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Unknown error";
+      console.error('❌ Data Validation Failed:', err);
+      console.log('🔧 Troubleshooting suggestions:');
+      console.log('   1. Check if user is authenticated');
+      console.log('   2. Verify hotel_usuario table has data for this user');
+      console.log('   3. Check database connection');
       setError(errorMessage);
-      console.error('❌ Error fetching hotel data:', err);
     } finally {
       setLoading(false);
     }
@@ -218,13 +257,23 @@ export default function AnalysisTab() {
   // Function to fetch competitor data and calculate revenue performance
   const fetchCompetitorData = async () => {
     try {
+      console.log('🏨 Starting competitor data validation...');
+      
       const user = await getCurrentUser();
-      if (!user) return;
+      if (!user) {
+        console.warn('⚠️ Cannot fetch competitor data: No authenticated user');
+        return;
+      }
 
       // Get user's city from their hotel data - note: ciudad is not in ProcessedHotelData
       // We'll need to get this from user metadata instead
       const userHotel = supabaseData[0]; // Just use first hotel for now
-      if (!userHotel) return;
+      if (!userHotel) {
+        console.warn('⚠️ Cannot fetch competitor data: No user hotel data available');
+        return;
+      }
+
+      console.log(`🔍 Looking for competitors for hotel: ${userHotel.hotel_name}`);
 
       // Query the correct table: hoteles_parallel
       let competitors = null;
@@ -237,15 +286,36 @@ export default function AnalysisTab() {
         
         if (error) throw error;
         
+        console.log(`📊 Competitor Data Validation:`);
+        console.log(`   - Total records in hoteles_parallel: ${hotelesData?.length || 0}`);
+        
         if (hotelesData && hotelesData.length > 0) {
           // Filter by city in memory (Tijuana is the main city in your data)
           competitors = hotelesData.filter(hotel => 
             hotel.ciudad && hotel.ciudad.toLowerCase().includes('tijuana')
           );
-          console.log(`✅ Found ${competitors.length} competitors in hoteles_parallel`);
+          
+          console.log(`   - Competitors in Tijuana: ${competitors.length}`);
+          console.log(`   - Sample competitor: ${competitors[0]?.nombre || 'None'}`);
+          
+          // Validate competitor data quality
+          const competitorsWithRooms = competitors.filter(comp => 
+            comp.rooms_jsonb && typeof comp.rooms_jsonb === 'object'
+          );
+          console.log(`   - Competitors with room data: ${competitorsWithRooms.length}/${competitors.length}`);
+          
+          if (competitorsWithRooms.length === 0) {
+            console.warn('⚠️ Data Quality Issue: No competitors have room pricing data');
+          }
+        } else {
+          console.warn('⚠️ No competitor data found in hoteles_parallel table');
         }
       } catch (e) {
-        console.error('Error fetching from hoteles_parallel:', e);
+        console.error('❌ Error fetching competitor data:', e);
+        console.log('🔧 Troubleshooting suggestions:');
+        console.log('   1. Check if hoteles_parallel table exists');
+        console.log('   2. Verify table has data for Tijuana');
+        console.log('   3. Check database permissions');
         return;
       }
       
@@ -298,8 +368,15 @@ export default function AnalysisTab() {
       setRevenuePerformanceData(performanceData);
       console.log(`✅ Calculated average price performance for ${performanceData.length} hotels`);
       
+      // Final validation summary
+      console.log('🎯 Competitor Data Validation Summary:');
+      console.log(`   - Competitors loaded: ${competitors.length}`);
+      console.log(`   - Performance data points: ${performanceData.length}`);
+      console.log(`   - User hotel included: ${performanceData.some(p => p.hotel.includes(userHotel.hotel_name))}`);
+      
     } catch (err) {
-      console.error('Error fetching competitor data:', err);
+      console.error('❌ Competitor data validation failed:', err);
+      console.log('🔧 This will affect Market Position and radar charts');
     }
   };
 
@@ -390,6 +467,8 @@ export default function AnalysisTab() {
 
 
 
+
+
   // persist target range and events in URL
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -432,7 +511,13 @@ export default function AnalysisTab() {
   // Calculate historical price series with currency conversion
   const historicalPriceSeries = useMemo(() => {
     console.log(`🔄 Recalculating Historical Prices in ${selectedCurrency}...`);
-    if (supabaseData.length === 0) return [];
+    console.log(`📈 Historical Data Validation:`);
+    console.log(`   - Raw data points: ${supabaseData.length}`);
+    
+    if (supabaseData.length === 0) {
+      console.warn('⚠️ No historical data available for chart');
+      return [];
+    }
 
                     let filteredData = supabaseData;
                 const effectiveRoomType = clickedRoomType || selectedRoomType;
@@ -465,7 +550,10 @@ export default function AnalysisTab() {
                 
                           filteredData.forEach((item) => {
         const checkinDate = item.checkin_date;
-                  if (!checkinDate) return;
+                  if (!checkinDate) {
+                    console.warn('⚠️ Item with no checkin_date:', item);
+                    return;
+                  }
                   
                   let dateStr = checkinDate;
                   if (checkinDate.includes("T")) {
@@ -521,8 +609,42 @@ export default function AnalysisTab() {
       count: item.count
     })));
     
+    // Final historical data validation
+    console.log(`✅ Historical Data Summary:`);
+    console.log(`   - Filtered data points: ${filteredData.length}`);
+    console.log(`   - Date groups created: ${Object.keys(dailyPrices).length}`);
+    console.log(`   - Chart data points: ${result.length}`);
+    console.log(`   - Room type filter: ${effectiveRoomType}`);
+    console.log(`   - Date range: ${range} days`);
+    
+    if (result.length === 0) {
+      console.warn('⚠️ No chart data generated - check filters and date range');
+    }
+    
     return result;
-  }, [supabaseData, clickedRoomType, selectedRoomType, range, cleanPrice, standardizeRoomType, convertPriceToSelectedCurrency, selectedCurrency]);
+  }, [supabaseData, clickedRoomType, selectedRoomType, range, convertPriceToSelectedCurrency, selectedCurrency]);
+
+  // Update selectedMonth when historicalPriceSeries changes
+  useEffect(() => {
+    if (historicalPriceSeries && historicalPriceSeries.length > 0) {
+      const uniqueDates = Array.from(new Set(historicalPriceSeries.map(item => {
+        // Handle both date formats
+        let dateStr = item.date;
+        if (dateStr.includes('T')) {
+          dateStr = dateStr.split('T')[0];
+        }
+        return dateStr;
+      }))).sort();
+      
+      if (uniqueDates.length > 0) {
+        console.log(`📅 Setting selectedMonth from data. Available dates:`, uniqueDates.slice(0, 5));
+        const firstDate = new Date(uniqueDates[0]);
+        const newSelectedMonth = `${firstDate.getFullYear()}-${(firstDate.getMonth() + 1).toString().padStart(2, '0')}-01`;
+        console.log(`📅 Setting selectedMonth to:`, newSelectedMonth);
+        setSelectedMonth(newSelectedMonth);
+      }
+    }
+  }, [historicalPriceSeries]);
 
   const ourHotelEntry = useMemo(() => {
     return revenuePerformanceData.find((item) => item.hotel === userHotelName || item.hotel === "Our Hotel");
@@ -596,8 +718,113 @@ export default function AnalysisTab() {
     );
   };
 
+  // Run comprehensive testing when data is loaded
+  useEffect(() => {
+    if (!loading && supabaseData.length > 0) {
+      const startTime = Date.now();
+      
+      setTimeout(() => {
+        const renderTime = Date.now() - startTime;
+        
+        const exportData = {
+          userHotelName,
+          dateRange: `${range} days`,
+          currency: selectedCurrency,
+          totalDataPoints: supabaseData.length,
+          competitorCount: competitorData.length,
+          marketPosition: ourHotelEntry && positionIndex && performanceDeltaPerc !== null ? {
+            rank: positionIndex,
+            totalHotels: revenuePerformanceData.length,
+            priceVsMarket: performanceDeltaPerc,
+            yourPrice: ourHotelEntry.revenue,
+            marketAverage: marketAvg
+          } : undefined,
+          historicalData: historicalPriceSeries.map(item => ({
+            date: item.date,
+            price: item.price,
+            count: item.count
+          })),
+          filters: {
+            roomType: selectedRoomType,
+            range
+          }
+        };
+
+        const results = runCompleteTestSuite({
+          supabaseData,
+          competitorData,
+          historicalPriceSeries,
+          revenuePerformanceData,
+          filters: {
+            selectedCurrency,
+            selectedRoomType,
+            range
+          },
+          exportData,
+          renderTime
+        });
+
+        setTestResults(results);
+        
+        // Log test results
+        console.log('🧪 Analytics Test Suite Results:');
+        console.log(`📊 Overall Score: ${results.summary.score}% (${results.summary.passed}/${results.summary.totalTests} tests passed)`);
+        
+        if (results.summary.failed > 0) {
+          console.warn(`⚠️ ${results.summary.failed} test(s) failed:`);
+          [...results.dataValidation, ...results.functionalityTests, ...results.edgeCases, ...results.performanceTests]
+            .filter(test => !test.passed)
+            .forEach(test => console.warn(`  - ${test.testName}: ${test.message}`));
+        } else {
+          console.log('✅ All tests passed!');
+        }
+      }, 100); // Small delay to ensure all data is processed
+    }
+  }, [
+    loading, 
+    supabaseData, 
+    competitorData, 
+    historicalPriceSeries, 
+    revenuePerformanceData,
+    selectedCurrency,
+    selectedRoomType,
+    range,
+    userHotelName,
+    ourHotelEntry,
+    positionIndex,
+    performanceDeltaPerc,
+    marketAvg
+  ]);
+
   return (
     <div className="space-y-8">
+      {/* Development Test Results - Only show in development with poor scores */}
+      {process.env.NODE_ENV === 'development' && testResults && testResults.summary.score < 80 && (
+        <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="font-medium text-orange-900">🧪 Test Suite Results</h4>
+            <span className={`text-sm font-bold ${
+              testResults.summary.score >= 90 ? 'text-green-600' :
+              testResults.summary.score >= 70 ? 'text-yellow-600' : 'text-red-600'
+            }`}>
+              {testResults.summary.score}% ({testResults.summary.passed}/{testResults.summary.totalTests})
+            </span>
+          </div>
+          {testResults.summary.failed > 0 && (
+            <div className="text-sm text-orange-800">
+              <strong>Failed tests:</strong>
+              <ul className="list-disc list-inside mt-1 space-y-1">
+                {[...testResults.dataValidation, ...testResults.functionalityTests, ...testResults.edgeCases, ...testResults.performanceTests]
+                  .filter(test => !test.passed)
+                  .map((test, index) => (
+                    <li key={index}>{test.testName}: {test.message}</li>
+                  ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Loading State */}
       {loading && (
         <div className="flex items-center justify-center p-8">
@@ -626,7 +853,7 @@ export default function AnalysisTab() {
       {!loading && !error && (
         <>
           {/* Insight bar - compact, premium */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
             {/* Global Filters and Controls - Glass Card */}
             <AnalysisControls
               selectedCurrency={selectedCurrency}
@@ -644,32 +871,51 @@ export default function AnalysisTab() {
               setEvents={setEvents}
               clickedRoomType={clickedRoomType}
               setClickedRoomType={setClickedRoomType}
-            />
-
-
-
-            <RevenueMetrics
+              totalDataPoints={supabaseData.length}
+              competitorCount={competitorData.length}
+              dateRange={(() => {
+                const today = new Date();
+                const startDate = new Date();
+                startDate.setDate(today.getDate() - range);
+                return `${startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - ${today.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+              })()}
+              lastUpdate="2 hours ago"
               loading={loading}
-              todayAverageRevenue={todayAverageRevenue}
-              clickedRoomType={clickedRoomType}
-              currency={currency}
-              sparkData={sparkData}
-              range={range}
+              userHotelName={userHotelName}
+              marketPosition={ourHotelEntry && positionIndex && performanceDeltaPerc !== null ? {
+                rank: positionIndex,
+                totalHotels: revenuePerformanceData.length,
+                priceVsMarket: performanceDeltaPerc,
+                yourPrice: ourHotelEntry.revenue,
+                marketAverage: marketAvg
+              } : undefined}
+              historicalData={historicalPriceSeries.map(item => ({
+                date: item.date,
+                price: item.price,
+                count: item.count
+              }))}
             />
 
-            <PerformanceScorecard
+
+
+            <MarketPositionCard
               revenuePerformanceData={revenuePerformanceData}
-              userHotelName={userHotelName}
+              ourHotelEntry={ourHotelEntry}
               positionIndex={positionIndex}
-              performancePercentage={performancePercentage}
+              performanceDeltaPerc={performanceDeltaPerc}
+              marketAvg={marketAvg}
+              userHotelName={userHotelName}
+              currency={currency}
+              loading={loading}
             />
+
         </div>
 
           {/* Charts Grid - Perfectly aligned with consistent heights */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-6">
             {/* Top Left: Performance Radar Analysis */}
             <div className="lg:col-span-1 h-[600px]">
-              <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full flex flex-col">
+              <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-[1.01] transition-all duration-300 h-full flex flex-col group">
           <div className="flex items-center justify-between mb-6">
                   <h3 className="text-lg font-semibold text-gray-900">Performance Radar Analysis</h3>
             <div className="flex items-center gap-2">
@@ -688,7 +934,14 @@ export default function AnalysisTab() {
           </div>
           
                 <div className="flex-1 min-h-0">
-                  {revenuePerformanceData.length === 0 ? (
+                  {loading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-arkus-600 mx-auto mb-2"></div>
+                        <p className="text-xs text-gray-600">Loading radar chart...</p>
+                      </div>
+                    </div>
+                  ) : revenuePerformanceData.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-gray-500">
                       <div className="text-center">
                         <div className="text-4xl mb-2">📊</div>
@@ -793,574 +1046,54 @@ export default function AnalysisTab() {
             )}
           </div>
           
-                {/* Key Metrics Below Chart */}
-                {revenuePerformanceData.length > 0 && (
-                  <div className="mt-6 pt-4 border-t border-gray-200">
-                    <div className="grid grid-cols-2 gap-4 text-center">
-                      <div>
-                        <p className="text-xs text-gray-600">Market Position</p>
-                        <p className="text-lg font-semibold text-emerald-600">1</p>
-                </div>
-                        <div>
-                        <p className="text-xs text-gray-600">Performance vs Market</p>
-                        <p className="text-lg font-semibold text-blue-600">+217.7%</p>
-                  </div>
-                        <div>
-                        <p className="text-xs text-gray-600">Occupancy Rate</p>
-                        <p className="text-lg font-semibold text-purple-600">85%</p>
-                  </div>
-                        <div>
-                        <p className="text-xs text-gray-600">Revenue per Room</p>
-                        <p className="text-lg font-semibold text-arkus-600">
-                          {todayAverageRevenue !== null 
-                            ? currency.format(todayAverageRevenue) 
-                            : "$0"
-                          }
-                        </p>
-                </div>
-                </div>
-                  </div>
-                )}
+
                 </div>
               </div>
 
-            {/* Top Right: Competitive Gap Analysis */}
-            <div className="lg:col-span-1 h-[600px]">
-              <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full flex flex-col">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Competitive Gap Analysis</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Price gap evolution: Our hotel vs. market average
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-                    {loading && (
-                      <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Loading...</span>
-                    )}
-                    {!loading && supabaseData.length === 0 && (
-                      <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg">No data</span>
-                    )}
-                    {!loading && supabaseData.length > 0 && (
-                <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
-                  {(() => {
-                    // Use the same logic as Historical Prices to calculate our average price
-                    let filteredData = supabaseData;
-                    const effectiveRoomType = clickedRoomType || selectedRoomType;
-                    if (effectiveRoomType !== "all") {
-                      filteredData = filteredData.filter((item) => 
-                        standardizeRoomType(item.room_type) === effectiveRoomType
-                      );
-                    }
-                    
-                    if (range && range > 0) {
-                      const endDate = new Date("2025-10-30");
-                      const rangeStart = new Date(endDate);
-                      rangeStart.setDate(endDate.getDate() - range);
-                      filteredData = filteredData.filter((item) => {
-                            const checkinDate = item.checkin_date;
-                        if (!checkinDate) return false;
-                        let dateStr = checkinDate;
-                        if (checkinDate.includes("T")) {
-                          dateStr = checkinDate.split("T")[0];
-                        }
-                        const itemDate = new Date(dateStr);
-                        return itemDate >= rangeStart && itemDate <= endDate;
-                      });
-                    }
-                    
-                    // Calculate average price using the same logic as Historical Prices
-                    const validPrices = filteredData
-                            .map(item => convertPriceToSelectedCurrency(item.processed_price, item.processed_currency))
-                      .filter(price => price > 0);
-                    
-                        if (!validPrices || validPrices.length === 0) return "No valid prices";
-                    
-                    const ourAvgPrice = validPrices.reduce((sum, price) => sum + price, 0) / validPrices.length;
-                    
-                    // For market comparison, we'll use a simple estimate based on our data
-                    // This ensures consistency with Historical Prices
-                    const marketEstimate = ourAvgPrice * 1.1; // Assume market is 10% higher
-                    const gap = ourAvgPrice - marketEstimate;
-                    const gapPercent = (gap / marketEstimate) * 100;
-                    
-                    return `${gap > 0 ? '+' : ''}${gapPercent.toFixed(1)}% gap`;
-                  })()}
-                </span>
-              )}
-            </div>
-          </div>
-          
-                <div className="flex-1 min-h-0">
-            {(() => {
-              if (supabaseData.length === 0) {
-                return (
-                  <div className="flex items-center justify-center h-full text-gray-500">
-                    <div className="text-center">
-                      <div className="text-4xl mb-2">📊</div>
-                      <p className="text-sm">No data available</p>
-                      <p className="text-xs mt-1">Load data to see price gaps</p>
-                    </div>
-                  </div>
-                );
-              }
-              
-              // Use the exact same logic as Historical Prices
-              let filteredData = supabaseData;
-              const effectiveRoomType = clickedRoomType || selectedRoomType;
-              if (effectiveRoomType !== "all") {
-                filteredData = filteredData.filter((item) => 
-                  standardizeRoomType(item.room_type) === effectiveRoomType
-                );
-              }
-              
-              if (range && range > 0) {
-                const today = new Date();
-                const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-                const rangeStart = new Date(endDate);
-                rangeStart.setDate(endDate.getDate() - (range - 1));
-                filteredData = filteredData.filter((item) => {
-                      const checkinDate = item.checkin_date;
-                  if (!checkinDate) return false;
-                  let dateStr = checkinDate;
-                  if (checkinDate.includes("T")) {
-                    dateStr = checkinDate.split("T")[0];
-                  }
-                  const itemDate = new Date(dateStr);
-                  return itemDate >= rangeStart && itemDate <= endDate;
-                });
-              }
-              
-              // Group by date and calculate average price (same logic as Historical Prices)
-              const dailyPrices: Record<string, { total: number; count: number; dates: string[]; roomTypes: Set<string> }> = {};
-              
-              filteredData.forEach((item: any) => {
-                    const checkinDate = item.checkin_date;
-                if (!checkinDate) return;
-                
-                let dateStr = checkinDate;
-                if (checkinDate.includes("T")) {
-                  dateStr = checkinDate.split("T")[0];
-                }
-                
-                    // Clean price in MXN (no conversion)
-                const rawPrice = item.price;
-                if (!rawPrice) return;
-                
-                    const priceInMXN = getPriceValue(rawPrice);
-                
-                    if (priceInMXN > 0) {
-                  if (!dailyPrices[dateStr]) {
-                    dailyPrices[dateStr] = { 
-                      total: 0, 
-                      count: 0, 
-                      dates: [], 
-                      roomTypes: new Set() 
-                    };
-                  }
-                      dailyPrices[dateStr].total += priceInMXN;
-                  dailyPrices[dateStr].count += 1;
-                  dailyPrices[dateStr].dates.push(dateStr);
-                  dailyPrices[dateStr].roomTypes.add(standardizeRoomType(item.room_type));
-                }
-              });
-              
-              if (Object.keys(dailyPrices).length === 0) {
-                return (
-                  <div className="flex items-center justify-center h-full text-gray-500">
-                    <div className="text-center">
-                      <div className="text-4xl mb-2">📅</div>
-                      <p className="text-sm">No data for selected range</p>
-                      <p className="text-xs mt-1">Try adjusting filters or date range</p>
-                    </div>
-                  </div>
-                );
-              }
-              
-              // Convert to chart format and sort by date (same logic as Historical Prices)
-              const gapData = Object.entries(dailyPrices)
-                .map(([date, data]) => {
-                  const dateObj = new Date(date);
-                  const label = new Intl.DateTimeFormat("en-US", {
-                    month: "short",
-                    day: "numeric",
-                  }).format(dateObj);
-                  
-                      let ourPrice = Math.round(data.total / data.count * 100) / 100;
-                      // Convert to selected currency if needed
-                      if (selectedCurrency === "USD") {
-                        ourPrice = ourPrice / exchangeRate;
-                      }
-                  const marketEstimate = ourPrice * 1.1; // Market is 10% higher
-                  const gap = ourPrice - marketEstimate;
-                  const gapPercent = (gap / marketEstimate) * 100;
-                  
-                  return {
-                    day: label,
-                    date: date,
-                    ours: ourPrice,
-                    marketAvg: Math.round(marketEstimate * 100) / 100,
-                    gap: Math.round(gap * 100) / 100,
-                    gapPercent: Math.round(gapPercent * 10) / 10,
-                    ourBookings: data.count
-                  };
-                })
-                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-              
-              return (
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={gapData} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="colorOurs" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="10%" stopColor="#ff0000" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#ff0000" stopOpacity={0.02} />
-                      </linearGradient>
-                      <linearGradient id="colorMarket" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="10%" stopColor="#94a3b8" stopOpacity={0.35} />
-                        <stop offset="95%" stopColor="#94a3b8" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.6} />
-                    <XAxis 
-                      dataKey="day" 
-                      stroke="#6b7280" 
-                      tickLine={false} 
-                      axisLine={false} 
-                      tickMargin={8}
-                      interval="preserveStartEnd"
-                    />
-                    <YAxis 
-                      stroke="#6b7280" 
-                      tickLine={false} 
-                      axisLine={false} 
-                      tickMargin={8}
-                          tickFormatter={(value) => {
-                            if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M`;
-                            else if (value >= 1000) return `$${(value / 1000).toFixed(0)}K`;
-                            else return `$${value.toLocaleString()}`;
-                          }}
-                    />
-                        <Tooltip 
-                          content={({ active, payload, label }) => {
-                            if (!active || !payload?.length) return null;
-                            const data = payload[0].payload;
-                            return (
-                              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
-                                <div className="font-medium text-gray-900">{label}</div>
-                                    <div className="text-gray-700">Our Price: {currency.format(data.ours)}</div>
-                                    <div className="text-gray-600">Market Estimate: {currency.format(data.marketAvg)}</div>
-                                <div className={`font-medium ${data.gap >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                      Gap: {data.gapPercent.toFixed(1)}%
-                                </div>
-                                <div className="text-gray-500">Bookings: {data.ourBookings.toLocaleString()}</div>
-                                <div className="text-gray-400 text-xs">{data.date}</div>
-                              </div>
-                            );
-                          }}
-                        />
-                    <Legend />
-                    <Line 
-                      type="monotone" 
-                      dataKey="marketAvg" 
-                      name="Market Estimate" 
-                      stroke="#94a3b8" 
-                      strokeDasharray="6 6" 
-                      strokeWidth={2} 
-                      dot={false}
-                      fill="url(#colorMarket)"
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="ours" 
-                      name="Our Hotel" 
-                      stroke="#ff0000" 
-                      fill="url(#colorOurs)" 
-                      strokeWidth={3}
-                      dot={{ fill: "#ff0000", strokeWidth: 2, r: 3 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              );
-            })()}
-          </div>
-          
-          {/* Gap Analysis Summary */}
-          {(() => {
-            if (supabaseData.length === 0) return null;
-            
-            // Use the same logic as Historical Prices
-            let filteredData = supabaseData;
-            const effectiveRoomType = clickedRoomType || selectedRoomType;
-            if (effectiveRoomType !== "all") {
-              filteredData = filteredData.filter((item) => 
-                standardizeRoomType(item.room_type) === effectiveRoomType
-              );
-            }
-            
-            if (range && range > 0) {
-              const today = new Date();
-              const endDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-              const rangeStart = new Date(endDate);
-              rangeStart.setDate(endDate.getDate() - (range - 1));
-              filteredData = filteredData.filter((item) => {
-                    const checkinDate = item.checkin_date;
-                if (!checkinDate) return false;
-                let dateStr = checkinDate;
-                if (checkinDate.includes("T")) {
-                  dateStr = checkinDate.split("T")[0];
-                }
-                const itemDate = new Date(dateStr);
-                return itemDate >= rangeStart && itemDate <= endDate;
-              });
-            }
-            
-            // Calculate average price using the same logic as Historical Prices
-            const validPrices = filteredData
-                  .map(item => {
-                    return convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
-                  })
-              .filter(price => price > 0);
-              
-                if (!validPrices || validPrices.length === 0) return null;
-            
-            const ourAvgPrice = validPrices.reduce((sum, price) => sum + price, 0) / validPrices.length;
-            const marketEstimate = ourAvgPrice * 1.1; // Market is 10% higher
-            const priceGap = ourAvgPrice - marketEstimate;
-            const gapPercent = (priceGap / marketEstimate) * 100;
-            
-            return (
-              <div className="mt-6 pt-4 border-t border-gray-200">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-center">
-                  <div>
-                    <p className="text-xs text-gray-600">Our Avg Price</p>
-                    <p className="text-lg font-semibold text-arkus-600">
-                          {currency.format(ourAvgPrice)} {selectedCurrency}
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-xs text-gray-600">Market Estimate</p>
-                    <p className="text-lg font-semibold text-blue-600">
-                          {currency.format(marketEstimate)} {selectedCurrency}
-                    </p>
-                    <p className="text-xs text-gray-400">(10% above ours)</p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-xs text-gray-600">Price Gap</p>
-                    <p className={`text-lg font-semibold ${priceGap >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                          {priceGap >= 0 ? '+' : ''}{currency.format(priceGap)} {selectedCurrency}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                            {priceGap >= 0 ? 'Above' : 'Below'} market
-                    </p>
-                  </div>
-                  
-                  <div>
-                    <p className="text-xs text-gray-600">Gap %</p>
-                    <p className={`text-lg font-semibold ${gapPercent >= 0 ? 'text-red-600' : 'text-green-600'}`}>
-                      {gapPercent >= 0 ? '+' : ''}{gapPercent.toFixed(1)}%
-                    </p>
-                    <p className="text-xs text-gray-500">vs market estimate</p>
-                  </div>
-                </div>
-                
-                {/* Gap Interpretation */}
-                <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                  <div className="text-center">
-                    <p className="text-sm font-medium text-gray-700 mb-2">Gap Analysis:</p>
-                    <p className="text-xs text-gray-600">
-                      {gapPercent > 10 ? 
-                        `Your hotel is ${gapPercent.toFixed(1)}% above market estimate. Consider competitive pricing strategies.` :
-                        gapPercent < -10 ? 
-                        `Your hotel is ${Math.abs(gapPercent).toFixed(1)}% below market estimate. You may have room to increase prices.` :
-                        `Your hotel is well-positioned within ${Math.abs(gapPercent).toFixed(1)}% of market estimate.`
-                      }
-                    </p>
-                    {(() => {
-                      const effectiveRoomType = clickedRoomType || selectedRoomType;
-                      return effectiveRoomType !== "all" && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Analysis based on {effectiveRoomType} rooms only
-                        </p>
-                      );
-                    })()}
-                  </div>
-                </div>
-                
-                    </div>
-                  );
-                })()}
-              </div>
-            </div>
-
-            {/* Bottom Left: Revenue by Room Type Chart */}
+            {/* Top Right: Historical Prices & Market Comparison */}
             <div className="lg:col-span-1 h-[600px]">
               <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full flex flex-col">
                 <div className="flex items-center justify-between mb-6">
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">
-                      {userHotelName ? `${userHotelName} - Revenue by Room Type` : "Revenue by Room Type"}
+                      {userHotelName ? `${userHotelName} - Price Evolution` : "Price Evolution"}
                       {clickedRoomType && (
                         <span className="text-sm text-arkus-600 ml-2">({clickedRoomType})</span>
-                      )}
-                    </h3>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {loading && (
-                      <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Loading...</span>
-                    )}
-                    {!loading && filteredSupabaseData.length === 0 && (
-                      <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg">No data</span>
-                    )}
-                    {!loading && filteredSupabaseData.length > 0 && (
-                      <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">
-                        {`${filteredSupabaseData.length} bookings / ${new Set(filteredSupabaseData.map(item => standardizeRoomType(item.room_type))).size} room types`}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex-1 min-h-0">
-                  {revenueByRoomTypeData.length === 0 ? (
-                    <div className="flex items-center justify-center h-full text-gray-500">
-                      <div className="text-center">
-                        <div className="text-4xl mb-2">📊</div>
-                        <p className="text-sm">No data available</p>
-                        <p className="text-xs mt-1">Load data to see revenue by room type</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={revenueByRoomTypeData} margin={{ top: 20, right: 12, left: 4, bottom: 8 }} barCategoryGap="8%" maxBarSize={80}>
-                        <defs>
-                          <linearGradient id="hotelBarGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="10%" stopColor="#ff0000" stopOpacity={0.9} />
-                            <stop offset="100%" stopColor="#ff6666" stopOpacity={0.7} />
-                          </linearGradient>
-                          <linearGradient id="grayBarGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="10%" stopColor="#9ca3af" stopOpacity={0.9} />
-                            <stop offset="100%" stopColor="#d1d5db" stopOpacity={0.7} />
-                          </linearGradient>
-                          <linearGradient id="hoverBarGradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="10%" stopColor="#ff0000" stopOpacity={1} />
-                            <stop offset="100%" stopColor="#ff6666" stopOpacity={0.9} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.6} />
-                        <XAxis dataKey="room_type" stroke="#6b7280" tickLine={false} axisLine={false} tickMargin={8} />
-                        <YAxis stroke="#6b7280" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => {
-                          if (value >= 1000000) return `$${(value / 1000000).toFixed(1)}M ${selectedCurrency}`;
-                          else if (value >= 1000) return `$${(value / 1000).toFixed(0)}K ${selectedCurrency}`;
-                          else return `$${value} ${selectedCurrency}`;
-                        }} />
-                        <Tooltip formatter={(value: number, name: string) => [
-                          name === "total_revenue" ? currency.format(value) : name === "avg_price" ? currency.format(value) : value,
-                          name === "total_revenue" ? "Total Revenue" : name === "avg_price" ? "Average Price" : "Count",
-                        ]} labelFormatter={(label: string) => `Room Type: ${label}`} cursor={false} content={({ active, payload, label }) => {
-                          if (!active || !payload?.length) return null;
-                          const data = payload[0].payload;
-                          return (
-                            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
-                              <div className="font-medium text-gray-900">{label}</div>
-                              <div className="text-gray-700">Total Revenue: {currency.format(data.total_revenue)}</div>
-                              <div className="text-gray-600">Average Price: {currency.format(data.avg_price)}</div>
-                              <div className="text-gray-500">Bookings: {data.count}</div>
-                              {data.min_price && data.max_price && (
-                                <div className="text-gray-500">Price Range: {currency.format(data.min_price)} - {currency.format(data.max_price)}</div>
-                              )}
-              </div>
-            );
-                        }} />
-                        <Bar dataKey="total_revenue" radius={[8, 8, 0, 0]} style={{ cursor: "pointer" }} onClick={handleBarClick}>
-                          {(() => {
-                            if (filteredSupabaseData.length === 0) {
-                              return [
-                                { room_type: "Suite", total_revenue: 3237422, avg_price: 2200, count: 2 },
-                                { room_type: "Queen", total_revenue: 1530836, avg_price: 1500, count: 3 },
-                                { room_type: "Standard", total_revenue: 497153, avg_price: 1200, count: 5 },
-                                { room_type: "Business", total_revenue: 329344, avg_price: 1800, count: 4 },
-                              ].map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill="url(#hotelBarGradient)" />
-                              ));
-                            }
-
-                            const roomTypeData: Record<string, number> = {};
-                            filteredSupabaseData.forEach((item: any) => {
-                              const roomType = standardizeRoomType(item.room_type);
-                              const price = getPriceValue(item.price);
-                              roomTypeData[roomType] = (roomTypeData[roomType] || 0) + price;
-                            });
-                            const entries = Object.entries(roomTypeData).map(([room_type, total_revenue]) => ({ room_type, total_revenue }));
-                            const sorted = entries.sort((a, b) => b.total_revenue - a.total_revenue);
-                            const maxRevenue = Math.max(...sorted.map((item: any) => item.total_revenue));
-
-                            return sorted.map((entry: any, index: number) => {
-                              let fillColor;
-                              if (clickedRoomType === entry.room_type) {
-                                fillColor = "url(#hoverBarGradient)";
-                              } else if (hoveredIndex !== null && index === hoveredIndex) {
-                                fillColor = "url(#hoverBarGradient)";
-                              } else {
-                                if (clickedRoomType) {
-                                  fillColor = "url(#grayBarGradient)";
-                                } else {
-                                  fillColor = entry.total_revenue === maxRevenue ? "url(#hotelBarGradient)" : "url(#grayBarGradient)";
-                                }
-                              }
-
-                              return (
-                                <Cell key={`cell-${index}`} fill={fillColor} />
-                              );
-                            });
-          })()}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  )}
-        </div>
-
-                <div className="text-xs text-gray-500 mt-4 text-center">
-                  💡 Click on any bar to filter Total Revenue and Historical Prices by that room type
-      </div>
-              </div>
-            </div>
-
-            {/* Bottom Right: Historical Prices Chart */}
-            <div className="lg:col-span-1 h-[600px]">
-              <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full flex flex-col">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">
-                      {userHotelName ? `${userHotelName} - Historical Prices` : "Historical Prices"}
-                      {clickedRoomType && (
-                        <span className="text-sm text-arkus-600 ml-2">({clickedRoomType})</span>
-                      )}
-                      {selectedRoomType !== "all" && (
-                        <span className="text-sm text-arkus-600 ml-2">({selectedRoomType})</span>
                       )}
                     </h3>
                     <p className="text-sm text-gray-600 mt-1">
-                      Price evolution over time by room type
+                      Historical prices with market comparison
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    {error && (
-                      <span className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded-lg">Error</span>
+                    {loading && (
+                      <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Loading...</span>
                     )}
-                    {!loading && !error && historicalPriceSeries.length === 0 && (
+                    {!loading && historicalPriceSeries.length === 0 && (
                       <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg">No data</span>
                     )}
+                    {!loading && historicalPriceSeries.length > 0 && (
+                      <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                        {historicalPriceSeries.length} data points
+                      </span>
+                    )}
                   </div>
-                </div>
-                
+          </div>
+          
                 <div className="flex-1 min-h-0">
-                  {historicalPriceSeries.length === 0 ? (
+                  {loading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-arkus-600 mx-auto mb-2"></div>
+                        <p className="text-xs text-gray-600">Loading price chart...</p>
+                      </div>
+                    </div>
+                  ) : historicalPriceSeries.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-gray-500">
                       <div className="text-center">
                         <div className="text-4xl mb-2">📈</div>
                         <p className="text-sm">No data available</p>
-                        <p className="text-xs mt-1">Load data to see historical prices</p>
+                        <p className="text-xs mt-1">Load data to see price evolution</p>
                       </div>
                     </div>
                   ) : (
@@ -1370,6 +1103,10 @@ export default function AnalysisTab() {
                           <linearGradient id="priceArea" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#ff0000" stopOpacity={0.18} />
                             <stop offset="100%" stopColor="#ff0000" stopOpacity={0.01} />
+                          </linearGradient>
+                          <linearGradient id="marketArea" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#94a3b8" stopOpacity={0.15} />
+                            <stop offset="100%" stopColor="#94a3b8" stopOpacity={0.01} />
                           </linearGradient>
                         </defs>
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.6} />
@@ -1389,22 +1126,36 @@ export default function AnalysisTab() {
                           if (!active || !payload?.length) return null;
                           const data = payload[0].payload;
                           const effectiveRoomType = clickedRoomType || selectedRoomType;
+                          const marketEstimate = data.price * 1.1; // Market estimate
+                          const gap = data.price - marketEstimate;
+                          const gapPercent = (gap / marketEstimate) * 100;
+                          
                           return (
-                            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
-                              <div className="font-medium text-gray-900">{label}</div>
-                              <div className="text-gray-700">Price: {currency.format(data.price)}</div>
-                              <div className="text-gray-600">Date: {data.date}</div>
-                              <div className="text-gray-500">Bookings: {data.count}</div>
-                              {data.roomTypes && data.roomTypes.length > 0 && (
-                                <div className="text-gray-500">
-                                  Room Types: {data.roomTypes.join(", ")}
+                            <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg max-w-xs">
+                              <div className="font-medium text-gray-900 mb-1">{label}</div>
+                              <div className="space-y-1">
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Our Price:</span>
+                                  <span className="font-medium text-gray-900">{currency.format(data.price)}</span>
                                 </div>
-                              )}
-                              {effectiveRoomType === "all" && (
-                                <div className="text-gray-400 text-xs">
-                                  Average of all room types
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Market Est:</span>
+                                  <span className="text-gray-700">{currency.format(marketEstimate)}</span>
                                 </div>
-                              )}
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Gap:</span>
+                                  <span className={`font-medium ${gap >= 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                    {gapPercent.toFixed(1)}% {gap >= 0 ? '↑' : '↓'}
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-gray-600">Bookings:</span>
+                                  <span className="text-gray-700">{data.count}</span>
+                                </div>
+                              </div>
+                              <div className="text-gray-400 text-xs mt-2 pt-2 border-t border-gray-100">
+                                {data.date} • {effectiveRoomType === "all" ? "All room types" : effectiveRoomType}
+                              </div>
                             </div>
                           );
                         }} />
@@ -1415,13 +1166,569 @@ export default function AnalysisTab() {
                           fill: "#64748b",
                           fontSize: 10,
                         }} />
-                        <Area type="monotone" dataKey="price" stroke="#ff0000" fill="url(#priceArea)" strokeWidth={3} />
+                        <Area 
+                          type="monotone" 
+                          dataKey="price" 
+                          name="Our Hotel" 
+                          stroke="#ff0000" 
+                          fill="url(#priceArea)" 
+                          strokeWidth={3}
+                          dot={{ fill: "#ff0000", strokeWidth: 2, r: 3 }}
+                        />
+                        <Area 
+                          type="monotone" 
+                          dataKey={(data: any) => data.price * 1.1} 
+                          name="Market Estimate" 
+                          stroke="#94a3b8" 
+                          strokeDasharray="6 6" 
+                          strokeWidth={2} 
+                          fill="url(#marketArea)"
+                          dot={false}
+                        />
+                        <Legend />
                       </AreaChart>
                     </ResponsiveContainer>
                   )}
                 </div>
+          
+
               </div>
             </div>
+
+            {/* Bottom Left: Revenue Distribution by Room Type */}
+            <div className="lg:col-span-1 h-[600px]">
+              <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full flex flex-col">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {userHotelName ? `${userHotelName} - Revenue Distribution` : "Revenue Distribution"}
+                      {clickedRoomType && (
+                        <span className="text-sm text-arkus-600 ml-2">({clickedRoomType})</span>
+                      )}
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Revenue breakdown by room type
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {loading && (
+                      <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Loading...</span>
+                    )}
+                    {!loading && revenueByRoomTypeData.length === 0 && (
+                      <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg">No data</span>
+                    )}
+                    {!loading && revenueByRoomTypeData.length > 0 && (
+                      <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                        {revenueByRoomTypeData.length} room types
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex-1 min-h-0 flex items-center justify-center">
+                  {revenueByRoomTypeData.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      <div className="text-center">
+                        <div className="text-4xl mb-2">📊</div>
+                        <p className="text-sm">No data available</p>
+                        <p className="text-xs mt-1">Load data to see revenue distribution</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={revenueByRoomTypeData}
+                            cx="50%"
+                            cy="50%"
+                            innerRadius={60}
+                            outerRadius={120}
+                            paddingAngle={5}
+                            dataKey="total_revenue"
+                            onClick={handleBarClick}
+                            style={{ cursor: "pointer" }}
+                          >
+                            {revenueByRoomTypeData.map((entry, index) => {
+                              const colors = ['#ff0000', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
+                              const isSelected = clickedRoomType === entry.room_type;
+                              const color = isSelected ? '#ff0000' : colors[index % colors.length];
+                              
+                              return (
+                                <Cell 
+                                  key={`cell-${index}`} 
+                                  fill={color}
+                                  opacity={isSelected ? 1 : 0.8}
+                                  stroke={isSelected ? "#ff0000" : "#ffffff"}
+                                  strokeWidth={isSelected ? 3 : 1}
+                                />
+                              );
+                            })}
+                          </Pie>
+                          <Tooltip 
+                            content={({ active, payload }) => {
+                              if (!active || !payload?.length) return null;
+                              const data = payload[0].payload;
+                              const totalRevenue = revenueByRoomTypeData.reduce((sum, item) => sum + item.total_revenue, 0);
+                              const percentage = ((data.total_revenue / totalRevenue) * 100).toFixed(1);
+                              
+                              return (
+                                <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
+                                  <div className="font-medium text-gray-900">{data.room_type}</div>
+                                  <div className="text-gray-700">Revenue: {currency.format(data.total_revenue)}</div>
+                                  <div className="text-gray-600">Share: {percentage}%</div>
+                                  <div className="text-gray-500">Avg Price: {currency.format(data.avg_price)}</div>
+                                  <div className="text-gray-500">Bookings: {data.count}</div>
+                                </div>
+                              );
+                            }}
+                          />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </div>
+
+                {/* Legend and Summary */}
+                {revenueByRoomTypeData.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="grid grid-cols-2 gap-4 text-center">
+                      <div>
+                        <p className="text-xs text-gray-600">Total Revenue</p>
+                        <p className="text-lg font-semibold text-gray-800">
+                          {currency.format(revenueByRoomTypeData.reduce((sum, item) => sum + item.total_revenue, 0))}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600">Top Room Type</p>
+                        <p className="text-lg font-semibold text-arkus-600">
+                          {revenueByRoomTypeData[0]?.room_type || 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 text-xs text-gray-500 text-center">
+                      💡 Click on any segment to filter by room type
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Bottom Right: Price Heatmap by Day of Week */}
+            <div className="lg:col-span-1 h-[600px]">
+              <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full flex flex-col">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      {userHotelName ? `${userHotelName} - Price Patterns` : "Price Patterns"}
+                      {clickedRoomType && (
+                        <span className="text-sm text-arkus-600 ml-2">({clickedRoomType})</span>
+                      )}
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Average prices by day of the week
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {loading && (
+                      <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Loading...</span>
+                    )}
+                    {!loading && historicalPriceSeries.length === 0 && (
+                      <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg">No data</span>
+                    )}
+                    {!loading && historicalPriceSeries.length > 0 && (
+                      <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                        {historicalPriceSeries.length} days analyzed
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex-1 min-h-0">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-arkus-600 mx-auto mb-2"></div>
+                        <p className="text-xs text-gray-600">Loading calendar...</p>
+                      </div>
+                    </div>
+                  ) : historicalPriceSeries.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      <div className="text-center">
+                        <div className="text-4xl mb-2">📅</div>
+                        <p className="text-sm">No data available</p>
+                        <p className="text-xs mt-1">Load data to see price patterns</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-full flex flex-col">
+                      {/* Calendar View */}
+                      <div className="flex-1 p-4">
+                        <div className="max-w-md mx-auto">
+                          {/* Calendar Header with Navigation */}
+                          <div className="flex items-center justify-between mb-4">
+                            <button 
+                              onClick={() => {
+                                const [currentYear, currentMonthNum, currentDay] = selectedMonth.split('-').map(Number);
+                                const currentMonth = new Date(currentYear, currentMonthNum - 1, currentDay);
+                                const prevMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1);
+                                const newMonthStr = prevMonth.toISOString().split('T')[0];
+                                console.log(`📅 Navigating to previous month: ${newMonthStr}`);
+                                setSelectedMonth(newMonthStr);
+                              }}
+                              className="p-2 rounded-lg hover:bg-gray-100 hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                              disabled={(() => {
+                                const uniqueDates = Array.from(new Set(historicalPriceSeries.map(item => item.date))).sort();
+                                if (uniqueDates.length === 0) return true;
+                                
+                                // Parse the first date properly
+                                let firstDateStr = uniqueDates[0];
+                                if (firstDateStr.includes('T')) {
+                                  firstDateStr = firstDateStr.split('T')[0];
+                                }
+                                const [firstYear, firstMonth, firstDay] = firstDateStr.split('-').map(Number);
+                                const firstDate = new Date(firstYear, firstMonth - 1, firstDay);
+                                
+                                // Get the first day of the current month
+                                const [currentYear, currentMonthNum, currentDay] = selectedMonth.split('-').map(Number);
+                                const currentMonth = new Date(currentYear, currentMonthNum - 1, currentDay);
+                                const firstDayOfCurrentMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+                                
+                                return firstDayOfCurrentMonth.getTime() <= firstDate.getTime();
+                              })()}
+                            >
+                              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                              </svg>
+                            </button>
+                            
+                            <h4 className="text-lg font-semibold text-gray-800">
+                              {(() => {
+                                const [currentYear, currentMonthNum, currentDay] = selectedMonth.split('-').map(Number);
+                                const currentMonth = new Date(currentYear, currentMonthNum - 1, currentDay);
+                                return currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                              })()}
+                            </h4>
+                            
+                            <button 
+                              onClick={() => {
+                                const [currentYear, currentMonthNum, currentDay] = selectedMonth.split('-').map(Number);
+                                const currentMonth = new Date(currentYear, currentMonthNum - 1, currentDay);
+                                const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+                                const newMonthStr = nextMonth.toISOString().split('T')[0];
+                                console.log(`📅 Navigating to next month: ${newMonthStr}`);
+                                setSelectedMonth(newMonthStr);
+                              }}
+                              className="p-2 rounded-lg hover:bg-gray-100 hover:scale-105 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100"
+                              disabled={(() => {
+                                const uniqueDates = Array.from(new Set(historicalPriceSeries.map(item => item.date))).sort();
+                                if (uniqueDates.length === 0) return true;
+                                
+                                // Parse the last date properly
+                                let lastDateStr = uniqueDates[uniqueDates.length - 1];
+                                if (lastDateStr.includes('T')) {
+                                  lastDateStr = lastDateStr.split('T')[0];
+                                }
+                                const [lastYear, lastMonth, lastDay] = lastDateStr.split('-').map(Number);
+                                const lastDate = new Date(lastYear, lastMonth - 1, lastDay);
+                                
+                                // Get the first day of the next month
+                                const [currentYear, currentMonthNum, currentDay] = selectedMonth.split('-').map(Number);
+                                const currentMonth = new Date(currentYear, currentMonthNum - 1, currentDay);
+                                const nextMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1);
+                                
+                                return nextMonth.getTime() > lastDate.getTime();
+                              })()}
+                            >
+                              <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </button>
+                          </div>
+                          
+                          {/* Days of Week Header */}
+                          <div className="grid grid-cols-7 gap-1 mb-2">
+                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                              <div key={`day-header-${index}`} className="text-center">
+                                <span className="text-xs font-medium text-gray-600">{day}</span>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          {/* Calendar Grid */}
+                          <div className="grid grid-cols-7 gap-1">
+                            {(() => {
+                              // Use actual data dates instead of hardcoded September
+                              const uniqueDates = Array.from(new Set(historicalPriceSeries.map(item => item?.date).filter(Boolean))).sort();
+                              
+                              if (uniqueDates.length === 0) {
+                                return (
+                                  <div className="col-span-7 text-center py-8 text-gray-500">
+                                    <div className="text-4xl mb-2">📅</div>
+                                    <p className="text-sm">No historical data available</p>
+                                    <p className="text-xs mt-1">Check if you have hotel data loaded</p>
+                                  </div>
+                                );
+                              }
+                              
+                              // Get the month and year from selected month
+                              const [selectedYear, selectedMonthNum, selectedDay] = selectedMonth.split('-').map(Number);
+                              const selectedDate = new Date(selectedYear, selectedMonthNum - 1, selectedDay);
+                              const monthYear = selectedDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                              
+                              // Calculate calendar layout based on selected month
+                              const firstDayOfWeek = selectedDate.getDay(); // 0 = Sunday
+                              const daysInMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0).getDate();
+                              
+                              const calendarDays = [];
+                              
+                              // Add empty cells for days before the first data day
+                              for (let i = 0; i < firstDayOfWeek; i++) {
+                                calendarDays.push({ day: '', price: 0, bookings: 0, isEmpty: true });
+                              }
+                              
+                              // Get all available dates for the selected month
+                              const monthStart = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+                              const monthEnd = new Date(selectedDate.getFullYear(), selectedDate.getMonth() + 1, 0);
+                              
+                              // Filter data for the selected month
+                              const monthData = historicalPriceSeries.filter(item => {
+                                // Parse the date string properly - handle both YYYY-MM-DD and YYYY-MM-DDTHH:mm:ss formats
+                                let dateStr = item.date;
+                                if (dateStr.includes('T')) {
+                                  dateStr = dateStr.split('T')[0]; // Remove time portion
+                                }
+                                const [year, month, day] = dateStr.split('-').map(Number);
+                                const itemDate = new Date(year, month - 1, day); // month is 0-indexed
+                                
+                                // Check if the item date is within the selected month
+                                const itemMonth = itemDate.getMonth();
+                                const itemYear = itemDate.getFullYear();
+                                const selectedMonthNum = selectedDate.getMonth();
+                                const selectedYear = selectedDate.getFullYear();
+                                
+                                return itemMonth === selectedMonthNum && itemYear === selectedYear;
+                              });
+                              
+                              console.log(`📅 Calendar Debug - Selected Month: ${selectedDate.toLocaleDateString()}`);
+                              console.log(`📅 Total data points: ${historicalPriceSeries.length}`);
+                              console.log(`📅 Month data points: ${monthData.length}`);
+                              console.log(`📅 Sample dates:`, monthData.slice(0, 3).map(item => item.date));
+                              console.log(`📅 Month range: ${monthStart.toLocaleDateString()} to ${monthEnd.toLocaleDateString()}`);
+                              
+                              // Group by day
+                              const dailyData: Record<number, { prices: number[], count: number }> = {};
+                              monthData.forEach(item => {
+                                // Parse the date string properly - handle both formats
+                                let dateStr = item.date;
+                                if (dateStr.includes('T')) {
+                                  dateStr = dateStr.split('T')[0]; // Remove time portion
+                                }
+                                const [year, month, day] = dateStr.split('-').map(Number);
+                                if (!dailyData[day]) {
+                                  dailyData[day] = { prices: [], count: 0 };
+                                }
+                                dailyData[day].prices.push(item.price);
+                                dailyData[day].count += item.count || 1;
+                              });
+                              
+                              console.log(`📅 Daily data summary:`, Object.keys(dailyData).map(day => ({ 
+                                day: parseInt(day), 
+                                priceCount: dailyData[parseInt(day)].prices.length,
+                                avgPrice: dailyData[parseInt(day)].prices.length > 0 ? 
+                                  dailyData[parseInt(day)].prices.reduce((a, b) => a + b, 0) / dailyData[parseInt(day)].prices.length : 0
+                              })));
+                              
+                              // Add all days of the month
+                              for (let day = 1; day <= daysInMonth; day++) {
+                                const dayData = dailyData[day];
+                                const hasData = !!dayData;
+                                
+                                const avgPrice = hasData 
+                                  ? dayData.prices.reduce((sum, price) => sum + price, 0) / dayData.prices.length 
+                                  : 0;
+                                
+                                const prices = historicalPriceSeries.map(item => item?.price).filter(price => typeof price === 'number' && !isNaN(price));
+                                const minPrice = prices.length > 0 ? Math.min(...prices) : 0;
+                                const maxPrice = prices.length > 0 ? Math.max(...prices) : 0;
+                                const priceRange = maxPrice - minPrice;
+                                const intensity = priceRange > 0 ? (avgPrice - minPrice) / priceRange : 0;
+                                
+                                calendarDays.push({
+                                  day,
+                                  price: avgPrice || 0,
+                                  bookings: hasData ? dayData.count : 0,
+                                  intensity: Math.min(1, Math.max(0, intensity || 0)),
+                                  hasData: hasData,
+                                  isEmpty: false
+                                });
+                              }
+                              
+                                                             return calendarDays.map((data, index) => {
+                                 if (data.isEmpty) {
+                                   return (
+                                     <div key={`empty-${index}`} className="h-8"></div>
+                                   );
+                                 }
+                                 
+                                 const isToday = data.day === new Date().getDate(); // Highlight current day
+                                 const hasData = Boolean(data.hasData);
+                                 const intensity = Number(data.intensity) || 0;
+                                 
+                                 // Better color calculation with more visible colors
+                                 let bgColor = 'transparent';
+                                 let textColor = 'text-gray-400';
+                                 
+                                                                 if (hasData) {
+                                  if (intensity < 0.33) {
+                                    bgColor = 'bg-red-100 border border-red-200';
+                                    textColor = 'text-red-800';
+                                  } else if (intensity < 0.66) {
+                                    bgColor = 'bg-red-300 border border-red-400';
+                                    textColor = 'text-red-900';
+                                  } else {
+                                    bgColor = 'bg-red-500 border border-red-600';
+                                    textColor = 'text-white';
+                                  }
+                                } else {
+                                  bgColor = 'bg-gray-50 border border-gray-200';
+                                  textColor = 'text-gray-400';
+                                }
+                                 
+                                 const tooltipText = hasData 
+                                   ? `Day ${data.day}: ${currency?.format(data.price || 0) || '$0'}\n${data.bookings || 0} bookings\nIntensity: ${intensity.toFixed(2)}`
+                                   : `Day ${data.day}: No data available`;
+                                 
+                                 return (
+                                   <div 
+                                     key={`day-${data.day}`}
+                                     className={`h-8 flex items-center justify-center rounded text-xs font-medium cursor-pointer transition-all duration-200 hover:shadow-lg relative group ${
+                                       isToday ? 'ring-2 ring-red-500' : ''
+                                     } ${bgColor}`}
+                                     onClick={() => {
+                                       if (hasData && data.price && currency) {
+                                         console.log(`Day ${data.day}: ${currency.format(data.price)} (${data.bookings || 0} bookings)`);
+                                       }
+                                     }}
+                                   >
+                                     <div className="relative">
+                                       <span className={textColor}>
+                                         {data.day}
+                                       </span>
+                                       {hasData && (
+                                         <div className="absolute -bottom-1 -right-1 w-1.5 h-1.5 bg-red-600 rounded-full border border-white"></div>
+                                       )}
+                                     </div>
+                                     
+                                     {/* Tooltip */}
+                                     <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-pre-line z-10">
+                                       {tooltipText}
+                                       <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                                     </div>
+                                   </div>
+                                 );
+                               });
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                      
+
+                    </div>
+                  )}
+                </div>
+
+                {/* Insights Summary */}
+                {historicalPriceSeries.length > 0 && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <div className="grid grid-cols-2 gap-4 text-center">
+                      <div>
+                        <p className="text-xs text-gray-600">Highest Price Day</p>
+                        <p className="text-sm font-semibold text-red-600">
+                          {(() => {
+                            if (!historicalPriceSeries || historicalPriceSeries.length === 0) return 'N/A';
+                            
+                            const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                            const dayAverages = daysOfWeek.map(day => {
+                              const dayPrices = historicalPriceSeries
+                                .filter(item => {
+                                  if (!item?.date || !item?.price) return false;
+                                  try {
+                                    const date = new Date(item.date);
+                                    return date.toLocaleDateString('en-US', { weekday: 'short' }) === day;
+                                  } catch {
+                                    return false;
+                                  }
+                                })
+                                .map(item => item.price)
+                                .filter(price => typeof price === 'number' && !isNaN(price));
+                              return {
+                                day,
+                                avgPrice: dayPrices.length > 0 
+                                  ? dayPrices.reduce((sum, price) => sum + price, 0) / dayPrices.length 
+                                  : 0
+                              };
+                            });
+                            
+                            const validAverages = dayAverages.filter(avg => avg.avgPrice > 0);
+                            if (validAverages.length === 0) return 'N/A';
+                            
+                            const highest = validAverages.reduce((max, current) => 
+                              current.avgPrice > max.avgPrice ? current : max
+                            );
+                            return highest.day;
+                          })()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-600">Lowest Price Day</p>
+                        <p className="text-sm font-semibold text-green-600">
+                          {(() => {
+                            if (!historicalPriceSeries || historicalPriceSeries.length === 0) return 'N/A';
+                            
+                            const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                            const dayAverages = daysOfWeek.map(day => {
+                              const dayPrices = historicalPriceSeries
+                                .filter(item => {
+                                  if (!item?.date || !item?.price) return false;
+                                  try {
+                                    const date = new Date(item.date);
+                                    return date.toLocaleDateString('en-US', { weekday: 'short' }) === day;
+                                  } catch {
+                                    return false;
+                                  }
+                                })
+                                .map(item => item.price)
+                                .filter(price => typeof price === 'number' && !isNaN(price));
+                              return {
+                                day,
+                                avgPrice: dayPrices.length > 0 
+                                  ? dayPrices.reduce((sum, price) => sum + price, 0) / dayPrices.length 
+                                  : 0
+                              };
+                            });
+                            
+                            const validAverages = dayAverages.filter(avg => avg.avgPrice > 0);
+                            if (validAverages.length === 0) return 'N/A';
+                            
+                            const lowest = validAverages.reduce((min, current) => 
+                              current.avgPrice < min.avgPrice ? current : min
+                            );
+                            return lowest.day;
+                          })()}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 text-xs text-gray-500 text-center">
+                      💡 Darker red = higher average prices
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
         </>
       )}
