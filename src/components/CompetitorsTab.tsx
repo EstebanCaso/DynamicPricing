@@ -577,67 +577,80 @@ export default function CompetitorsTab() {
                 </td>
               </tr>
               
-              {/* Competitor Rows */}
-              {competitorData.competitors.length > 0 ? (
-                competitorData.competitors.map((competitor, index) => {
-                  const difference = competitor.avg - (competitorData.myAvg || 0)
-                  const differencePercent = (competitorData.myAvg || 0) > 0 ? 
-                    (difference / (competitorData.myAvg || 0)) * 100 : 0
-                  
-                  const isSelected = isCompetitorSelected(competitor.name)
-                  
-                  return (
-                    <tr key={index} className={`hover:bg-gray-50 ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          <div className="text-sm font-medium text-gray-900">{competitor.name}</div>
-                          {isSelected && (
-                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 border border-blue-200">
-                              Main Competitor
-                            </span>
-                          )}
+              {/* Competitor Rows - Filtered by Main Competitors */}
+              {(() => {
+                // Filter competitors based on selection
+                const filteredCompetitors = selectedCompetitors.length > 0 
+                  ? competitorData.competitors.filter(competitor => isCompetitorSelected(competitor.name))
+                  : competitorData.competitors
+                
+                return filteredCompetitors.length > 0 ? (
+                  filteredCompetitors.map((competitor, index) => {
+                    const difference = competitor.avg - (competitorData.myAvg || 0)
+                    const differencePercent = (competitorData.myAvg || 0) > 0 ? 
+                      (difference / (competitorData.myAvg || 0)) * 100 : 0
+                    
+                    const isSelected = isCompetitorSelected(competitor.name)
+                    
+                    return (
+                      <tr key={index} className={`hover:bg-gray-50 ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center space-x-2">
+                            <div className="text-sm font-medium text-gray-900">{competitor.name}</div>
+                            {isSelected && (
+                              <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 border border-blue-200">
+                                Main Competitor
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-500">{competitorData.city}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{formatCurrencyValue(competitor.avg)}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className={`text-sm font-medium ${getDifferenceColor(difference)}`}>
+                            {difference > 0 ? '+' : ''}{formatCurrencyValue(difference)} ({formatPercentage(differencePercent)})
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 border border-gray-200">
+                            {competitor.estrellas || 'N/A'}★
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="text-sm font-medium text-gray-900">{formatCurrencyValue(competitor.avg * 0.80)}</div>
+                          <div className="text-xs text-gray-500">80% occupancy</div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                      <div className="py-8">
+                        <div className="text-lg font-medium text-gray-600 mb-2">
+                          {selectedCompetitors.length > 0 ? 'No main competitors found' : 'No competitors found'}
                         </div>
-                        <div className="text-xs text-gray-500">{competitorData.city}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{formatCurrencyValue(competitor.avg)}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className={`text-sm font-medium ${getDifferenceColor(difference)}`}>
-                          {difference > 0 ? '+' : ''}{formatCurrencyValue(difference)} ({formatPercentage(differencePercent)})
+                        <div className="text-sm text-gray-500 mb-4">
+                          {selectedCompetitors.length > 0 
+                            ? 'None of your selected main competitors match the current filters.' 
+                            : competitorData.city 
+                              ? `No competitors found in ${competitorData.city}` 
+                              : 'No city information available for filtering'
+                          }
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800 border border-gray-200">
-                          {competitor.estrellas || 'N/A'}★
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{formatCurrencyValue(competitor.avg * 0.80)}</div>
-                        <div className="text-xs text-gray-500">80% occupancy</div>
-                      </td>
-                    </tr>
-                  )
-                })
-              ) : (
-                <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                    <div className="py-8">
-                      <div className="text-lg font-medium text-gray-600 mb-2">
-                        No competitors found
+                        <div className="text-xs text-gray-400">
+                          {selectedCompetitors.length > 0 
+                            ? 'Try changing the star rating filter or select different main competitors.' 
+                            : 'Try changing the star rating filter or ensure competitor data is available in the database.'
+                          }
+                        </div>
                       </div>
-                      <div className="text-sm text-gray-500 mb-4">
-                        {competitorData.city 
-                          ? `No competitors found in ${competitorData.city}` 
-                          : 'No city information available for filtering'}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        Try changing the star rating filter or ensure competitor data is available in the database.
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              )}
+                    </td>
+                  </tr>
+                                 )
+               })()}
             </tbody>
           </table>
         </div>
