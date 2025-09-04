@@ -1,67 +1,13 @@
 {
   "mx": [
     {
-      "nombre": "The Buttertones",
-      "fecha": "2025-08-26",
-      "lugar": "Black Box",
-      "enlace": "https://www.songkick.com/es/concerts/42550630-buttertones-at-black-box",
-      "latitude": 32.50895,
-      "longitude": -117.03667,
-      "distance_km": 2.89
-    },
-    {
-      "nombre": "Carin Leon",
-      "fecha": "2025-08-28",
-      "lugar": "Palenque Tijuana",
-      "enlace": "https://www.songkick.com/es/concerts/42711675-carin-leon-at-palenque-tijuana",
-      "latitude": 32.49932,
-      "longitude": -116.93634,
-      "distance_km": 8.6
-    },
-    {
-      "nombre": "Carin Leon",
-      "fecha": "2025-08-29",
-      "lugar": "Palenque Tijuana",
-      "enlace": "https://www.songkick.com/es/concerts/42711676-carin-leon-at-palenque-tijuana",
-      "latitude": 32.49932,
-      "longitude": -116.93634,
-      "distance_km": 8.6
-    },
-    {
-      "nombre": "Rubytates",
-      "fecha": "2025-08-29",
-      "lugar": "Black Box",
-      "enlace": "https://www.songkick.com/es/concerts/42736658-rubytates-at-black-box",
-      "latitude": 32.50895,
-      "longitude": -117.03667,
-      "distance_km": 2.89
-    },
-    {
-      "nombre": "Sofia Stainer",
-      "fecha": "2025-08-30",
-      "lugar": "La Maquila - Estación Cultural",
-      "enlace": "https://www.songkick.com/es/concerts/42595619-sofia-stainer-at-la-maquila-estacion-cultural",
-      "latitude": 32.52958,
-      "longitude": -117.01603,
-      "distance_km": 0.39
-    },
-    {
-      "nombre": "Edicion Especial",
-      "fecha": "2025-08-30",
-      "lugar": "Palenque Tijuana",
-      "enlace": "https://www.songkick.com/es/concerts/42757677-edicion-especial-at-palenque-tijuana",
-      "latitude": 32.49932,
-      "longitude": -116.93634,
-      "distance_km": 8.6
-    },
-    {
       "nombre": "Elis Paprika",
       "fecha": "2025-09-05",
       "lugar": "La Maquila - Estación Cultural",
       "enlace": "https://www.songkick.com/es/concerts/42642283-elis-paprika-at-la-maquila-estacion-cultural",
       "latitude": 32.52958,
       "longitude": -117.01603,
-      "distance_km": 0.39
+      "distance_km": 0.58
     },
     {
       "nombre": "La Texana",
@@ -70,7 +16,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42567170-la-texana-at-black-box",
       "latitude": 32.50895,
       "longitude": -117.03667,
-      "distance_km": 2.89
+      "distance_km": 2.7
     },
     {
       "nombre": "Dinamarca",
@@ -79,7 +25,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42722047-dinamarca-at-marko-disko",
       "latitude": 32.51961,
       "longitude": -117.02249,
-      "distance_km": 1.26
+      "distance_km": 0.92
     },
     {
       "nombre": "Al aire libre",
@@ -88,7 +34,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42757675-matisse-at-parque-morelos",
       "latitude": 32.4991,
       "longitude": -116.9356,
-      "distance_km": 8.67
+      "distance_km": 7.94
     },
     {
       "nombre": "niño viejo y Israel's Arcade",
@@ -97,7 +43,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42653930-nino-viejo-at-marko-disko",
       "latitude": 32.51961,
       "longitude": -117.02249,
-      "distance_km": 1.26
+      "distance_km": 0.92
     },
     {
       "nombre": "Jorge Medina y Josi Cuen",
@@ -106,7 +52,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42709464-jorge-medina-at-palenque-tijuana",
       "latitude": 32.49932,
       "longitude": -116.93634,
-      "distance_km": 8.6
+      "distance_km": 7.87
     },
     {
       "nombre": "Jorge Medina y Josi Cuen",
@@ -115,16 +61,16 @@
       "enlace": "https://www.songkick.com/es/concerts/42709465-jorge-medina-at-palenque-tijuana",
       "latitude": 32.49932,
       "longitude": -116.93634,
-      "distance_km": 8.6
+      "distance_km": 7.87
     },
     {
-      "nombre": "Matute",
-      "fecha": "2025-09-14",
-      "lugar": "Palenque Tijuana",
-      "enlace": "https://www.songkick.com/es/concerts/42757671-matute-at-palenque-tijuana",
-      "latitude": 32.49932,
-      "longitude": -116.93634,
-      "distance_km": 8.6
+      "nombre": "Ritmo Cósmico",
+      "fecha": "2025-09-13",
+      "lugar": "Nomada Tijuana",
+      "enlace": "https://www.songkick.com/es/concerts/42764893-ritmo-cosmico-at-nomada-tijuana",
+      "latitude": 32.53066,
+      "longitude": -117.03465,
+      "distance_km": 2.0
     },
     {
       "nombre": "Al aire libre",
@@ -133,7 +79,16 @@
       "enlace": "https://www.songkick.com/es/concerts/42757673-el-malilla-at-parque-morelos",
       "latitude": 32.4991,
       "longitude": -116.9356,
-      "distance_km": 8.67
+      "distance_km": 7.94
+    },
+    {
+      "nombre": "Matute",
+      "fecha": "2025-09-14",
+      "lugar": "Palenque Tijuana",
+      "enlace": "https://www.songkick.com/es/concerts/42757671-matute-at-palenque-tijuana",
+      "latitude": 32.49932,
+      "longitude": -116.93634,
+      "distance_km": 7.87
     },
     {
       "nombre": "Al aire libre",
@@ -142,7 +97,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42757669-kevin-amf-at-parque-morelos",
       "latitude": 32.4991,
       "longitude": -116.9356,
-      "distance_km": 8.67
+      "distance_km": 7.94
     },
     {
       "nombre": "Luisa Almaguer",
@@ -151,7 +106,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42727642-luisa-almaguer-at-la-maquila-estacion-cultural",
       "latitude": 32.52958,
       "longitude": -117.01603,
-      "distance_km": 0.39
+      "distance_km": 0.58
     },
     {
       "nombre": "Al aire libre",
@@ -160,7 +115,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42706781-90s-pop-tour-at-parque-morelos",
       "latitude": 32.4991,
       "longitude": -116.9356,
-      "distance_km": 8.67
+      "distance_km": 7.94
     },
     {
       "nombre": "Edén Muñoz",
@@ -169,7 +124,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42757666-eden-munoz-at-palenque-tijuana",
       "latitude": 32.49932,
       "longitude": -116.93634,
-      "distance_km": 8.6
+      "distance_km": 7.87
     },
     {
       "nombre": "Allison",
@@ -178,7 +133,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42705676-allison-at-black-box",
       "latitude": 32.50895,
       "longitude": -117.03667,
-      "distance_km": 2.89
+      "distance_km": 2.7
     },
     {
       "nombre": "Al aire libre",
@@ -187,7 +142,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42757663-kinky-at-parque-morelos",
       "latitude": 32.4991,
       "longitude": -116.9356,
-      "distance_km": 8.67
+      "distance_km": 7.94
     },
     {
       "nombre": "Sous-Sol",
@@ -196,7 +151,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42739519-soussol-at-la-maquila-estacion-cultural",
       "latitude": 32.52958,
       "longitude": -117.01603,
-      "distance_km": 0.39
+      "distance_km": 0.58
     },
     {
       "nombre": "Edén Muñoz",
@@ -205,7 +160,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42757662-eden-munoz-at-palenque-tijuana",
       "latitude": 32.49932,
       "longitude": -116.93634,
-      "distance_km": 8.6
+      "distance_km": 7.87
     },
     {
       "nombre": "Banda MS de Sergio Lizárraga",
@@ -214,7 +169,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42731737-banda-ms-de-sergio-lizarraga-at-palenque-tijuana",
       "latitude": 32.49932,
       "longitude": -116.93634,
-      "distance_km": 8.6
+      "distance_km": 7.87
     },
     {
       "nombre": "Xandria",
@@ -223,16 +178,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42587263-xandria-at-black-box",
       "latitude": 32.50895,
       "longitude": -117.03667,
-      "distance_km": 2.89
-    },
-    {
-      "nombre": "Al aire libre",
-      "fecha": "2025-09-28",
-      "lugar": "Parque Morelos",
-      "enlace": "https://www.songkick.com/es/concerts/42757661-paty-cantu-at-parque-morelos",
-      "latitude": 32.4991,
-      "longitude": -116.9356,
-      "distance_km": 8.67
+      "distance_km": 2.7
     },
     {
       "nombre": "Grupo Firme",
@@ -241,7 +187,25 @@
       "enlace": "https://www.songkick.com/es/concerts/42757660-grupo-firme-at-palenque-tijuana",
       "latitude": 32.49932,
       "longitude": -116.93634,
-      "distance_km": 8.6
+      "distance_km": 7.87
+    },
+    {
+      "nombre": "Al aire libre",
+      "fecha": "2025-09-28",
+      "lugar": "Parque Morelos",
+      "enlace": "https://www.songkick.com/es/concerts/42757661-paty-cantu-at-parque-morelos",
+      "latitude": 32.4991,
+      "longitude": -116.9356,
+      "distance_km": 7.94
+    },
+    {
+      "nombre": "Rata Blanca",
+      "fecha": "2025-10-03",
+      "lugar": "Black Box",
+      "enlace": "https://www.songkick.com/es/concerts/42761293-rata-blanca-at-black-box",
+      "latitude": 32.50895,
+      "longitude": -117.03667,
+      "distance_km": 2.7
     },
     {
       "nombre": "ARCANO",
@@ -250,7 +214,16 @@
       "enlace": "https://www.songkick.com/es/concerts/42689113-arcano-at-el-foro",
       "latitude": 32.53095,
       "longitude": -117.03649,
-      "distance_km": 1.55
+      "distance_km": 2.18
+    },
+    {
+      "nombre": "Rxnde Akozta",
+      "fecha": "2025-10-03",
+      "lugar": "Ah Mun",
+      "enlace": "https://www.songkick.com/es/concerts/42770937-rxnde-akozta-at-ah-mun",
+      "latitude": 32.52994,
+      "longitude": -117.03672,
+      "distance_km": 2.16
     },
     {
       "nombre": "Enjambre",
@@ -259,7 +232,16 @@
       "enlace": "https://www.songkick.com/es/concerts/42590426-enjambre-at-audiorama-el-trompo",
       "latitude": 32.47735,
       "longitude": -116.92134,
-      "distance_km": 11.0
+      "distance_km": 10.21
+    },
+    {
+      "nombre": "Insite",
+      "fecha": "2025-10-04",
+      "lugar": "Marko Disko",
+      "enlace": "https://www.songkick.com/es/concerts/42760860-insite-at-marko-disko",
+      "latitude": 32.51961,
+      "longitude": -117.02249,
+      "distance_km": 0.92
     },
     {
       "nombre": "Toser One",
@@ -268,7 +250,16 @@
       "enlace": "https://www.songkick.com/es/concerts/42690286-toser-one-at-foro-nebraska",
       "latitude": 32.53107,
       "longitude": -117.03714,
-      "distance_km": 1.61
+      "distance_km": 2.24
+    },
+    {
+      "nombre": "Paloma Morphy",
+      "fecha": "2025-10-04",
+      "lugar": "La Maquila - Estación Cultural",
+      "enlace": "https://www.songkick.com/es/concerts/42767799-paloma-morphy-at-la-maquila-estacion-cultural",
+      "latitude": 32.52958,
+      "longitude": -117.01603,
+      "distance_km": 0.58
     },
     {
       "nombre": "Simpson Ahuevo",
@@ -277,7 +268,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42749457-simpson-ahuevo-at-black-box",
       "latitude": 32.50895,
       "longitude": -117.03667,
-      "distance_km": 2.89
+      "distance_km": 2.7
     },
     {
       "nombre": "Lollypop Lorry",
@@ -286,7 +277,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42749453-lollypop-lorry-at-black-box",
       "latitude": 32.50895,
       "longitude": -117.03667,
-      "distance_km": 2.89
+      "distance_km": 2.7
     },
     {
       "nombre": "Anti Fronteras Fest 2025",
@@ -295,7 +286,7 @@
       "enlace": "https://www.songkick.com/es/festivals/3740799-anti-fronteras-fest/id/42704620-anti-fronteras-fest-2025",
       "latitude": 32.52994,
       "longitude": -117.03672,
-      "distance_km": 1.58
+      "distance_km": 2.16
     },
     {
       "nombre": "Chayanne",
@@ -304,7 +295,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42669067-chayanne-at-estadio-chevron",
       "latitude": 32.48456,
       "longitude": -116.93067,
-      "distance_km": 9.83
+      "distance_km": 9.05
     },
     {
       "nombre": "French Police",
@@ -313,7 +304,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42593596-french-police-at-marko-disko",
       "latitude": 32.51961,
       "longitude": -117.02249,
-      "distance_km": 1.26
+      "distance_km": 0.92
     },
     {
       "nombre": "Marduk",
@@ -322,7 +313,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42666802-marduk-at-black-box",
       "latitude": 32.50895,
       "longitude": -117.03667,
-      "distance_km": 2.89
+      "distance_km": 2.7
     },
     {
       "nombre": "Esteman y Daniela Spalla",
@@ -331,7 +322,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42453496-esteman-at-el-foro",
       "latitude": 32.53095,
       "longitude": -117.03649,
-      "distance_km": 1.55
+      "distance_km": 2.18
     },
     {
       "nombre": "El Zar",
@@ -340,7 +331,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42756750-el-zar-at-ah-mun",
       "latitude": 32.52994,
       "longitude": -117.03672,
-      "distance_km": 1.58
+      "distance_km": 2.16
     },
     {
       "nombre": "Selofan",
@@ -349,7 +340,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42592501-selofan-at-black-box",
       "latitude": 32.50895,
       "longitude": -117.03667,
-      "distance_km": 2.89
+      "distance_km": 2.7
     },
     {
       "nombre": "Leo Jiménez",
@@ -358,7 +349,16 @@
       "enlace": "https://www.songkick.com/es/concerts/42708048-leo-jimenez-at-dragon-rojo",
       "latitude": 32.50845,
       "longitude": -116.99253,
-      "distance_km": 3.57
+      "distance_km": 2.73
+    },
+    {
+      "nombre": "Tito Double P",
+      "fecha": "2025-11-01",
+      "lugar": "Estadio Caliente",
+      "enlace": "https://www.songkick.com/es/concerts/42763174-tito-double-p-at-estadio-caliente",
+      "latitude": 32.50748,
+      "longitude": -116.99643,
+      "distance_km": 2.55
     },
     {
       "nombre": "Manuel Medrano",
@@ -367,7 +367,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42564744-manuel-medrano-at-el-foro-antiguo-palacio-jai-alai-centro-de-espectaculos",
       "latitude": 32.52859,
       "longitude": -117.03609,
-      "distance_km": 1.53
+      "distance_km": 2.07
     },
     {
       "nombre": "Benjamín Walker",
@@ -376,7 +376,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42756826-benjamin-walker-at-black-box",
       "latitude": 32.50895,
       "longitude": -117.03667,
-      "distance_km": 2.89
+      "distance_km": 2.7
     },
     {
       "nombre": "Caifanes",
@@ -385,7 +385,34 @@
       "enlace": "https://www.songkick.com/es/concerts/42564583-caifanes-at-plaza-de-toros-monumental",
       "latitude": 32.53352,
       "longitude": -117.12154,
-      "distance_km": 9.55
+      "distance_km": 10.1
+    },
+    {
+      "nombre": "Sekta Core",
+      "fecha": "2025-11-08",
+      "lugar": "Black Box",
+      "enlace": "https://www.songkick.com/es/concerts/42764604-sekta-core-at-black-box",
+      "latitude": 32.50895,
+      "longitude": -117.03667,
+      "distance_km": 2.7
+    },
+    {
+      "nombre": "Junior H",
+      "fecha": "2025-11-09",
+      "lugar": "Explanada del Estadio Caliente",
+      "enlace": "https://www.songkick.com/es/concerts/42769025-junior-h-at-explanada-del-estadio-caliente",
+      "latitude": 32.50597,
+      "longitude": -116.99315,
+      "distance_km": 2.88
+    },
+    {
+      "nombre": "Los Vaguens",
+      "fecha": "2025-11-14",
+      "lugar": "La República de Hops",
+      "enlace": "https://www.songkick.com/es/concerts/42761149-los-vaguens-at-la-republica-de-hops",
+      "latitude": 32.53401,
+      "longitude": -117.03651,
+      "distance_km": 2.31
     },
     {
       "nombre": "Edgardo Nuñez y Salazar",
@@ -394,7 +421,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42723880-edgardo-nunez-at-plaza-de-toros-monumental",
       "latitude": 32.53352,
       "longitude": -117.12154,
-      "distance_km": 9.55
+      "distance_km": 10.1
     },
     {
       "nombre": "Silvestre y La Naranja",
@@ -403,7 +430,7 @@
       "enlace": "https://www.songkick.com/es/concerts/42646355-silvestre-y-la-naranja-at-black-box",
       "latitude": 32.50895,
       "longitude": -117.03667,
-      "distance_km": 2.89
+      "distance_km": 2.7
     },
     {
       "nombre": "Los Auténticos Decadentes",
@@ -412,77 +439,131 @@
       "enlace": "https://www.songkick.com/es/concerts/42522205-los-autenticos-decadentes-at-el-foro",
       "latitude": 32.53095,
       "longitude": -117.03649,
-      "distance_km": 1.55
-    },
-    {
-      "nombre": "Martin Ricca",
-      "fecha": "2025-11-22",
-      "lugar": "Black Box",
-      "enlace": "https://www.songkick.com/es/concerts/42749445-martin-ricca-at-black-box",
-      "latitude": 32.50895,
-      "longitude": -117.03667,
-      "distance_km": 2.89
-    },
-    {
-      "nombre": "Masterplan",
-      "fecha": "2025-11-23",
-      "lugar": "Black Box",
-      "enlace": "https://www.songkick.com/es/concerts/42359738-masterplan-at-black-box",
-      "latitude": 32.50895,
-      "longitude": -117.03667,
-      "distance_km": 2.89
-    },
-    {
-      "nombre": "Somos X Siempre Festival 2025",
-      "fecha": "2025-11-29",
-      "lugar": "La Maquila - Estación Cultural",
-      "enlace": "https://www.songkick.com/es/festivals/3737214-somos-x-siempre/id/42666470-somos-x-siempre-festival-2025",
-      "latitude": 32.52958,
-      "longitude": -117.01603,
-      "distance_km": 0.39
+      "distance_km": 2.18
     }
   ],
   "us": [
     {
-      "name": "Mt. Joy - Hope We Have Fun Tour",
-      "url": "https://www.ticketmaster.com/mt-joy-hope-we-have-fun-san-diego-california-08-26-2025/event/0A0062451BE950FD",
-      "date": "2025-08-26",
-      "time": "19:00:00",
-      "venue": "The Rady Shell at Jacobs Park",
-      "genre": "Folk",
+      "name": "Snapdragon Stadium Tours",
+      "url": "https://www.ticketmaster.com/snapdragon-stadium-tours-san-diego-california-09-04-2025/event/0A0062DBA2355F5A",
+      "date": "2025-09-04",
+      "time": "10:00:00",
+      "venue": "Snapdragon Stadium",
+      "genre": "Undefined",
       "price_range": "N/A"
     },
     {
-      "name": "Burton Cummings Of \"the Guess Who\"",
-      "url": "https://www.ticketmaster.com/burton-cummings-of-the-guess-who-san-diego-california-08-26-2025/event/0A0062631E9B3570",
-      "date": "2025-08-26",
+      "name": "BOMBA ESTÉREO + RAWAYANA: ASTROPICAL TOUR 2025",
+      "url": "https://www.ticketmaster.com/bomba-estereo-rawayana-astropical-tour-2025-san-diego-california-09-04-2025/event/0A0062A5F5D54544",
+      "date": "2025-09-04",
+      "time": "19:00:00",
+      "venue": "Petco Park",
+      "genre": "Latin",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Clarion",
+      "url": "https://www.ticketmaster.com/clarion-san-diego-california-09-04-2025/event/0A0062D29F77364C",
+      "date": "2025-09-04",
+      "time": "19:00:00",
+      "venue": "Voodoo Room at the House of Blues San Diego",
+      "genre": "Rock",
+      "price_range": "N/A"
+    },
+    {
+      "name": "X Ambassadors - The VHS(X) North American Tour",
+      "url": "https://www.ticketmaster.com/x-ambassadors-the-vhsx-north-american-san-diego-california-09-04-2025/event/0A006305AE9521B3",
+      "date": "2025-09-04",
+      "time": "19:00:00",
+      "venue": "House of Blues San Diego",
+      "genre": "Rock",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Circle Jerks",
+      "url": "https://www.ticketmaster.com/circle-jerks-san-diego-california-09-04-2025/event/0B00628B983C13AF",
+      "date": "2025-09-04",
+      "time": "19:00:00",
+      "venue": "The Observatory North Park",
+      "genre": "Rock",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Maria Jose",
+      "url": "https://www.ticketmaster.com/maria-jose-el-cajon-california-09-04-2025/event/0B006114C068665B",
+      "date": "2025-09-04",
+      "time": "19:00:00",
+      "venue": "The Magnolia",
+      "genre": "Latin",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Jonas Brothers: JONAS20 Greetings From Your Hometown",
+      "url": "https://www.ticketmaster.com/jonas-brothers-jonas20-greetings-from-your-chula-vista-california-09-04-2025/event/0A0062CDCC274CAB",
+      "date": "2025-09-04",
+      "time": "19:30:00",
+      "venue": "North Island Credit Union Amphitheatre",
+      "genre": "Rock",
+      "price_range": "N/A"
+    },
+    {
+      "name": "A Special Evening w/ The Kenny Wayne Shepherd Band with Bobby Rush",
+      "url": "https://www.ticketmaster.com/a-special-evening-w-the-kenny-san-diego-california-09-04-2025/event/0A006254E7375E33",
+      "date": "2025-09-04",
       "time": "19:30:00",
       "venue": "Humphreys Concerts By the Bay",
       "genre": "Rock",
       "price_range": "N/A"
     },
     {
-      "name": "Robopocalypse: The Musical! With special musical guest: Blunderbusst",
-      "url": "https://www.ticketweb.com/event/robopocalypse-the-musical-with-special-music-box-tickets/14416403",
-      "date": "2025-08-26",
+      "name": "2025 Group Tour",
+      "url": "",
+      "date": "2025-09-04",
       "time": "20:00:00",
-      "venue": "Music Box",
+      "venue": "Petco Park",
       "genre": "",
-      "price_range": "28.57 - 28.57 USD"
+      "price_range": "N/A"
     },
     {
-      "name": "Ben Parks - Ages 21+",
-      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7_Sad",
-      "date": "2025-08-26",
-      "time": "20:30:00",
+      "name": "Rocco - The Smoking Gun Tour w/ rafayel & Skyler Jade",
+      "url": "https://www.ticketweb.com/event/rocco-the-smoking-music-box-tickets/13828014",
+      "date": "2025-09-04",
+      "time": "20:00:00",
+      "venue": "Music Box",
+      "genre": "Alternative",
+      "price_range": "35.3 - 162.0 USD"
+    },
+    {
+      "name": "Sun Jelly - Ages 21+",
+      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7_Sao",
+      "date": "2025-09-04",
+      "time": "20:00:00",
       "venue": "Casbah-San Diego",
       "genre": "",
       "price_range": "N/A"
     },
     {
+      "name": "X Ambassadors - The VHS(X) North American Tour",
+      "url": "https://www.ticketweb.com/event/x-ambassadors-the-soma-mainstage-tickets/14455423",
+      "date": "2025-09-04",
+      "time": "20:00:00",
+      "venue": "SOMA - Mainstage",
+      "genre": "Alternative",
+      "price_range": "0.0 - 0.0 USD"
+    },
+    {
+      "name": "Rocco",
+      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7btko",
+      "date": "2025-09-04",
+      "time": "21:00:00",
+      "venue": "Music Box - San Diego",
+      "genre": "Pop",
+      "price_range": "N/A"
+    },
+    {
       "name": "Petco Park Tours",
-      "url": "https://www.ticketmaster.com/petco-park-tours-san-diego-california-08-27-2025/event/0A006164A4371F7D",
-      "date": "2025-08-27",
+      "url": "https://www.ticketmaster.com/petco-park-tours-san-diego-california-09-05-2025/event/0A006164A4421FBC",
+      "date": "2025-09-05",
       "time": "",
       "venue": "Petco Park",
       "genre": "Baseball",
@@ -490,260 +571,125 @@
     },
     {
       "name": "Snapdragon Stadium Tours",
-      "url": "https://www.ticketmaster.com/snapdragon-stadium-tours-san-diego-california-08-27-2025/event/0A006297A5783C06",
-      "date": "2025-08-27",
-      "time": "",
+      "url": "https://www.ticketmaster.com/snapdragon-stadium-tours-san-diego-california-09-05-2025/event/0A0062DBA2385F61",
+      "date": "2025-09-05",
+      "time": "10:00:00",
       "venue": "Snapdragon Stadium",
       "genre": "Undefined",
       "price_range": "N/A"
     },
     {
-      "name": "Barrett Lake Fishing",
-      "url": "https://www.ticketmaster.com/barrett-lake-fishing-dulzura-california-08-27-2025/event/0A0062E193EA26FC",
-      "date": "2025-08-27",
-      "time": "05:00:00",
-      "venue": "Barrett Lake",
+      "name": "DARK ANGEL EXTINCTION LEVEL EVENT NORTH AMERICA 2025",
+      "url": "https://www.ticketmaster.com/dark-angel-extinction-level-event-north-san-diego-california-09-05-2025/event/0A0062EA2A9B662B",
+      "date": "2025-09-05",
+      "time": "17:30:00",
+      "venue": "House of Blues San Diego",
+      "genre": "Metal",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Little Big Town: Summer Tour 2025",
+      "url": "https://www.ticketmaster.com/little-big-town-summer-tour-2025-chula-vista-california-09-05-2025/event/0A006282978148DD",
+      "date": "2025-09-05",
+      "time": "19:00:00",
+      "venue": "North Island Credit Union Amphitheatre",
+      "genre": "Country",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Savannah Bananas 9.5",
+      "url": "",
+      "date": "2025-09-05",
+      "time": "19:00:00",
+      "venue": "Petco Park",
+      "genre": "",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Savannah Banana Deposit",
+      "url": "",
+      "date": "2025-09-05",
+      "time": "19:00:00",
+      "venue": "Petco Park",
+      "genre": "",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Ray and Paul - The Fading Tour",
+      "url": "https://www.ticketmaster.com/ray-and-paul-the-fading-tour-san-diego-california-09-05-2025/event/0A0062E26CAE1C3E",
+      "date": "2025-09-05",
+      "time": "19:00:00",
+      "venue": "Voodoo Room at the House of Blues San Diego",
+      "genre": "Rock",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Savannah Bananas",
+      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7bfvo",
+      "date": "2025-09-05",
+      "time": "19:00:00",
+      "venue": "PETCO Park",
       "genre": "Miscellaneous",
       "price_range": "N/A"
     },
     {
-      "name": "PIXIES - North American Tour 2025 with special guests Spoon and Fazerd",
-      "url": "https://www.ticketmaster.com/pixies-north-american-tour-2025-with-san-diego-california-08-27-2025/event/0A006253CEA8439C",
-      "date": "2025-08-27",
-      "time": "18:00:00",
-      "venue": "Petco Park",
-      "genre": "Rock",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Nelly with Ja Rule, Eve & Special Guests: Where The Party At Tour",
-      "url": "https://www.ticketmaster.com/nelly-with-ja-rule-eve-special-chula-vista-california-08-27-2025/event/0A006184DE6F39DD",
-      "date": "2025-08-27",
-      "time": "19:30:00",
-      "venue": "North Island Credit Union Amphitheatre",
-      "genre": "Hip-Hop/Rap",
-      "price_range": "N/A"
-    },
-    {
-      "name": "pinkeye - Ages 21+",
-      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7_Sa7",
-      "date": "2025-08-27",
-      "time": "20:30:00",
-      "venue": "Casbah-San Diego",
-      "genre": "",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Petco Park Tours",
-      "url": "https://www.ticketmaster.com/petco-park-tours-san-diego-california-08-28-2025/event/0A006164A43A1F89",
-      "date": "2025-08-28",
-      "time": "",
-      "venue": "Petco Park",
-      "genre": "Baseball",
-      "price_range": "N/A"
-    },
-    {
-      "name": "KIDZ BOP LIVE Certified BOP Tour",
-      "url": "https://www.ticketmaster.com/kidz-bop-live-certified-bop-tour-san-diego-california-08-28-2025/event/0A00624602614778",
-      "date": "2025-08-28",
+      "name": "Circle Jerks",
+      "url": "https://www.ticketmaster.com/circle-jerks-san-diego-california-09-05-2025/event/0B00628B9B5C1443",
+      "date": "2025-09-05",
       "time": "19:00:00",
-      "venue": "Cal Coast Credit Union Open Air Theatre at SDSU",
-      "genre": "Children's Theatre",
-      "price_range": "N/A"
-    },
-    {
-      "name": "SDSU Aztec Football vs. Stony Brook University Seawolves Football",
-      "url": "https://www.ticketmaster.com/sdsu-aztec-football-vs-stony-brook-san-diego-california-08-28-2025/event/0A0062EBC9DD497A",
-      "date": "2025-08-28",
-      "time": "19:00:00",
-      "venue": "Snapdragon Stadium",
-      "genre": "Football",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Tailgate Package -SDSU vs. Stony Brook",
-      "url": "",
-      "date": "2025-08-28",
-      "time": "19:00:00",
-      "venue": "Snapdragon Stadium",
-      "genre": "",
-      "price_range": "N/A"
-    },
-    {
-      "name": "SDSU vs. Stony Brook - Student Ticket",
-      "url": "",
-      "date": "2025-08-28",
-      "time": "19:00:00",
-      "venue": "Snapdragon Stadium",
-      "genre": "",
-      "price_range": "N/A"
-    },
-    {
-      "name": "SDSU vs. Stony Brook - Student Guest",
-      "url": "",
-      "date": "2025-08-28",
-      "time": "19:00:00",
-      "venue": "Snapdragon Stadium",
-      "genre": "",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Lioneer, Johnny Sapphire, Ones Own Haven",
-      "url": "https://www.ticketweb.com/event/lioneer-johnny-sapphire-ones-own-music-box-tickets/13813914",
-      "date": "2025-08-28",
-      "time": "19:30:00",
-      "venue": "Music Box",
-      "genre": "Alternative",
-      "price_range": "16.52 - 16.52 USD"
-    },
-    {
-      "name": "Clipse",
-      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7bp4K",
-      "date": "2025-08-28",
-      "time": "20:00:00",
-      "venue": "Soma",
-      "genre": "Other",
-      "price_range": "N/A"
-    },
-    {
-      "name": "The Rolling Blackouts - Ages 21+",
-      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7_SaA",
-      "date": "2025-08-28",
-      "time": "20:30:00",
-      "venue": "Casbah-San Diego",
-      "genre": "",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Larry June",
-      "url": "https://www.ticketweb.com/event/larry-june-nova-sd-tickets/13865044",
-      "date": "2025-08-28",
-      "time": "22:00:00",
-      "venue": "Nova SD",
-      "genre": "Hip-Hop/Rap",
-      "price_range": "207.95 - 207.95 USD"
-    },
-    {
-      "name": "Petco Park Tours",
-      "url": "https://www.ticketmaster.com/petco-park-tours-san-diego-california-08-29-2025/event/0A006164A43C1F93",
-      "date": "2025-08-29",
-      "time": "",
-      "venue": "Petco Park",
-      "genre": "Baseball",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Snapdragon Stadium Tours",
-      "url": "https://www.ticketmaster.com/snapdragon-stadium-tours-san-diego-california-08-29-2025/event/0A006297A57B3C1E",
-      "date": "2025-08-29",
-      "time": "",
-      "venue": "Snapdragon Stadium",
-      "genre": "Undefined",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Disco Lines (18 and Over)",
-      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7bzPY",
-      "date": "2025-08-29",
-      "time": "16:00:00",
-      "venue": "PETCO Park",
-      "genre": "Dance/Electronic",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Weird Al Yankovic: Bigger & Weirder 2025 Tour",
-      "url": "https://www.ticketmaster.com/weird-al-yankovic-bigger-weirder-2025-san-diego-california-08-29-2025/event/0A006125406A5B42",
-      "date": "2025-08-29",
-      "time": "19:00:00",
-      "venue": "The Rady Shell at Jacobs Park",
-      "genre": "Comedy",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Mr. Wood is Dead: 10 Year Anniversary Tour (18+)",
-      "url": "https://www.ticketmaster.com/mr-wood-is-dead-10-year-el-cajon-california-08-29-2025/event/0B006278B73E246B",
-      "date": "2025-08-29",
-      "time": "19:00:00",
-      "venue": "The Magnolia",
-      "genre": "Folk",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Sasha Marie & Studio Sessions present: If You See Me, You See Me - 21+",
-      "url": "https://www.universe.com/events/sasha-marie-studio-sessions-tickets-7HRTLJ?ref=share-widget-buffer",
-      "date": "2025-08-29",
-      "time": "19:30:00",
       "venue": "The Observatory North Park",
-      "genre": "R&B",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Dave Koz & Friends: Summer Horns 2025",
-      "url": "https://www.ticketmaster.com/dave-koz-friends-summer-horns-2025-san-diego-california-08-29-2025/event/0A00625788E11B9D",
-      "date": "2025-08-29",
-      "time": "19:30:00",
-      "venue": "Humphreys Concerts By the Bay",
-      "genre": "Jazz",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Young Widows with special guests at Brick by Brick",
-      "url": "https://www.ticketweb.com/event/young-widows-with-special-guests-brick-by-brick-tickets/14476993",
-      "date": "2025-08-29",
-      "time": "20:00:00",
-      "venue": "Brick By Brick",
       "genre": "Rock",
-      "price_range": "28.76 - 28.76 USD"
+      "price_range": "N/A"
     },
     {
-      "name": "Yuno - Ages 21+",
-      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7_Sak",
-      "date": "2025-08-29",
+      "name": "Frankie Valli & The Four Seasons: The Last Encores",
+      "url": "https://www.ticketmaster.com/frankie-valli-the-four-seasons-the-san-diego-california-09-05-2025/event/0A00622914F5405F",
+      "date": "2025-09-05",
+      "time": "20:00:00",
+      "venue": "Humphreys Concerts By the Bay",
+      "genre": "Rock",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Amanda Miguel Yo Soy World Tour",
+      "url": "https://www.ticketmaster.com/amanda-miguel-yo-soy-world-tour-san-diego-california-09-05-2025/event/0A00622794DA11C3",
+      "date": "2025-09-05",
+      "time": "20:30:00",
+      "venue": "Balboa Theatre",
+      "genre": "Latin",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Virginia Crime - Ages 21+",
+      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7_Sa3",
+      "date": "2025-09-05",
       "time": "20:30:00",
       "venue": "Casbah-San Diego",
-      "genre": "Other",
+      "genre": "",
       "price_range": "N/A"
     },
     {
-      "name": "Cumbiatron - The Cumbia Rave (21+ w/ ID)",
-      "url": "https://www.ticketmaster.com/cumbiatron-the-cumbia-rave-21-w-san-diego-california-08-29-2025/event/0A0062C60E775EE7",
-      "date": "2025-08-29",
-      "time": "21:00:00",
-      "venue": "House of Blues San Diego",
-      "genre": "Dance/Electronic",
-      "price_range": "N/A"
-    },
-    {
-      "name": "Mykal Rose, Big Mountain",
-      "url": "https://www.ticketweb.com/event/mykal-rose-big-mountain-music-box-tickets/14370933",
-      "date": "2025-08-29",
+      "name": "veggi - MBX360 Stage Launch",
+      "url": "https://www.ticketweb.com/event/veggi-mbx360-stage-music-box-tickets/14522633",
+      "date": "2025-09-05",
       "time": "21:00:00",
       "venue": "Music Box",
-      "genre": "World",
-      "price_range": "41.3 - 162.0 USD"
+      "genre": "Dance/Electronic",
+      "price_range": "0.0 - 27.3 USD"
     },
     {
-      "name": "Mykal Rose",
-      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A74zvs",
-      "date": "2025-08-29",
-      "time": "21:00:00",
-      "venue": "Music Box - San Diego",
-      "genre": "Other",
-      "price_range": "N/A"
-    },
-    {
-      "name": "William Black",
-      "url": "https://www.ticketweb.com/event/william-black-nova-sd-tickets/13901244",
-      "date": "2025-08-29",
+      "name": "Trivecta",
+      "url": "https://www.ticketweb.com/event/trivecta-nova-sd-tickets/13885634",
+      "date": "2025-09-05",
       "time": "22:00:00",
       "venue": "Nova SD",
       "genre": "Dance/Electronic",
-      "price_range": "29.95 - 29.95 USD"
+      "price_range": "24.95 - 24.95 USD"
     },
     {
-      "name": "Joshwa ",
-      "url": "https://www.ticketweb.com/event/joshwa-bloom-tickets/14435453",
-      "date": "2025-08-29",
+      "name": "Never Dull 'Big Disco Energy' Tour",
+      "url": "https://www.ticketweb.com/event/never-dull-big-disco-energy-bloom-tickets/13786774",
+      "date": "2025-09-05",
       "time": "22:00:00",
       "venue": "Bloom",
       "genre": "Dance/Electronic",
@@ -751,56 +697,110 @@
     },
     {
       "name": "Petco Park Tours",
-      "url": "https://www.ticketmaster.com/petco-park-tours-san-diego-california-08-30-2025/event/0A00616492BD1957",
-      "date": "2025-08-30",
+      "url": "https://www.ticketmaster.com/petco-park-tours-san-diego-california-09-06-2025/event/0A006164A4461FC4",
+      "date": "2025-09-06",
       "time": "",
       "venue": "Petco Park",
       "genre": "Baseball",
       "price_range": "N/A"
     },
     {
-      "name": "Snapdragon Stadium Tours",
-      "url": "https://www.ticketmaster.com/snapdragon-stadium-tours-san-diego-california-08-30-2025/event/0A006297A61E3F25",
-      "date": "2025-08-30",
-      "time": "",
-      "venue": "Snapdragon Stadium",
-      "genre": "Undefined",
-      "price_range": "N/A"
-    },
-    {
       "name": "Barrett Lake Fishing",
-      "url": "https://www.ticketmaster.com/barrett-lake-fishing-dulzura-california-08-30-2025/event/0A006278B80C443F",
-      "date": "2025-08-30",
+      "url": "https://www.ticketmaster.com/barrett-lake-fishing-dulzura-california-09-06-2025/event/0A006278B8104460",
+      "date": "2025-09-06",
       "time": "05:00:00",
       "venue": "Barrett Lake",
       "genre": "Miscellaneous",
       "price_range": "N/A"
     },
     {
-      "name": "Holo Holo Music Festival - (TIME SUBJECT TO CHANGE)",
-      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7bf7_",
-      "date": "2025-08-30",
-      "time": "12:00:00",
-      "venue": "Park at the Park - Petco Park",
-      "genre": "",
+      "name": "Snapdragon Stadium Tours",
+      "url": "https://www.ticketmaster.com/snapdragon-stadium-tours-san-diego-california-09-06-2025/event/0A0062DBA3205FA8",
+      "date": "2025-09-06",
+      "time": "11:00:00",
+      "venue": "Snapdragon Stadium",
+      "genre": "Undefined",
       "price_range": "N/A"
     },
     {
-      "name": "Holo Holo Music Festival - (TIME SUBJECT TO CHANGE)",
-      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7bf7O",
-      "date": "2025-08-31",
-      "time": "",
-      "venue": "Park at the Park - Petco Park",
-      "genre": "",
+      "name": "Justin Willman: One For The Ages Tour",
+      "url": "https://www.ticketmaster.com/justin-willman-one-for-the-ages-san-diego-california-09-06-2025/event/0A0062B3976B1C14",
+      "date": "2025-09-06",
+      "time": "16:00:00",
+      "venue": "Balboa Theatre",
+      "genre": "Magic & Illusion",
       "price_range": "N/A"
     },
     {
-      "name": "San Diego Toreros Football vs. California Poly Mustangs Football",
-      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7bbC3",
-      "date": "2025-08-30",
-      "time": "17:00:00",
+      "name": "San Diego Toreros Football vs. Southern Utah Thunderbirds Football",
+      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7bbCK",
+      "date": "2025-09-06",
+      "time": "18:00:00",
       "venue": "USD Torero Stadium",
       "genre": "Miscellaneous",
+      "price_range": "N/A"
+    },
+    {
+      "name": "$uicideboy$ present Grey Day Tour 2025 w. BONES & more",
+      "url": "https://www.ticketmaster.com/uicideboy-present-grey-day-tour-2025-chula-vista-california-09-06-2025/event/0A006278B2293BBA",
+      "date": "2025-09-06",
+      "time": "18:30:00",
+      "venue": "North Island Credit Union Amphitheatre",
+      "genre": "Hip-Hop/Rap",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Savannah Banana Deposit",
+      "url": "",
+      "date": "2025-09-06",
+      "time": "19:00:00",
+      "venue": "Petco Park",
+      "genre": "",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Savannah Bananas 9.6",
+      "url": "",
+      "date": "2025-09-06",
+      "time": "19:00:00",
+      "venue": "Petco Park",
+      "genre": "",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Justin Willman: One For The Ages Tour",
+      "url": "https://www.ticketmaster.com/justin-willman-one-for-the-ages-san-diego-california-09-06-2025/event/0A0062B397691BF4",
+      "date": "2025-09-06",
+      "time": "19:00:00",
+      "venue": "Balboa Theatre",
+      "genre": "Magic & Illusion",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Taiojr",
+      "url": "https://www.ticketmaster.com/taiojr-san-diego-california-09-06-2025/event/0A0062B0E7C458E3",
+      "date": "2025-09-06",
+      "time": "19:00:00",
+      "venue": "Voodoo Room at the House of Blues San Diego",
+      "genre": "Hip-Hop/Rap",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Savannah Bananas",
+      "url": "https://www.ticketmaster.com/event/Z7r9jZ1A7bfvK",
+      "date": "2025-09-06",
+      "time": "19:00:00",
+      "venue": "PETCO Park",
+      "genre": "Miscellaneous",
+      "price_range": "N/A"
+    },
+    {
+      "name": "Small Town Murder Podcast",
+      "url": "https://www.ticketmaster.com/small-town-murder-podcast-san-diego-california-09-06-2025/event/0B00618C98CC0F5B",
+      "date": "2025-09-06",
+      "time": "19:00:00",
+      "venue": "The Observatory North Park",
+      "genre": "Comedy",
       "price_range": "N/A"
     }
   ]
