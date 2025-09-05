@@ -1403,14 +1403,15 @@ export default function AnalysisTab() {
                             {revenueByRoomTypeData.map((entry, index) => {
                               const colors = ['#ff0000', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
                               const isSelected = clickedRoomType === entry.room_type;
-                              const color = isSelected ? '#ff0000' : colors[index % colors.length];
+                              const hasSelection = clickedRoomType !== null;
+                              const color = colors[index % colors.length];
                               
                               return (
                                 <Cell 
                                   key={`cell-${index}`} 
                                   fill={color}
-                                  opacity={isSelected ? 1 : 0.8}
-                                  stroke={isSelected ? "#ff0000" : "#ffffff"}
+                                  opacity={hasSelection ? (isSelected ? 1 : 0.3) : 1}
+                                  stroke={isSelected ? "#ffffff" : "#ffffff"}
                                   strokeWidth={isSelected ? 3 : 1}
                                 />
                               );

@@ -118,9 +118,30 @@ export const useRevenueAnalysis = ({
     };
   }, [supabaseData, selectedRoomType, clickedRoomType, range, convertPriceToSelectedCurrency]);
 
-  // Calculate revenue by room type
+  // Calculate revenue by room type - always show all room types regardless of selection
   const revenueByRoomTypeData = useMemo(() => {
-    if (!filteredSupabaseData || filteredSupabaseData.length === 0) return [];
+    if (!supabaseData || supabaseData.length === 0) return [];
+
+    // Use unfiltered data for pie chart to always show all room types
+    let dataToUse = supabaseData;
+    
+    // Only apply date range filter, not room type filter
+    if (range && range > 0) {
+      const endDate = new Date("2025-10-30");
+      const rangeStart = new Date(endDate);
+      rangeStart.setDate(endDate.getDate() - range);
+      
+      dataToUse = dataToUse.filter((item) => {
+        const checkinDate = item.checkin_date;
+        if (!checkinDate) return false;
+        let dateStr = checkinDate;
+        if (checkinDate.includes("T")) {
+          dateStr = checkinDate.split("T")[0];
+        }
+        const itemDate = new Date(dateStr);
+        return itemDate >= rangeStart && itemDate <= endDate;
+      });
+    }
 
     const roomTypeData: Record<string, {
       total_revenue: number;
@@ -130,7 +151,7 @@ export const useRevenueAnalysis = ({
       max_price?: number;
     }> = {};
 
-    filteredSupabaseData.forEach((item) => {
+    dataToUse.forEach((item) => {
       const roomType = standardizeRoomType(item.room_type);
       const price = convertPriceToSelectedCurrency(item.processed_price, item.processed_currency);
       
@@ -174,7 +195,7 @@ export const useRevenueAnalysis = ({
     })));
     
     return result;
-  }, [filteredSupabaseData, convertPriceToSelectedCurrency, selectedCurrency]);
+  }, [supabaseData, range, convertPriceToSelectedCurrency, selectedCurrency]);
 
   // Get unique room types for filter dropdown
   const uniqueRoomTypes = useMemo(() => {
