@@ -32,18 +32,17 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setExchangeRate(1);
       return;
     }
-    
-    // Check if we have a cached rate from this session
+
     const now = Date.now();
     const sessionCacheKey = 'exchangeRateCache';
     const cachedData = sessionStorage.getItem(sessionCacheKey);
-    
+
     if (cachedData) {
       try {
         const { rate, timestamp } = JSON.parse(cachedData);
         const cacheAge = now - timestamp;
         const cacheValid = cacheAge < 24 * 60 * 60 * 1000; // 24 hours
-        
+
         if (cacheValid) {
           setExchangeRate(rate);
           return;
@@ -52,23 +51,24 @@ export const CurrencyProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         console.warn('Failed to parse cached exchange rate');
       }
     }
-    
+
     try {
-      const response = await fetch('/api/exchange-rate');
+      const response = await fetch(`/api/exchange-rate?from=MXN&to=USD`);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
       const data = await response.json();
-      if (data.success && data.rate) {
-        // Cache the new rate in session storage
+      if (data.rate) {
         const cacheData = {
           rate: data.rate,
           timestamp: now
         };
         sessionStorage.setItem(sessionCacheKey, JSON.stringify(cacheData));
-        
         setExchangeRate(data.rate);
       }
     } catch (error) {
       console.error('Failed to fetch exchange rate:', error);
-      // Keep default fallback rate
+      // Keep existing fallback (default 18.5)
     }
   }, [selectedCurrency]);
 

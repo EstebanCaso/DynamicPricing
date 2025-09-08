@@ -8,6 +8,23 @@ import AnalysisTab from '@/components/AnalysisTab'
 import CalendarTab from '@/components/CalendarTab'
 import CompetitorsTab from '@/components/CompetitorsTab'
 
+const getInitialTab = () => {
+  if (typeof window !== 'undefined') {
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabFromUrl = urlParams.get('tab');
+    if (tabFromUrl && ['summary', 'calendar', 'competitors', 'analysis'].includes(tabFromUrl)) {
+      localStorage.setItem('activeDashboardTab', tabFromUrl);
+      return tabFromUrl;
+    }
+
+    const tabFromStorage = localStorage.getItem('activeDashboardTab');
+    if (tabFromStorage && ['summary', 'calendar', 'competitors', 'analysis'].includes(tabFromStorage)) {
+      return tabFromStorage;
+    }
+  }
+  return 'summary';
+};
+
 type OverviewStats = {
   totalEvents: number
   growthPercent: number
@@ -18,7 +35,7 @@ type AnalyticsRow = { fecha?: string | null }
 type EventItem = { fecha?: string | null }
 
 function DashboardContent() {
-  const [activeTab, setActiveTab] = useState('summary')
+  const [activeTab, setActiveTab] = useState(getInitialTab)
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
@@ -71,43 +88,25 @@ function DashboardContent() {
     run()
   }, [])
 
-  // Sync active tab with query param for deep-links like ?tab=calendar&date=YYYY-MM-DD
+  // Sync active tab with query param after initial load and on navigation
   useEffect(() => {
-    // Try to get tab from search params first
-    const fromQuery = searchParams.get('tab')
-    
-    // Fallback: parse from URL if searchParams doesn't work
-    let tabFromUrl = fromQuery
-    if (!tabFromUrl && typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search)
-      tabFromUrl = urlParams.get('tab')
-    }
-    
+    const tabFromUrl = searchParams.get('tab');
     if (tabFromUrl && ['summary', 'calendar', 'competitors', 'analysis'].includes(tabFromUrl)) {
-      setActiveTab(tabFromUrl)
-    }
-  }, [searchParams, pathname])
-
-  // Additional effect to handle URL changes
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const handleUrlChange = () => {
-        const urlParams = new URLSearchParams(window.location.search)
-        const tab = urlParams.get('tab')
-        if (tab && ['summary', 'calendar', 'competitors', 'analysis'].includes(tab)) {
-          setActiveTab(tab)
-        }
+      if (tabFromUrl !== activeTab) {
+        setActiveTab(tabFromUrl);
+        localStorage.setItem('activeDashboardTab', tabFromUrl);
       }
-      
-      // Check on mount with a small delay to ensure client-side execution
-      setTimeout(handleUrlChange, 100)
-      
-      // Listen for popstate events (browser back/forward)
-      window.addEventListener('popstate', handleUrlChange)
-      
-      return () => window.removeEventListener('popstate', handleUrlChange)
     }
-  }, [])
+  }, [searchParams, activeTab]);
+
+  const handleTabClick = (tabId: string) => {
+    setActiveTab(tabId);
+    const currentParams = new URLSearchParams(window.location.search);
+    currentParams.set('tab', tabId);
+    const newUrl = `${pathname}?${currentParams.toString()}`;
+    window.history.pushState({ path: newUrl }, '', newUrl);
+    localStorage.setItem('activeDashboardTab', tabId);
+  };
 
   const now = new Date()
   const year = now.getFullYear()
@@ -185,7 +184,7 @@ function DashboardContent() {
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleTabClick(tab.id)}
                     className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                       activeTab === tab.id
                         ? 'bg-arkus-600 text-white shadow-lg'

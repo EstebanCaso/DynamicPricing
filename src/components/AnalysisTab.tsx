@@ -395,7 +395,7 @@ export default function AnalysisTab() {
             if (room.price) {
               const price = getPriceValue(room.price);
               if (price > 0) {
-                totalRevenue += price;
+                totalRevenue += convertPriceToSelectedCurrency(price, 'MXN');
                 roomCount++;
               }
             }
