@@ -8,23 +8,6 @@ import AnalysisTab from '@/components/AnalysisTab'
 import CalendarTab from '@/components/CalendarTab'
 import CompetitorsTab from '@/components/CompetitorsTab'
 
-const getInitialTab = () => {
-  if (typeof window !== 'undefined') {
-    const urlParams = new URLSearchParams(window.location.search);
-    const tabFromUrl = urlParams.get('tab');
-    if (tabFromUrl && ['summary', 'calendar', 'competitors', 'analysis'].includes(tabFromUrl)) {
-      localStorage.setItem('activeDashboardTab', tabFromUrl);
-      return tabFromUrl;
-    }
-
-    const tabFromStorage = localStorage.getItem('activeDashboardTab');
-    if (tabFromStorage && ['summary', 'calendar', 'competitors', 'analysis'].includes(tabFromStorage)) {
-      return tabFromStorage;
-    }
-  }
-  return 'summary';
-};
-
 type OverviewStats = {
   totalEvents: number
   growthPercent: number
@@ -35,7 +18,7 @@ type AnalyticsRow = { fecha?: string | null }
 type EventItem = { fecha?: string | null }
 
 function DashboardContent() {
-  const [activeTab, setActiveTab] = useState(getInitialTab)
+  const [activeTab, setActiveTab] = useState('summary')
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
@@ -91,13 +74,13 @@ function DashboardContent() {
   // Sync active tab with query param after initial load and on navigation
   useEffect(() => {
     const tabFromUrl = searchParams.get('tab');
-    if (tabFromUrl && ['summary', 'calendar', 'competitors', 'analysis'].includes(tabFromUrl)) {
-      if (tabFromUrl !== activeTab) {
-        setActiveTab(tabFromUrl);
-        localStorage.setItem('activeDashboardTab', tabFromUrl);
-      }
+    const tabFromStorage = localStorage.getItem('activeDashboardTab');
+    const targetTab = tabFromUrl || tabFromStorage;
+
+    if (targetTab && ['summary', 'calendar', 'competitors', 'analysis'].includes(targetTab)) {
+        setActiveTab(targetTab);
     }
-  }, [searchParams, activeTab]);
+  }, [searchParams]);
 
   const handleTabClick = (tabId: string) => {
     setActiveTab(tabId);
@@ -217,22 +200,22 @@ function DashboardContent() {
                 {/* KPI Cards (stacked) */}
                 <div className="grid grid-cols-1 gap-6">
                   {/* Performance Index */}
-                  <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  {/* <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
                     <div className="border-l-4 border-orange-500 pl-4">
                       <h3 className="text-sm font-medium text-gray-600 mb-2">Performance index</h3>
                       <p className="text-3xl font-bold text-orange-500">
                         {loading ? '…' : stats?.growthPercent != null ? `${stats.growthPercent}%` : '-'}
                       </p>
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* Average Rate */}
-                  <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  {/* <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
                     <div className="border-l-4 border-arkus-500 pl-4">
                       <h3 className="text-sm font-medium text-gray-600 mb-2">Average rate</h3>
                       <p className="text-3xl font-bold text-gray-900">-</p>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
 
                 {/* Monthly Calendar (clickable) */}

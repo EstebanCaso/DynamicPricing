@@ -26,6 +26,7 @@ import {
   Pie,
   ScatterChart,
   Scatter,
+  PieLabelRenderProps,
 } from "recharts";
 
 import { useEffect, useMemo, useState, useCallback } from "react";
@@ -50,6 +51,49 @@ import PriceStats from "./PriceStats";
 import RevenueByRoomTypeChart from "./RevenueByRoomTypeChart";
 import AnalysisControls from "./AnalysisControls";
 import MarketPositionCard from "./MarketPositionCard";
+
+interface CustomPieLabelProps extends PieLabelRenderProps {
+  payload?: {
+    room_type: string;
+  };
+}
+
+const RADIAN = Math.PI / 180;
+const renderCustomizedLabel = (props: CustomPieLabelProps) => {
+  const { cx, cy, midAngle, innerRadius, outerRadius, percent, index, payload } = props;
+
+  if (midAngle === undefined || innerRadius === undefined || outerRadius === undefined || percent === undefined || !payload) {
+    return null;
+  }
+
+  // Type guard for cx and cy to ensure they are numbers
+  if (typeof cx !== 'number' || typeof cy !== 'number') {
+    return null;
+  }
+  
+  const sin = Math.sin(-midAngle * RADIAN);
+  const cos = Math.cos(-midAngle * RADIAN);
+  const sx = Number(cx) + (outerRadius + 10) * cos;
+  const sy = Number(cy) + (outerRadius + 10) * sin;
+  const mx = Number(cx) + (outerRadius + 30) * cos;
+  const my = Number(cy) + (outerRadius + 30) * sin;
+  const ex = mx + (cos >= 0 ? 1 : -1) * 22;
+  const ey = my;
+  const textAnchor = cos >= 0 ? 'start' : 'end';
+
+  return (
+    <g>
+      <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke="#999" fill="none" />
+      <circle cx={ex} cy={ey} r={2} fill="#999" stroke="none" />
+      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} textAnchor={textAnchor} fill="#333" className="text-sm font-medium">
+        {payload.room_type}
+      </text>
+      <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} dy={16} textAnchor={textAnchor} fill="#666" className="text-xs">
+        {`(${(percent * 100).toFixed(0)}%)`}
+      </text>
+    </g>
+  );
+};
 
 type HistoricalPoint = {
   day: string;
@@ -693,6 +737,52 @@ export default function AnalysisTab() {
     const delta = ourHotelEntry.revenue - marketAvg;
     return (delta / marketAvg) * 100;
   }, [ourHotelEntry, marketAvg]);
+
+  const monthlyStats = useMemo(() => {
+    if (!historicalPriceSeries || historicalPriceSeries.length === 0) return null;
+
+    const [year, monthNum] = selectedMonth.split('-').map(Number);
+    const monthIndex = monthNum - 1;
+
+    const monthData = historicalPriceSeries.filter(item => {
+        const itemDate = new Date(item.date);
+        return itemDate.getFullYear() === year && itemDate.getMonth() === monthIndex;
+    });
+
+    if (monthData.length === 0) return null;
+
+    const prices = monthData.map(d => d.price);
+    const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+    
+    const mostExpensive = monthData.reduce((max, item) => item.price > max.price ? item : max, monthData[0]);
+    const leastExpensive = monthData.reduce((min, item) => item.price < min.price ? item : min, monthData[0]);
+    const priceRange = mostExpensive.price - leastExpensive.price;
+
+    const weekdays = monthData.filter(item => {
+        const day = new Date(item.date).getDay();
+        return day > 0 && day < 6;
+    });
+    const weekends = monthData.filter(item => {
+        const day = new Date(item.date).getDay();
+        return day === 0 || day === 6;
+    });
+
+    const weekdayAvg = weekdays.length > 0 ? weekdays.reduce((sum, item) => sum + item.price, 0) / weekdays.length : 0;
+    const weekendAvg = weekends.length > 0 ? weekends.reduce((sum, item) => sum + item.price, 0) / weekends.length : 0;
+    
+    let weekendVsWeekdayDiff = 0;
+    if (weekdayAvg > 0 && weekendAvg > 0) {
+        weekendVsWeekdayDiff = ((weekendAvg - weekdayAvg) / weekdayAvg) * 100;
+    }
+
+    return {
+        avgPrice,
+        mostExpensive,
+        leastExpensive,
+        priceRange,
+        weekendVsWeekdayDiff
+    };
+  }, [historicalPriceSeries, selectedMonth]);
 
   const positionIndex = useMemo(() => {
     if (!ourHotelEntry || !revenuePerformanceData || revenuePerformanceData.length === 0) return null as number | null;
@@ -1388,7 +1478,7 @@ export default function AnalysisTab() {
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
                       <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
+                        <PieChart margin={{ top: 20, right: 60, bottom: 20, left: 60 }}>
                           <Pie
                             data={revenueByRoomTypeData}
                             cx="50%"
@@ -1399,6 +1489,8 @@ export default function AnalysisTab() {
                             dataKey="total_revenue"
                             onClick={handleBarClick}
                             style={{ cursor: "pointer" }}
+                            labelLine={false}
+                            label={renderCustomizedLabel}
                           >
                             {revenueByRoomTypeData.map((entry, index) => {
                               const colors = ['#ff0000', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444'];
@@ -1736,14 +1828,14 @@ export default function AnalysisTab() {
                                  
                                  if (hasData) {
                                    if (intensity < 0.33) {
-                                     bgColor = 'bg-red-100 border border-red-200';
-                                     textColor = 'text-red-800';
+                                     bgColor = 'bg-green-100 border border-green-200';
+                                     textColor = 'text-green-800';
                                    } else if (intensity < 0.66) {
-                                     bgColor = 'bg-red-300 border border-red-400';
-                                     textColor = 'text-red-900';
+                                     bgColor = 'bg-yellow-100 border border-yellow-200';
+                                     textColor = 'text-yellow-800';
                                    } else {
-                                     bgColor = 'bg-red-500 border border-red-600';
-                                     textColor = 'text-white';
+                                     bgColor = 'bg-red-200 border border-red-300';
+                                     textColor = 'text-red-900';
                                    }
                                  } else {
                                    bgColor = 'bg-gray-50 border border-gray-200';

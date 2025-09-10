@@ -186,6 +186,8 @@ const AnalysisControls = memo(({
         <div className="space-y-1">
           <label className="block text-xs font-medium text-gray-600">Room Type</label>
           <select
+            id="roomType"
+            name="roomType"
             value={selectedRoomType}
             onChange={(e) => setSelectedRoomType(e.target.value)}
             className="w-full text-sm px-3 py-2 border border-glass-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-arkus-500 bg-glass-50 backdrop-blur-sm transition-all duration-150 ease-out"
