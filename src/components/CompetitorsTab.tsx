@@ -10,6 +10,7 @@ import {
 } from '@/lib/dataUtils'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import CurrencySelector from './CurrencySelector'
+import CompetitorProfile from './CompetitorProfile';
 
 interface Competitor {
   id: string
@@ -70,6 +71,7 @@ export default function CompetitorsTab() {
   // New state for competitor selection
   const [selectedCompetitors, setSelectedCompetitors] = useState<string[]>([])
   const [showCompetitorSelector, setShowCompetitorSelector] = useState(false)
+  const [selectedCompetitor, setSelectedCompetitor] = useState<any | null>(null);
 
   // Load selected competitors from localStorage on component mount
   useEffect(() => {
@@ -593,7 +595,15 @@ export default function CompetitorsTab() {
                     const isSelected = isCompetitorSelected(competitor.name)
                     
                     return (
-                      <tr key={index} className={`hover:bg-gray-50 ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}>
+                      <tr 
+                        key={index} 
+                        className={`hover:bg-gray-50 cursor-pointer ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
+                        onClick={() => {
+                          const competitorInfo = { ...competitor, checkinDate: competitorData.today };
+                          console.log('Clicked Competitor. Sending this data to Profile:', competitorInfo);
+                          setSelectedCompetitor(competitorInfo);
+                        }}
+                      >
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="flex items-center space-x-2">
                             <div className="text-sm font-medium text-gray-900">{competitor.name}</div>
@@ -655,6 +665,13 @@ export default function CompetitorsTab() {
           </table>
         </div>
       </div>
+
+      {selectedCompetitor && (
+        <CompetitorProfile 
+          competitor={selectedCompetitor} 
+          onClose={() => setSelectedCompetitor(null)} 
+        />
+      )}
 
       {/* Summary Insights */}
       <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300">

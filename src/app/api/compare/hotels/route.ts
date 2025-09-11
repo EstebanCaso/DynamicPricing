@@ -274,18 +274,6 @@ export async function POST(request: NextRequest) {
         // Try to get rooms for date candidates, but if none found, try any available date
         let rooms = pickRoomsForDate(container as any, dateCandidates) as Array<RoomPrice> | undefined
         
-        // If no rooms found for today's candidates, try any available date as fallback
-        if (!rooms || rooms.length === 0) {
-          if (container && typeof container === 'object') {
-            const allDates = Object.keys(container)
-            if (allDates.length > 0) {
-              // Take the most recent date available
-              const mostRecentDate = allDates.sort().reverse()[0]
-              rooms = container[mostRecentDate] as Array<RoomPrice> | undefined
-            }
-          }
-        }
-        
         if (!rooms || rooms.length === 0) return null
         const nums = rooms
           .map((r: RoomPrice) => parsePriceToNumber(r?.price))
