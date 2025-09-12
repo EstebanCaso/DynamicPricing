@@ -75,6 +75,25 @@ function getCanonicalToday(): string {
   }
 }
 
+function standardizeRoomType(roomType?: string | null): string {
+  if (!roomType) return 'Other';
+  const lowerRoomType = roomType.toLowerCase();
+  
+  // Spanish keywords
+  if (lowerRoomType.includes('doble') || lowerRoomType.includes('2 camas')) return 'Double Room';
+  if (lowerRoomType.includes('sencilla') || lowerRoomType.includes('individual')) return 'Single Room';
+  if (lowerRoomType.includes('king')) return 'King Room';
+  if (lowerRoomType.includes('queen')) return 'Queen Room';
+  if (lowerRoomType.includes('suite')) return 'Suite';
+  if (lowerRoomType.includes('estudio')) return 'Studio';
+  
+  // English keywords
+  if (lowerRoomType.includes('double') || lowerRoomType.includes('two beds')) return 'Double Room';
+  if (lowerRoomType.includes('single')) return 'Single Room';
+
+  return 'Other';
+}
+
 function pickRoomsForDate(
   dict: Record<string, Array<{ room_type?: string; price?: string }>> | null | undefined,
   candidates: string[]
@@ -112,10 +131,14 @@ export async function POST(request: NextRequest) {
   try {
     // Parse optional body for filters
     let selectedStars: number | null = null
+    let selectedRoomType: string | null = null
     try {
       const body = await request.json()
-      const maybe = Number(body?.stars)
-      if (Number.isFinite(maybe) && maybe >= 1 && maybe <= 5) selectedStars = Math.trunc(maybe)
+      const maybeStars = Number(body?.stars)
+      if (Number.isFinite(maybeStars) && maybeStars >= 1 && maybeStars <= 5) selectedStars = Math.trunc(maybeStars)
+      if (typeof body?.roomType === 'string' && body.roomType !== 'All') {
+        selectedRoomType = body.roomType
+      }
     } catch {}
     const { data: userData } = await supabase.auth.getUser()
     const user = userData?.user
@@ -139,7 +162,7 @@ export async function POST(request: NextRequest) {
     const canonicalToday = getCanonicalToday()
     // Debug context
     // eslint-disable-next-line no-console
-    console.log('[compare/hotels] inputs', { userId, city, dateCandidates })
+    console.log('[compare/hotels] inputs', { userId, city, dateCandidates, selectedRoomType })
     // eslint-disable-next-line no-console
     console.log('[compare/hotels] user metadata', { 
       hotel_metadata: md?.hotel_metadata, 
@@ -155,7 +178,7 @@ export async function POST(request: NextRequest) {
     {
       const attempt = await supabase
         .from('Hotel_usuario')
-        .select('hotel_name, price, date')
+        .select('hotel_name, price, date, room_type')
         .eq('user_id', userId)
         .in('date', dateCandidates)
         .limit(500)
@@ -168,7 +191,7 @@ export async function POST(request: NextRequest) {
     if (!myRows) {
       const fallback = await supabase
         .from('hotel_usuario')
-        .select('hotel_name, price, checkin_date')
+        .select('hotel_name, price, checkin_date, room_type')
         .eq('user_id', userId)
         .in('checkin_date', dateCandidates)
         .limit(500)
@@ -180,8 +203,23 @@ export async function POST(request: NextRequest) {
     }
     if (!myRows) throw myErr || new Error('Failed to fetch user hotel prices')
 
+    const allRoomTypes = new Set<string>();
+    myRows.forEach(r => {
+      if(r.room_type) {
+        const standardized = standardizeRoomType(r.room_type);
+        if (standardized !== 'Other') {
+          allRoomTypes.add(standardized);
+        }
+      }
+    });
+
     const myHotelName = myRows?.[0]?.hotel_name || user.user_metadata?.hotel_name || 'Mi hotel'
-    const myPrices = (myRows || [])
+    
+    const myFilteredRows = selectedRoomType 
+      ? myRows.filter(r => standardizeRoomType(r.room_type) === selectedRoomType)
+      : myRows;
+
+    const myPrices = (myFilteredRows || [])
       .map((r: any) => parsePriceToNumber(r?.price))
       .filter((n: number | null): n is number => n != null)
     const myAvg = myPrices.length ? myPrices.reduce((a: number, b: number) => a + b, 0) / myPrices.length : null
@@ -274,20 +312,24 @@ export async function POST(request: NextRequest) {
         // Try to get rooms for date candidates, but if none found, try any available date
         let rooms = pickRoomsForDate(container as any, dateCandidates) as Array<RoomPrice> | undefined
         
-        // If no rooms found for today's candidates, try any available date as fallback
-        if (!rooms || rooms.length === 0) {
-          if (container && typeof container === 'object') {
-            const allDates = Object.keys(container)
-            if (allDates.length > 0) {
-              // Take the most recent date available
-              const mostRecentDate = allDates.sort().reverse()[0]
-              rooms = container[mostRecentDate] as Array<RoomPrice> | undefined
-            }
-          }
-        }
-        
         if (!rooms || rooms.length === 0) return null
-        const nums = rooms
+
+        rooms.forEach(r => {
+            if(r.room_type) {
+              const standardized = standardizeRoomType(r.room_type);
+              if (standardized !== 'Other') {
+                allRoomTypes.add(standardized);
+              }
+            }
+        });
+
+        const filteredRooms = selectedRoomType
+            ? rooms.filter(r => standardizeRoomType(r.room_type) === selectedRoomType)
+            : rooms;
+
+        if (!filteredRooms || filteredRooms.length === 0) return null;
+
+        const nums = filteredRooms
           .map((r: RoomPrice) => parsePriceToNumber(r?.price))
           .filter((n: number | null): n is number => n != null)
         if (!nums.length) return null
@@ -335,6 +377,7 @@ export async function POST(request: NextRequest) {
         competitorsCount,
         position,
         starsFilter: selectedStars,
+        roomTypes: Array.from(allRoomTypes).sort(),
         debug: { 
           dateCandidates, 
           canonicalToday, 

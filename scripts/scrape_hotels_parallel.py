@@ -291,12 +291,11 @@ def insert_hotels_supabase(hotels: List[Dict[str, Any]], ciudad: str):
     """
     Inserta cada hotel (un registro por hotel) en la tabla hoteles_parallel de Supabase.
     """
-    url = f"{SUPABASE_URL}/rest/v1/hoteles_parallel?on_conflict=nombre,ciudad"
+    url = f"{SUPABASE_URL}/rest/v1/hoteles_parallel"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
-        "Content-Type": "application/json",
-        "Prefer": "resolution=merge-duplicates"
+        "Content-Type": "application/json"
     }
     with requests.Session() as session:
         for hotel in hotels:

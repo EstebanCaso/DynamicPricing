@@ -7,6 +7,7 @@ import HotelsComparisonCard from '@/components/HotelsComparisonCard'
 import AnalysisTab from '@/components/AnalysisTab'
 import CalendarTab from '@/components/CalendarTab'
 import CompetitorsTab from '@/components/CompetitorsTab'
+import CompetitorProfile from '@/components/CompetitorProfile'
 
 type OverviewStats = {
   totalEvents: number
@@ -26,6 +27,7 @@ function DashboardContent() {
   const [eventRows, setEventRows] = useState<AnalyticsRow[]>([])
   const [events, setEvents] = useState<EventItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [selectedCompetitor, setSelectedCompetitor] = useState<any | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -71,43 +73,25 @@ function DashboardContent() {
     run()
   }, [])
 
-  // Sync active tab with query param for deep-links like ?tab=calendar&date=YYYY-MM-DD
+  // Sync active tab with query param after initial load and on navigation
   useEffect(() => {
-    // Try to get tab from search params first
-    const fromQuery = searchParams.get('tab')
-    
-    // Fallback: parse from URL if searchParams doesn't work
-    let tabFromUrl = fromQuery
-    if (!tabFromUrl && typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search)
-      tabFromUrl = urlParams.get('tab')
-    }
-    
-    if (tabFromUrl && ['summary', 'calendar', 'competitors', 'analysis'].includes(tabFromUrl)) {
-      setActiveTab(tabFromUrl)
-    }
-  }, [searchParams, pathname])
+    const tabFromUrl = searchParams.get('tab');
+    const tabFromStorage = localStorage.getItem('activeDashboardTab');
+    const targetTab = tabFromUrl || tabFromStorage;
 
-  // Additional effect to handle URL changes
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const handleUrlChange = () => {
-        const urlParams = new URLSearchParams(window.location.search)
-        const tab = urlParams.get('tab')
-        if (tab && ['summary', 'calendar', 'competitors', 'analysis'].includes(tab)) {
-          setActiveTab(tab)
-        }
-      }
-      
-      // Check on mount with a small delay to ensure client-side execution
-      setTimeout(handleUrlChange, 100)
-      
-      // Listen for popstate events (browser back/forward)
-      window.addEventListener('popstate', handleUrlChange)
-      
-      return () => window.removeEventListener('popstate', handleUrlChange)
+    if (targetTab && ['summary', 'calendar', 'competitors', 'analysis'].includes(targetTab)) {
+        setActiveTab(targetTab);
     }
-  }, [])
+  }, [searchParams]);
+
+  const handleTabClick = (tabId: string) => {
+    setActiveTab(tabId);
+    const currentParams = new URLSearchParams(window.location.search);
+    currentParams.set('tab', tabId);
+    const newUrl = `${pathname}?${currentParams.toString()}`;
+    window.history.pushState({ path: newUrl }, '', newUrl);
+    localStorage.setItem('activeDashboardTab', tabId);
+  };
 
   const now = new Date()
   const year = now.getFullYear()
@@ -185,7 +169,7 @@ function DashboardContent() {
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => handleTabClick(tab.id)}
                     className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
                       activeTab === tab.id
                         ? 'bg-arkus-600 text-white shadow-lg'
@@ -210,7 +194,7 @@ function DashboardContent() {
           ) : activeTab === 'calendar' ? (
             <CalendarTab />
           ) : activeTab === 'competitors' ? (
-            <CompetitorsTab />
+            <CompetitorsTab onCompetitorSelect={setSelectedCompetitor} />
           ) : (
             <div className="grid grid-cols-3 gap-8">
               {/* Left Column - KPIs and Calendar */}
@@ -218,22 +202,22 @@ function DashboardContent() {
                 {/* KPI Cards (stacked) */}
                 <div className="grid grid-cols-1 gap-6">
                   {/* Performance Index */}
-                  <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  {/* <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
                     <div className="border-l-4 border-orange-500 pl-4">
                       <h3 className="text-sm font-medium text-gray-600 mb-2">Performance index</h3>
                       <p className="text-3xl font-bold text-orange-500">
                         {loading ? '…' : stats?.growthPercent != null ? `${stats.growthPercent}%` : '-'}
                       </p>
                     </div>
-                  </div>
+                  </div> */}
 
                   {/* Average Rate */}
-                  <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
+                  {/* <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl p-6 shadow-xl hover:shadow-2xl transition-all duration-300">
                     <div className="border-l-4 border-arkus-500 pl-4">
                       <h3 className="text-sm font-medium text-gray-600 mb-2">Average rate</h3>
                       <p className="text-3xl font-bold text-gray-900">-</p>
                     </div>
-                  </div>
+                  </div> */}
                 </div>
 
                 {/* Monthly Calendar (clickable) */}
@@ -288,6 +272,13 @@ function DashboardContent() {
           )}
         </div>
       </div>
+      
+      {selectedCompetitor && (
+        <CompetitorProfile 
+          competitor={selectedCompetitor} 
+          onClose={() => setSelectedCompetitor(null)} 
+        />
+      )}
     </div>
   )
 }
