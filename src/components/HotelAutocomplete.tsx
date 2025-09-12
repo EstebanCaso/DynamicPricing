@@ -169,12 +169,42 @@ export default function HotelAutocomplete({
     }
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value
     onChange(newValue)
     
-    // Filtrar localmente sin hacer nuevas peticiones a la API
+    // Cuando el usuario escribe 2+ caracteres, consultar al backend con geolocalización
+    if (newValue.length >= 2 && userLocation) {
+      try {
+        setIsLoading(true)
+        const response = await fetch('/api/hotels/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            latitude: userLocation.lat,
+            longitude: userLocation.lng,
+            radius: 30,
+            keyword: newValue
+          })
+        })
+        if (response.ok) {
+          const data = await response.json()
+          if (data.success) {
+            const hotels = data.hotels || []
+            setSuggestions(hotels)
+          }
+        }
+      } catch (err) {
+        console.error('Error searching hotels:', err)
+        // Fallback a filtrado local si falla la búsqueda remota
+        filterHotelsLocally(newValue)
+      } finally {
+        setIsLoading(false)
+      }
+    } else {
+      // Para menos de 2 caracteres o sin ubicación, usar filtrado local
     filterHotelsLocally(newValue)
+    }
     
     // Mostrar sugerencias si hay resultados
     if (newValue.length === 0 || newValue.length >= 2) {
@@ -216,7 +246,7 @@ export default function HotelAutocomplete({
         placeholder={userLocation ? (suggestions.length > 0 ? "Type to filter hotels..." : "Loading hotels...") : "Waiting for location..."}
         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-colors"
         autoComplete="off"
-        disabled={!userLocation}
+        disabled={false}
       />
       
       

@@ -13,14 +13,14 @@ export async function POST(request: NextRequest): Promise<Response> {
       )
     }
 
-    // Ejecutar el script de Python de Amadeus
-    const pythonProcess = spawn('python', [
-      'scripts/amadeus_hotels.py',
-      '--lat', latitude.toString(),
-      '--lng', longitude.toString(),
+    // Ejecutar el script de JavaScript de Amadeus
+    const nodeProcess = spawn('node', [
+      'scripts/amadeus_hotels.js',
+      latitude.toString(),
+      longitude.toString(),
       '--radius', radius.toString(),
-      '--keyword', keyword
-    ], {
+      keyword ? `--keyword=${keyword}` : ''
+    ].filter(Boolean), {
       cwd: process.cwd(),
       stdio: ['pipe', 'pipe', 'pipe']
     })
@@ -28,16 +28,16 @@ export async function POST(request: NextRequest): Promise<Response> {
     let output = ''
     let error = ''
 
-    pythonProcess.stdout.on('data', (data) => {
+    nodeProcess.stdout.on('data', (data) => {
       output += data.toString()
     })
 
-    pythonProcess.stderr.on('data', (data) => {
+    nodeProcess.stderr.on('data', (data) => {
       error += data.toString()
     })
 
     return await new Promise<Response>((resolve) => {
-      pythonProcess.on('close', (code) => {
+      nodeProcess.on('close', (code) => {
         if (code === 0) {
           try {
             const hotels = JSON.parse(output.trim())
@@ -62,7 +62,7 @@ export async function POST(request: NextRequest): Promise<Response> {
               hotels: transformedHotels
             }))
           } catch (parseError) {
-            console.error('Error parsing Python output:', parseError)
+            console.error('Error parsing JavaScript output:', parseError)
             resolve(NextResponse.json({
               success: false,
               error: 'Error parsing hotel data',
@@ -70,7 +70,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             }, { status: 500 }))
           }
         } else {
-          console.error('Python script error:', error)
+          console.error('JavaScript script error:', error)
           resolve(NextResponse.json({
             success: false,
             error: error || 'Script execution failed',
