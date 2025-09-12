@@ -633,16 +633,17 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
                         return (
                           <tr 
                             key={index} 
-                            className={`hover:bg-gray-50 cursor-pointer ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
-                            onClick={() => {
-                              const competitorInfo = { ...competitor, checkinDate: competitorData.today };
-                              console.log('Clicked Competitor. Sending this data to Profile:', competitorInfo);
-                              onCompetitorSelect(competitorInfo);
-                            }}
+                            className={`group hover:bg-gray-50 ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
                           >
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td 
+                              className="px-6 py-4 whitespace-nowrap cursor-pointer"
+                              onClick={() => {
+                                const competitorInfo = { ...competitor, checkinDate: competitorData.today };
+                                onCompetitorSelect(competitorInfo);
+                              }}
+                            >
                               <div className="flex items-center space-x-2">
-                                <div className="text-sm font-medium text-gray-900">{competitor.name}</div>
+                                <div className="text-sm font-medium text-gray-900 group-hover:text-red-600">{competitor.name}</div>
                                 {isSelected && (
                                   <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 border border-blue-200">
                                     Main Competitor
