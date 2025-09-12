@@ -7,6 +7,7 @@ import HotelsComparisonCard from '@/components/HotelsComparisonCard'
 import AnalysisTab from '@/components/AnalysisTab'
 import CalendarTab from '@/components/CalendarTab'
 import CompetitorsTab from '@/components/CompetitorsTab'
+import CompetitorProfile from '@/components/CompetitorProfile'
 
 type OverviewStats = {
   totalEvents: number
@@ -26,6 +27,7 @@ function DashboardContent() {
   const [eventRows, setEventRows] = useState<AnalyticsRow[]>([])
   const [events, setEvents] = useState<EventItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [selectedCompetitor, setSelectedCompetitor] = useState<any | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -192,7 +194,7 @@ function DashboardContent() {
           ) : activeTab === 'calendar' ? (
             <CalendarTab />
           ) : activeTab === 'competitors' ? (
-            <CompetitorsTab />
+            <CompetitorsTab onCompetitorSelect={setSelectedCompetitor} />
           ) : (
             <div className="grid grid-cols-3 gap-8">
               {/* Left Column - KPIs and Calendar */}
@@ -270,6 +272,13 @@ function DashboardContent() {
           )}
         </div>
       </div>
+      
+      {selectedCompetitor && (
+        <CompetitorProfile 
+          competitor={selectedCompetitor} 
+          onClose={() => setSelectedCompetitor(null)} 
+        />
+      )}
     </div>
   )
 }

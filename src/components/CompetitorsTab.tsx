@@ -62,7 +62,7 @@ interface CompetitorResponse {
   roomTypes?: string[];
 }
 
-export default function CompetitorsTab() {
+export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSelect: (competitor: any) => void }) {
   const [competitorData, setCompetitorData] = useState<CompetitorResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [isReloading, setIsReloading] = useState(false);
@@ -75,7 +75,6 @@ export default function CompetitorsTab() {
   // New state for competitor selection
   const [selectedCompetitors, setSelectedCompetitors] = useState<string[]>([])
   const [showCompetitorSelector, setShowCompetitorSelector] = useState(false)
-  const [selectedCompetitor, setSelectedCompetitor] = useState<any | null>(null);
 
   // Load selected competitors from localStorage on component mount
   useEffect(() => {
@@ -638,7 +637,7 @@ export default function CompetitorsTab() {
                             onClick={() => {
                               const competitorInfo = { ...competitor, checkinDate: competitorData.today };
                               console.log('Clicked Competitor. Sending this data to Profile:', competitorInfo);
-                              setSelectedCompetitor(competitorInfo);
+                              onCompetitorSelect(competitorInfo);
                             }}
                           >
                             <td className="px-6 py-4 whitespace-nowrap">
@@ -783,13 +782,13 @@ export default function CompetitorsTab() {
         </div>
       </div>
 
-
-      {selectedCompetitor && (
+      {/* This component is now rendered by the parent page */}
+      {/* {selectedCompetitor && (
         <CompetitorProfile 
           competitor={selectedCompetitor} 
           onClose={() => setSelectedCompetitor(null)} 
         />
-      )}
+      )} */}
     </div>
   )
 }

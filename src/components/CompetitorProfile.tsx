@@ -21,6 +21,13 @@ export default function CompetitorProfile({ competitor, onClose }: CompetitorPro
   const { currency, convertPriceToSelectedCurrency } = useCurrency();
 
   useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
+  useEffect(() => {
     const fetchHistoricalData = async () => {
       if (!competitor) return;
       console.log('CompetitorProfile received this data:', competitor); 
@@ -89,17 +96,17 @@ export default function CompetitorProfile({ competitor, onClose }: CompetitorPro
       }
     };
     fetchHistoricalData();
-  }, [competitor]);
+  }, [competitor, userHotelName]);
 
   return (
-    <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex justify-end" onClick={onClose}>
       <div
-        className="fixed top-0 right-0 h-full w-full md:w-1/2 lg:w-1/3 bg-white shadow-2xl z-50 p-6 animate-slide-in-from-right overflow-y-auto"
+        className="h-full w-full max-w-2xl bg-white shadow-2xl p-6 animate-slide-in-from-right overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center mb-6">
+        <div className="flex justify-between items-center mb-6 pb-4 border-b">
             <h2 className="text-2xl font-bold text-gray-800">{competitor.name}</h2>
-            <button onClick={onClose} className="text-gray-500 hover:text-gray-800 text-3xl leading-none">&times;</button>
+            <button onClick={onClose} className="text-gray-500 hover:text-gray-800 text-3xl leading-none p-2">&times;</button>
         </div>
         
         {loading ? (
