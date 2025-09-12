@@ -6,16 +6,12 @@ import Image from 'next/image'
 import { supabase } from '@/lib/supabaseClient'
 
 interface ScrapingProgress {
-  eventos: number
   hotel: number
-  overall: number
 }
 
 export default function WelcomePage() {
   const [progress, setProgress] = useState<ScrapingProgress>({
-    eventos: 0,
-    hotel: 0,
-    overall: 0
+    hotel: 0
   })
   const [status, setStatus] = useState('Iniciando scripts de scraping...')
   const [isComplete, setIsComplete] = useState(false)
@@ -31,42 +27,19 @@ export default function WelcomePage() {
           throw new Error('Usuario no autenticado')
         }
 
-        // Obtener metadatos del usuario
-        const { data: { user: userData } } = await supabase.auth.getUser()
+        // Obtener metadatos del usuario + token
+        const [{ data: { user: userData } }, { data: sessionData }] = await Promise.all([
+          supabase.auth.getUser(),
+          supabase.auth.getSession()
+        ])
         const hotelInfo = userData?.user_metadata?.hotel_info
+        const accessToken = sessionData?.session?.access_token
         
         if (!hotelInfo) {
           throw new Error('Información del hotel no encontrada')
         }
 
-        setStatus('Iniciando scraping de eventos y conciertos...')
-        
-        console.log('Iniciando scraping de eventos con datos:', {
-          latitude: hotelInfo.latitude,
-          longitude: hotelInfo.longitude,
-          radius: 50,
-          userUuid: user.id
-        })
-        
-        // Ejecutar scrape_eventos.py para eventos
-        const eventosPromise = fetch('/api/python/run-script-with-progress', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            script: 'eventos-scraper',
-            userData: {
-              latitude: hotelInfo.latitude,
-              longitude: hotelInfo.longitude,
-              radius: 50,
-              userUuid: user.id
-            }
-          })
-        }).then(async (response) => {
-          if (!response.ok) throw new Error('Error en scraping de eventos')
-          const result = await response.json()
-          console.log('Resultado scraping eventos:', result)
-          return result
-        })
+        // No usar Amadeus en el proceso de onboarding
 
         setStatus('Iniciando scraping de precios de hoteles...')
         
@@ -75,15 +48,20 @@ export default function WelcomePage() {
           userUuid: user.id
         })
         
-        // Ejecutar hotel_propio.py para precios de hoteles
-        const hotelPromise = fetch('/api/python/run-script-with-progress', {
+        // Ejecutar hotel_propio.js para precios de hoteles
+        const hotelPromise = fetch('/api/python/run-hotel-js', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+          },
           body: JSON.stringify({ 
-            script: 'hotel-scraper',
             userData: {
               hotelName: hotelInfo.name,
-              userUuid: user.id
+              userUuid: user.id,
+              days: 90,
+              concurrency: 5,
+              headless: true
             }
           })
         }).then(async (response) => {
@@ -93,47 +71,98 @@ export default function WelcomePage() {
           return result
         })
 
-        // Simular progreso más realista basado en tiempo estimado para dos scripts
+        // Ejecutar Songkick y guardar en Supabase
+        const songkickPromise = fetch('/api/python/run-events-js', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+          },
+          body: JSON.stringify({
+            userData: {
+              latitude: hotelInfo.latitude,
+              longitude: hotelInfo.longitude,
+              radius: 50,
+              userUuid: user.id,
+              hotelName: hotelInfo.name
+            }
+          })
+        }).then(async (response) => {
+          if (!response.ok) {
+            console.warn('⚠️ Error en scraping de Songkick')
+            return { success: false }
+          }
+          const result = await response.json()
+          console.log('Resultado scraping Songkick:', result)
+          return result
+        })
+
+        // Ejecutar Ticketmaster y guardar en Supabase
+        const ticketmasterPromise = fetch('/api/python/run-ticketmaster-js', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+          },
+          body: JSON.stringify({
+            userData: {
+              latitude: hotelInfo.latitude,
+              longitude: hotelInfo.longitude,
+              radius: 10, // 10 km como solicitado
+              userUuid: user.id,
+              hotelName: hotelInfo.name
+            }
+          })
+        }).then(async (response) => {
+          if (!response.ok) {
+            console.warn('⚠️ Error en scraping de Ticketmaster')
+            return { success: false }
+          }
+          const result = await response.json()
+          console.log('Resultado scraping Ticketmaster:', result)
+          return result
+        })
+
+        // Simular progreso más realista basado en tiempo estimado para los scripts ejecutados
         const startTime = Date.now()
-        const estimatedEventosTime = 45000 // 45 segundos estimados para eventos
-        const estimatedHotelTime = 60000   // 60 segundos estimados para hoteles (corregido de 600000)
+        const estimatedHotelTime = 540000    // 9 minutos estimados para hoteles
+        const estimatedEventsTime = 60000   // 1 minuto estimado para eventos (Songkick + Ticketmaster)
         
         progressIntervalRef.current = setInterval(() => {
           const elapsed = Date.now() - startTime
           
-          // Progreso basado en tiempo para eventos (más rápido)
-          const eventosProgress = Math.min(Math.round((elapsed / estimatedEventosTime) * 100), 95)
-          
-          // Progreso basado en tiempo para hoteles (un poco más lento)
+          // Progreso basado en tiempo para hoteles (más lento)
           const hotelProgress = Math.min(Math.round((elapsed / estimatedHotelTime) * 100), 95)
+          // Progreso basado en tiempo para eventos (más rápido)
+          const eventsProgress = Math.min(Math.round((elapsed / estimatedEventsTime) * 100), 95)
           
-          // Progreso general como promedio
-          const overallProgress = Math.round((eventosProgress + hotelProgress) / 2)
+          // Progreso general como promedio ponderado (Hotel 80%, Eventos 20%)
+          const overallProgress = Math.round((hotelProgress * 0.8) + (eventsProgress * 0.2))
           
           // Actualizar mensajes de estado basados en el progreso
           if (overallProgress < 20) {
-            setStatus('Inicializando scripts de scraping...')
+            setStatus('Initializing hotel search and scraping...')
           } else if (overallProgress < 40) {
-            setStatus('Recopilando datos de eventos y conciertos...')
+            setStatus('Searching for competitor hotels...')
           } else if (overallProgress < 60) {
-            setStatus('Analizando precios de hoteles competidores...')
+            setStatus('Collecting hotel prices...')
           } else if (overallProgress < 80) {
-            setStatus('Procesando y organizando información...')
+            setStatus('Analyzing price data...')
           } else if (overallProgress < 95) {
-            setStatus('Finalizando configuración...')
+            setStatus('Processing and organizing information...')
           }
           
           setProgress({
-            eventos: eventosProgress,
-            hotel: hotelProgress,
-            overall: overallProgress
+            hotel: overallProgress
+            
           })
         }, 1000)
 
-        // Esperar a que ambos scripts terminen
-        const [eventosResult, hotelResult] = await Promise.all([
-          eventosPromise,
-          hotelPromise
+        // Esperar a que todos los scripts terminen
+        const [hotelResult, songkickResult, ticketmasterResult] = await Promise.all([
+          hotelPromise,
+          songkickPromise,
+          ticketmasterPromise
         ])
 
         // Limpiar el intervalo de progreso
@@ -146,9 +175,7 @@ export default function WelcomePage() {
         
         // Completar progreso
         setProgress({
-          eventos: 100,
-          hotel: 100,
-          overall: 100
+          hotel: 100
         })
 
         setStatus('¡Scraping completado exitosamente!')
@@ -244,43 +271,15 @@ export default function WelcomePage() {
 
           {/* Progress Bars */}
           <div className="space-y-6">
-            {/* Overall Progress */}
+            {/* Hotel Scraping Progress */}
             <div>
               <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">General Progress</span>
-                <span className="text-sm font-medium text-red-600">{progress.overall}%</span>
+                <span className="text-sm font-medium text-gray-700">Setting everything up...</span>
+                <span className="text-sm font-medium text-red-600">{progress.hotel}%</span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
                 <div 
                   className="bg-red-600 h-3 rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${progress.overall}%` }}
-                ></div>
-              </div>
-            </div>
-
-            {/* Eventos Scraping Progress */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">Events Scraping</span>
-                <span className="text-sm font-medium text-blue-600">{progress.eventos}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-blue-600 h-2 rounded-full transition-all duration-500 ease-out"
-                  style={{ width: `${progress.eventos}%` }}
-                ></div>
-              </div>
-            </div>
-
-            {/* Hotel Scraping Progress */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-medium text-gray-700">Hotels Scraping</span>
-                <span className="text-sm font-medium text-green-600">{progress.hotel}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-green-600 h-2 rounded-full transition-all duration-500 ease-out"
                   style={{ width: `${progress.hotel}%` }}
                 ></div>
               </div>

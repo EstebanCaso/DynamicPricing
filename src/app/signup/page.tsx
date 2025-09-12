@@ -71,7 +71,9 @@ export default function SignupPage() {
         password,
         options: {
           data: {
+            // Guardar nombre visible y teléfono en metadata
             name,
+            full_name: name,
             phone,
             hotel_info: selectedHotel ? {
               name: selectedHotel.name,
@@ -91,11 +93,12 @@ export default function SignupPage() {
         return
       }
 
-      // Si el usuario se creó exitosamente, actualizar los metadatos
+      // Si el usuario se creó exitosamente, actualizar los metadatos y el teléfono
       if (data.user) {
         const { error: updateError } = await supabase.auth.updateUser({
           data: {
             name,
+            full_name: name,
             phone,
             hotel_info: selectedHotel ? {
               name: selectedHotel.name,
@@ -110,6 +113,15 @@ export default function SignupPage() {
 
         if (updateError) {
           console.error('Error updating user metadata:', updateError)
+        }
+
+        // Intentar actualizar el campo Phone nativo de auth.users
+        try {
+          await supabase.auth.updateUser({
+            phone
+          })
+        } catch (e) {
+          console.warn('Could not set auth phone field; keeping phone in metadata.', e)
         }
       }
 
