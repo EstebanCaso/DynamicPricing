@@ -30,35 +30,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { competitorName } = await request.json();
-    
-    // 1. Fetch the most recent scrape for the competitor
-    const { data: competitorScrape, error: competitorError } = await supabase
-      .from('hoteles_parallel')
-      .select('rooms_jsonb')
-      .eq('nombre', competitorName)
-      .order('fecha_scrape', { ascending: false })
-      .limit(1)
-      .single();
+    const { competitorNames } = await request.json(); // Changed from competitorName to competitorNames
 
-    if (competitorError) {
-      console.error("Supabase error fetching competitor scrape:", competitorError);
-      throw competitorError;
+    if (!Array.isArray(competitorNames) || competitorNames.length === 0) {
+      return NextResponse.json({ error: 'competitorNames must be a non-empty array' }, { status: 400 });
     }
+    
+    // Function to fetch data for a single competitor
+    const getCompetitorHistoricalData = async (competitorName: string) => {
+      const { data: competitorScrape, error: competitorError } = await supabase
+        .from('hoteles_parallel')
+        .select('rooms_jsonb')
+        .eq('nombre', competitorName)
+        .order('fecha_scrape', { ascending: false })
+        .limit(1)
+        .single();
 
-    console.log(`[DIAGNOSTIC] Fetched data for competitor: ${competitorName}`);
-    console.log(`[DIAGNOSTIC] First 2 dates in rooms_jsonb:`, 
-      JSON.stringify(Object.keys(competitorScrape?.rooms_jsonb || {}).slice(0, 2), null, 2)
-    );
+      if (competitorError) {
+        console.error(`Supabase error fetching competitor scrape for ${competitorName}:`, competitorError);
+        // Return null or empty data instead of throwing to not fail the whole batch
+        return { name: competitorName, data: [] };
+      }
 
-    let competitorData = [];
-    if (competitorScrape && competitorScrape.rooms_jsonb) {
-      competitorData = Object.entries(competitorScrape.rooms_jsonb).map(([date, rooms]) => {
+      if (!competitorScrape || !competitorScrape.rooms_jsonb) {
+        return { name: competitorName, data: [] };
+      }
+
+      const competitorData = Object.entries(competitorScrape.rooms_jsonb).map(([date, rooms]) => {
         const prices = (rooms as any[]).map(room => parsePrice(room.price)).filter(p => !isNaN(p));
         const avgPrice = prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
         return { date, avgPrice };
       }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }
+      
+      return { name: competitorName, data: competitorData };
+    };
+
+    // Fetch data for all competitors in parallel
+    const competitorsData = await Promise.all(
+      competitorNames.map(name => getCompetitorHistoricalData(name))
+    );
 
     // 2. Fetch user's hotel data for the last 30 days
     const thirtyDaysAgo = new Date();
@@ -91,7 +101,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ success: true, competitorData, userHotelData });
+    return NextResponse.json({ success: true, competitorsData, userHotelData });
 
   } catch (error) {
     console.error('Error fetching historical data:', error);
