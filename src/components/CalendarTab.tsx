@@ -45,6 +45,7 @@ export default function CalendarTab() {
   const [isApplying, setIsApplying] = useState<boolean>(false)
   const [bulkMode, setBulkMode] = useState<boolean>(false)
   const [manualPercent, setManualPercent] = useState<number>(0)
+  const [appliedDates, setAppliedDates] = useState<Set<string>>(new Set())
   const { selectedCurrency, currency, convertPriceToSelectedCurrency } = useCurrency()
 
   // Force re-render when currency changes
@@ -64,10 +65,16 @@ export default function CalendarTab() {
     const run = async () => {
       try {
         setLoadingEvents(true)
-        const res = await fetch('/api/calendar/events', { cache: 'no-store' })
+        const startMonth = months[0]
+        const endMonth = months[months.length - 1]
+        const startDate = isoDate(startOfMonth(startMonth))
+        const endDate = isoDate(endOfMonth(endMonth))
+        const res = await fetch(`/api/calendar/events?startDate=${encodeURIComponent(startDate)}&endDate=${encodeURIComponent(endDate)}`, { cache: 'no-store' })
         const json = await res.json()
         if (!json?.success) throw new Error(json?.error || 'Failed to load events')
-        setEvents(json.data.events || [])
+        // Support both { events } and { data: { events } }
+        const incoming = Array.isArray(json?.events) ? json.events : json?.data?.events
+        setEvents(incoming || [])
       } catch (e: any) {
         setError(e?.message || 'Failed to load events')
         setEvents([])
@@ -290,6 +297,9 @@ export default function CalendarTab() {
       if (!json?.success) throw new Error(json?.error || 'Failed to apply updates')
       // Refresh prices to reflect new applied values
       if (selectedDate) await handleSelectDate(selectedDate)
+      if (selectedDate) {
+        setAppliedDates((prev) => new Set(prev).add(selectedDate))
+      }
     } catch (e: any) {
       setError(e?.message || 'Failed to apply updates')
     } finally {
@@ -306,6 +316,16 @@ export default function CalendarTab() {
             <h2 className="text-xl font-bold text-gray-900">Calendar & Pricing</h2>
             <p className="text-gray-600 text-sm">Manage your hotel pricing by date</p>
           </div>
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-3 h-3 rounded-full bg-red-600" aria-hidden="true"></span>
+              <span className="text-sm text-gray-700">Events</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-3 h-3 rounded-full bg-amber-500" aria-hidden="true"></span>
+              <span className="text-sm text-gray-700">Rules</span>
+            </div>
+          </div>
           <CurrencySelector showLabel={true} />
         </div>
       </div>
@@ -319,7 +339,67 @@ export default function CalendarTab() {
             const firstDayOfWeek = monthStart.getDay()
             return (
               <div key={monthStart.toISOString()} className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300">
-                <h3 className="text-xl font-semibold text-gray-900 mb-4">{formatMonth(monthStart)}</h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-semibold text-gray-900">{formatMonth(monthStart)}</h3>
+                  <button
+                    onClick={async () => {
+                      try {
+                        if (isApplying) return
+                        const confirmApply = window.confirm(`Apply recommended prices to all days in ${formatMonth(monthStart)}?`)
+                        if (!confirmApply) return
+                        setIsApplying(true)
+                        // Iterate all dates in this month
+                        for (let day = 1; day <= daysInMonth; day++) {
+                          const dateISO = isoDate(new Date(monthStart.getFullYear(), monthStart.getMonth(), day))
+                          // Fetch base prices for the day
+                          const res = await fetch('/api/calendar/hotel-prices', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ date: dateISO })
+                          })
+                          const json = await res.json()
+                          if (!json?.success) continue
+                          const baseItems = (json.data?.prices || []).filter((x: any) => x?.room_type && x?.price != null)
+                          // Compute adjustments using rules for this date
+                          const adj = getRuleAdjustmentForDate(dateISO)
+                          const updatedItems = baseItems.map((x: any) => {
+                            const base = Number(x.price)
+                            const next = Math.round((base * (1 + adj.pct / 100)) + adj.fixed)
+                            return { room_type: x.room_type, new_price: next }
+                          })
+                          if (updatedItems.length > 0) {
+                            // Apply updates for this date
+                            const r = await fetch('/api/calendar/apply-prices', {
+                              method: 'POST',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ date: dateISO, items: updatedItems })
+                            })
+                            const j = await r.json()
+                            if (j?.success) {
+                              setAppliedDates((prev) => new Set(prev).add(dateISO))
+                            }
+                          }
+                        }
+                        // Refresh if current selected date is inside this month
+                        if (selectedDate) {
+                          const d = parseYMDToLocalDate(selectedDate)
+                          if (d && d.getFullYear() === monthStart.getFullYear() && d.getMonth() === monthStart.getMonth()) {
+                            await handleSelectDate(selectedDate)
+                          }
+                        }
+                      } catch (err) {
+                        console.error('Failed to apply all for month', err)
+                      } finally {
+                        setIsApplying(false)
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-700 text-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={isApplying}
+                    title="Apply recommended prices to all days in this month"
+                  >
+                    Apply all
+                  </button>
+                </div>
                 <div className="grid grid-cols-7 gap-1">
                   {['S','M','T','W','T','F','S'].map((d, i) => (
                     <div key={`${d}-${i}`} className="text-center text-sm font-medium text-gray-500 py-2">{d}</div>
@@ -426,6 +506,9 @@ export default function CalendarTab() {
                     <h3 className="text-2xl font-bold text-gray-900">{prices ? prices.hotelName : ''}</h3>
                     <div className="text-xl text-gray-700">{formatNiceDate(selectedDate)}</div>
                   </div>
+                  {appliedDates.has(selectedDate) && (
+                    <span className="px-2 py-1 rounded-full bg-green-100 text-green-700 text-sm">applied</span>
+                  )}
                 </div>
                 {/* Eventos del día con altura máxima y truncamiento */}
                 {eventsByDate.get(selectedDate)?.length ? (

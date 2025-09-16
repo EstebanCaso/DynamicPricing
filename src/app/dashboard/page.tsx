@@ -65,10 +65,15 @@ function DashboardContent() {
   useEffect(() => {
     const run = async () => {
       try {
-        const res = await fetch('/api/calendar/events', { cache: 'no-store' })
+        const now = new Date()
+        const startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+        const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        const toIso = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+        const res = await fetch(`/api/calendar/events?startDate=${toIso(startDate)}&endDate=${toIso(endDate)}`, { cache: 'no-store' })
         const json = await res.json()
         if (!json?.success) throw new Error(json?.error || 'Failed events')
-        setEvents(Array.isArray(json.data?.events) ? json.data.events : [])
+        const incoming = Array.isArray(json?.events) ? json.events : json?.data?.events
+        setEvents(Array.isArray(incoming) ? incoming : [])
       } catch {
         setEvents([])
       }
