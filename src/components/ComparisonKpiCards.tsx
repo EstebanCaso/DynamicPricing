@@ -72,8 +72,15 @@ export default function ComparisonKpiCards({ userHotelData, competitorsData }: C
           currency: selectedCurrency.code,
           minimumFractionDigits: 0,
           maximumFractionDigits: 0,
+          useGrouping: true
         }).format(value)
-      : `$${Math.round(value)}`
+      : new Intl.NumberFormat('en-US', {
+          style: 'currency',
+          currency: 'USD',
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+          useGrouping: true
+        }).format(value)
   }
 
   return (
