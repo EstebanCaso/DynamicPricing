@@ -14,6 +14,7 @@ import CompetitorProfile from './CompetitorProfile';
 import MultiCompetitorChart from './MultiCompetitorChart'; // Import the new chart component
 import ComparisonKpiCards from './ComparisonKpiCards';
 import ComparisonInsights from './ComparisonInsights';
+import EventInsights from './EventInsights';
 
 interface Competitor {
   id: string
@@ -161,7 +162,7 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
         // Now, fetch events for the date range of the competitor data
         if (data.competitorsData && data.competitorsData.length > 0) {
             const allDates = new Set<string>();
-            data.competitorsData.forEach((c: CompetitorHistoricalData) => c.data.forEach(d => allDates.add(d.fecha)));
+            data.competitorsData.forEach((c: CompetitorHistoricalData) => c.data.forEach(d => allDates.add(d.date)));
             const sortedDates = Array.from(allDates).sort();
             if (sortedDates.length > 0) {
                 const startDate = sortedDates[0];
@@ -610,10 +611,23 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
                 competitorsData={historicalComparisonData.competitorsData}
                 eventsData={eventsData}
             />
-            <ComparisonKpiCards
-                userHotelData={historicalComparisonData.userHotelData}
-                competitorsData={historicalComparisonData.competitorsData}
-            />
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+              <div>
+                <ComparisonKpiCards
+                    userHotelData={historicalComparisonData.userHotelData}
+                    competitorsData={historicalComparisonData.competitorsData}
+                />
+              </div>
+              <div>
+                <EventInsights
+                  userHotelData={historicalComparisonData.userHotelData}
+                  competitorsData={historicalComparisonData.competitorsData}
+                  eventsData={eventsData || []}
+                />
+              </div>
+            </div>
+            
             <ComparisonInsights
                 userHotelData={historicalComparisonData.userHotelData}
                 competitorsData={historicalComparisonData.competitorsData}

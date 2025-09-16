@@ -45,19 +45,41 @@ const stringToColor = (str: string) => {
 const COMPETITOR_COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#6366F1"];
 const BASE_COMPETITOR_COLOR = '#A0AEC0'; // Medium Gray
 
-const CustomTooltip = ({ active, payload, label, currencyCode, userHotelName }: any) => {
+const CustomTooltip = ({ active, payload, label, currencyCode, userHotelName, eventsData }: any) => {
     if (active && payload && payload.length) {
       const formattedLabel = new Date(label + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       
       const userPayload = payload.find((p: any) => p.dataKey === userHotelName);
       const userPrice = userPayload ? userPayload.value : null;
 
-      // Sort payload by price descending
-      const sortedPayload = [...payload].sort((a, b) => b.value - a.value);
+      // Check if there's an event on this date
+      const eventOnDate = eventsData?.find((e: any) => e.fecha === label);
+
+      // Sort payload by price descending (filter out events and non-numeric values)
+      const sortedPayload = [...payload]
+        .filter(p => p.dataKey !== 'eventMarker' && p.dataKey !== 'date' && typeof p.value === 'number' && !isNaN(p.value))
+        .sort((a, b) => b.value - a.value);
 
       return (
         <div className="p-3 bg-white/90 backdrop-blur-sm border border-gray-200 rounded-lg shadow-xl w-64">
-          <p className="font-semibold text-gray-800 mb-2">{formattedLabel}</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="font-semibold text-gray-800">{formattedLabel}</p>
+            {eventOnDate && (
+              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full">
+                🎪 Event
+              </span>
+            )}
+          </div>
+          
+          {eventOnDate && (
+            <div className="mb-3 p-2 bg-purple-50 border border-purple-200 rounded-md">
+              <p className="text-xs font-medium text-purple-800 truncate" title={eventOnDate.nombre}>
+                {eventOnDate.nombre}
+              </p>
+              <p className="text-xs text-purple-600">{eventOnDate.lugar}</p>
+            </div>
+          )}
+          
           <div className="space-y-1.5">
             {sortedPayload.map((pld: any) => {
               const isUserHotel = pld.dataKey === userHotelName;
@@ -76,17 +98,19 @@ const CustomTooltip = ({ active, payload, label, currencyCode, userHotelName }: 
                 </div>
                 <div className="text-right flex-shrink-0">
                     <div className="text-sm font-bold text-gray-900">
-                        {new Intl.NumberFormat('en-US', {
+                        {typeof pld.value === 'number' && !isNaN(pld.value) ? 
+                          new Intl.NumberFormat('en-US', {
                             style: 'currency',
                             currency: currencyCode || 'USD',
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
-                        }).format(pld.value)}
+                          }).format(pld.value) : 'N/A'
+                        }
                     </div>
                     {isUserHotel ? (
                         <div className="text-xs text-gray-500">Baseline</div>
                     ) : (
-                        priceDiff !== null && (
+                        priceDiff !== null && typeof priceDiff === 'number' && !isNaN(priceDiff) && (
                             <div className={`text-xs ${priceDiff > 0 ? 'text-green-600' : 'text-red-600'}`}>
                                 {priceDiff > 0 ? '+' : ''}{new Intl.NumberFormat('en-US', { style: 'currency', currency: currencyCode || 'USD', maximumFractionDigits: 2 }).format(priceDiff)} vs. You
                             </div>
@@ -302,7 +326,7 @@ export default function MultiCompetitorChart({ userHotelData, competitorsData, e
             }
           />
           <Tooltip 
-            content={<CustomTooltip currencyCode={selectedCurrency.code} userHotelName={userHotelName} />}
+            content={<CustomTooltip currencyCode={selectedCurrency.code} userHotelName={userHotelName} eventsData={eventsData} />}
           />
           <Legend 
             onMouseEnter={(e) => setHighlightedLine(e.dataKey)}
@@ -323,26 +347,12 @@ export default function MultiCompetitorChart({ userHotelData, competitorsData, e
 
           {/* Event Scatter Plot */}
           {eventsData && eventsData.length > 0 && (
-            <Scatter dataKey="eventMarker" fill="#8B5CF6" shape="circle" name="Events">
-                <Tooltip 
-                    cursor={false}
-                    content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                            const eventDate = payload[0].payload.date;
-                            const eventInfo = eventsData.find(e => e.fecha === eventDate);
-                            if (eventInfo) {
-                                return (
-                                    <div className="p-2 bg-purple-700 text-white rounded-md shadow-lg">
-                                        <p className="font-bold">{eventInfo.nombre}</p>
-                                        <p className="text-xs">{eventInfo.lugar}</p>
-                                    </div>
-                                );
-                            }
-                        }
-                        return null;
-                    }}
-                />
-            </Scatter>
+            <Scatter 
+              dataKey="eventMarker" 
+              fill="#8B5CF6" 
+              shape="circle" 
+              name="Events"
+            />
           )}
 
           {/* Market Average Line */}
