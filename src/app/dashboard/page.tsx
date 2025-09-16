@@ -1,11 +1,12 @@
 "use client"
 
-import { useEffect, useMemo, useState, Suspense } from 'react'
+import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import Image from 'next/image'
 import HotelsComparisonCard from '@/components/HotelsComparisonCard'
 import AnalysisTab from '@/components/AnalysisTab'
 import CalendarTab from '@/components/CalendarTab'
+import PriceRulesView from '@/components/PriceRulesView'
 import CompetitorsTab from '@/components/CompetitorsTab'
 import CompetitorProfile from '@/components/CompetitorProfile'
 
@@ -28,6 +29,8 @@ function DashboardContent() {
   const [events, setEvents] = useState<EventItem[]>([])
   const [loading, setLoading] = useState(false)
   const [selectedCompetitor, setSelectedCompetitor] = useState<any | null>(null);
+  const [showCalendarMenu, setShowCalendarMenu] = useState<boolean>(false)
+  const calendarMenuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -93,6 +96,28 @@ function DashboardContent() {
     localStorage.setItem('activeDashboardTab', tabId);
   };
 
+  const handleCalendarViewChange = (view: 'calendar' | 'rules') => {
+    setActiveTab('calendar')
+    const currentParams = new URLSearchParams(window.location.search)
+    currentParams.set('tab', 'calendar')
+    currentParams.set('view', view)
+    const newUrl = `${pathname}?${currentParams.toString()}`
+    window.history.pushState({ path: newUrl }, '', newUrl)
+    setShowCalendarMenu(false)
+  }
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (!showCalendarMenu) return
+      const target = e.target as Node
+      if (calendarMenuRef.current && !calendarMenuRef.current.contains(target)) {
+        setShowCalendarMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [showCalendarMenu])
+
   const now = new Date()
   const year = now.getFullYear()
   const month = now.getMonth() // 0-based
@@ -146,9 +171,9 @@ function DashboardContent() {
       </div>
       
       {/* Main Content with Glassmorphism */}
-      <div className="relative z-10">
+      <div className="relative z-[10000]">
         {/* Top Navigation Bar - Glassmorphism */}
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-6 py-4 relative z-[10000]">
           <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-[25px] shadow-xl px-6 py-4 hover:shadow-2xl transition-all duration-300">
             <div className="flex items-center justify-between">
               {/* Logo */}
@@ -166,19 +191,43 @@ function DashboardContent() {
 
               {/* Navigation Tabs - Centered */}
               <div className="flex space-x-9">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTabClick(tab.id)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                      activeTab === tab.id
-                        ? 'bg-arkus-600 text-white shadow-lg'
-                        : 'bg-glass-200 text-gray-700 hover:bg-glass-300 hover:shadow-md'
-                    }`}
-                  >
-                    {tab.name}
-                  </button>
-                ))}
+                {tabs.map((tab) => {
+                  if (tab.id !== 'calendar') {
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => handleTabClick(tab.id)}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                          activeTab === tab.id
+                            ? 'bg-arkus-600 text-white shadow-lg'
+                            : 'bg-glass-200 text-gray-700 hover:bg-glass-300 hover:shadow-md'
+                        }`}
+                      >
+                        {tab.name}
+                      </button>
+                    )
+                  }
+                  const calendarActive = activeTab === 'calendar'
+                  return (
+                    <div key={tab.id} ref={calendarMenuRef} className="relative">
+                      <button
+                        aria-expanded={showCalendarMenu}
+                        onClick={() => setShowCalendarMenu((v) => !v)}
+                        className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                          calendarActive ? 'bg-arkus-600 text-white shadow-lg' : 'bg-glass-200 text-gray-700 hover:bg-glass-300 hover:shadow-md'
+                        }`}
+                      >
+                        {tab.name}
+                      </button>
+                      {showCalendarMenu && (
+                        <div className="absolute left-0 top-full mt-2 w-56 rounded-xl border border-black/10 bg-white shadow-lg z-[9999]">
+                          <button className="w-full text-left px-4 py-2 hover:bg-gray-50 rounded-t-xl" onClick={() => handleCalendarViewChange('calendar')}>Calendario</button>
+                          <button className="w-full text-left px-4 py-2 hover:bg-gray-50 rounded-b-xl" onClick={() => handleCalendarViewChange('rules')}>Reglas de Precios</button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
 
               {/* User Icon */}
@@ -192,7 +241,7 @@ function DashboardContent() {
           {activeTab === 'analysis' ? (
             <AnalysisTab />
           ) : activeTab === 'calendar' ? (
-            <CalendarTab />
+            (searchParams.get('view') === 'rules' ? <PriceRulesView /> : <CalendarTab />)
           ) : activeTab === 'competitors' ? (
             <CompetitorsTab onCompetitorSelect={setSelectedCompetitor} />
           ) : (

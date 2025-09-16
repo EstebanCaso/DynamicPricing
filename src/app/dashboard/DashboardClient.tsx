@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import dynamic from 'next/dynamic'
 import CalendarTab from '@/components/CalendarTab'
+import PriceRulesView from '@/components/PriceRulesView'
 import CompetitorsTab from '@/components/CompetitorsTab'
 import CurrencySelector from '@/components/CurrencySelector'
 import { useCurrency } from '@/contexts/CurrencyContext'
@@ -128,6 +129,8 @@ export default function DashboardClient() {
     []
   )
   const [activeTab, setActiveTab] = useState<string>('summary')
+  const [showCalendarMenu, setShowCalendarMenu] = useState<boolean>(false)
+  const calendarMenuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const fromQuery = searchParams.get('tab')
@@ -142,15 +145,35 @@ export default function DashboardClient() {
     router.push(url)
   }
 
+  const handleCalendarViewChange = (view: 'calendar' | 'rules') => {
+    setActiveTab('calendar')
+    const url = `/dashboard?tab=calendar&view=${view}`
+    router.push(url)
+    setShowCalendarMenu(false)
+  }
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (!showCalendarMenu) return
+      const target = e.target as Node
+      if (calendarMenuRef.current && !calendarMenuRef.current.contains(target)) {
+        setShowCalendarMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [showCalendarMenu])
+
   return (
     <div className="min-h-screen">
       {/* Top Navigation Bar - Floating */}
-      <div className="container mx-auto px-6 py-4 relative">
+      <div className="container mx-auto px-6 py-4 relative z-[10000]">
         {/* soft background glow */}
         <div className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 h-24 w-11/12 rounded-full bg-gradient-to-r from-rose-300/25 via-amber-300/25 to-emerald-300/25 blur-2xl"></div>
         <div className="relative group">
           <div className="absolute -inset-[1px] rounded-[25px] bg-gradient-to-r from-rose-400/30 via-amber-300/30 to-emerald-300/30 blur-md opacity-60 group-hover:opacity-80 transition"></div>
-          <div className="relative rounded-[25px] shadow-md border border-white/50 bg-white/70 backdrop-blur px-6 py-4">
+          <div className="relative rounded-[25px] shadow-md border border-white/50 bg-white/70 backdrop-blur px-6 py-4 z-[10000]">
           <div className="flex items-center justify-between">
             {/* Logo */}
             <div className="flex items-center">
@@ -168,19 +191,59 @@ export default function DashboardClient() {
             {/* Navigation Tabs - Centered */}
             <div className="flex items-center space-x-4">
               <div className="flex space-x-3 md:space-x-4">
-                {tabs.map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleTabChange(tab.id)}
-                    className={`px-4 py-2 rounded-2xl font-medium transition-all ring-1 ring-black/5 ${
-                      activeTab === tab.id
-                        ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm'
-                        : 'bg-white/60 text-gray-700 hover:bg-white'
-                    }`}
-                  >
-                    {tab.name}
-                  </button>
-                ))}
+                {tabs.map((tab) => {
+                  if (tab.id !== 'calendar') {
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => handleTabChange(tab.id)}
+                        className={`px-4 py-2 rounded-2xl font-medium transition-all ring-1 ring-black/5 ${
+                          activeTab === tab.id
+                            ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm'
+                            : 'bg-white/60 text-gray-700 hover:bg-white'
+                        }`}
+                      >
+                        {tab.name}
+                      </button>
+                    )
+                  }
+                  const calendarActive = activeTab === 'calendar'
+                  return (
+                    <div
+                      key={tab.id}
+                      ref={calendarMenuRef}
+                      className="relative"
+                   >
+                      <button
+                        aria-expanded={showCalendarMenu}
+                        onClick={() => setShowCalendarMenu((v) => !v)}
+                        className={`px-4 py-2 rounded-2xl font-medium transition-all ring-1 ring-black/5 ${
+                          calendarActive ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-white shadow-sm' : 'bg-white/60 text-gray-700 hover:bg-white'
+                        }`}
+                      >
+                        {tab.name}
+                      </button>
+                      {showCalendarMenu && (
+                        <div
+                          className="absolute left-0 top-full mt-2 w-56 rounded-xl border border-black/10 bg-white shadow-lg z-[9999]"
+                        >
+                          <button
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50 rounded-t-xl"
+                            onClick={() => handleCalendarViewChange('calendar')}
+                          >
+                            Calendario
+                          </button>
+                          <button
+                            className="w-full text-left px-4 py-2 hover:bg-gray-50 rounded-b-xl"
+                            onClick={() => handleCalendarViewChange('rules')}
+                          >
+                            Reglas de Precios
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
               
               {/* Currency Selector */}
@@ -199,9 +262,9 @@ export default function DashboardClient() {
         {activeTab === 'analysis' ? (
           <AnalysisTab />
         ) : activeTab === 'calendar' ? (
-          <CalendarTab />
+          (searchParams.get('view') === 'rules' ? <PriceRulesView /> : <CalendarTab />)
         ) : activeTab === 'competitors' ? (
-          <CompetitorsTab />
+          <CompetitorsTab onCompetitorSelect={() => {}} />
         ) : (
           <div className="grid grid-cols-3 gap-8">
             {/* Left Column - KPIs and Calendar */}

@@ -5,6 +5,7 @@ import {
   logDataFlow
 } from '@/lib/dataUtils'
 import { useCurrency } from '@/contexts/CurrencyContext'
+import { supabase } from '@/lib/supabaseClient'
 import CurrencySelector from './CurrencySelector'
 
 type EventItem = { id?: string; nombre?: string | null; fecha?: string | null; lugar?: string | null; enlace?: string | null }
@@ -104,6 +105,67 @@ export default function CalendarTab() {
   const today = new Date()
   const months = [0, 1, 2].map((i) => new Date(today.getFullYear(), today.getMonth() + i, 1))
 
+  // Load active price rules to highlight dates
+  const [activeRuleDates, setActiveRuleDates] = useState<Set<string>>(new Set())
+  const [activeRules, setActiveRules] = useState<Array<{ rule_type: 'competition' | 'weekend' | 'high_season' | 'low_season' | 'holiday'; start_date: string | null; end_date: string | null; holiday_date: string | null; adjustment: number; adjustment_type: 'percent' | 'fixed'; }>>([])
+  useEffect(() => {
+    const loadActiveRules = async () => {
+      try {
+        const { data: userData } = await supabase.auth.getUser()
+        const userId = userData.user?.id
+        if (!userId) return
+        const { data, error: qErr } = await supabase
+          .from('price_rules')
+          .select('rule_type,start_date,end_date,holiday_date,adjustment,adjustment_type')
+          .eq('created_by', userId)
+          .eq('active', true)
+        if (qErr) throw qErr
+        const dates = new Set<string>()
+        const addDate = (d?: string | null) => { if (d) dates.add(d) }
+        const withinNextMonths = (d: Date) => {
+          const start = startOfMonth(today)
+          const end = endOfMonth(new Date(today.getFullYear(), today.getMonth() + 2, 1))
+          return d >= start && d <= end
+        }
+        const rules = (data as any[]) || []
+        for (const r of rules) {
+          if (r.rule_type === 'holiday') {
+            const d = parseYMDToLocalDate(r.holiday_date)
+            if (d && withinNextMonths(d)) addDate(isoDate(d))
+          } else if (r.rule_type === 'high_season' || r.rule_type === 'low_season') {
+            const s = parseYMDToLocalDate(r.start_date)
+            const e = parseYMDToLocalDate(r.end_date)
+            if (s && e) {
+              const cur = new Date(s.getFullYear(), s.getMonth(), s.getDate())
+              while (cur <= e) {
+                if (withinNextMonths(cur)) addDate(isoDate(cur))
+                cur.setDate(cur.getDate() + 1)
+              }
+            }
+          } else if (r.rule_type === 'weekend') {
+            // Mark upcoming weekends in the 3-month window
+            const start = startOfMonth(today)
+            const end = endOfMonth(new Date(today.getFullYear(), today.getMonth() + 2, 1))
+            const cur = new Date(start.getFullYear(), start.getMonth(), start.getDate())
+            while (cur <= end) {
+              const dow = cur.getDay()
+              if (dow === 5 || dow === 6) addDate(isoDate(cur))
+              cur.setDate(cur.getDate() + 1)
+            }
+          } else if (r.rule_type === 'competition') {
+            // No specific dates; skip highlighting per-day
+          }
+        }
+        setActiveRuleDates(dates)
+        setActiveRules(rules)
+      } catch {
+        setActiveRuleDates(new Set())
+        setActiveRules([])
+      }
+    }
+    void loadActiveRules()
+  }, [])
+
   function getIncreasePercentForDate(ymd?: string | null): number {
     const d = parseYMDToLocalDate(ymd)
     if (!d) return 0
@@ -121,12 +183,42 @@ export default function CalendarTab() {
     return (eventsByDate.get(selectedDate)?.length || 0) > 0
   }, [selectedDate, eventsByDate])
 
+  function getRuleAdjustmentForDate(ymd?: string | null): { pct: number; fixed: number } {
+    const date = parseYMDToLocalDate(ymd)
+    if (!date) return { pct: 0, fixed: 0 }
+    let pct = 0
+    let fixed = 0
+    for (const r of activeRules) {
+      let applies = false
+      if (r.rule_type === 'competition') applies = true
+      else if (r.rule_type === 'weekend') {
+        const dow = date.getDay(); applies = dow === 5 || dow === 6
+      } else if (r.rule_type === 'holiday') {
+        const d = parseYMDToLocalDate(r.holiday_date); applies = !!d && isoDate(d) === isoDate(date)
+      } else {
+        const s = parseYMDToLocalDate(r.start_date); const e = parseYMDToLocalDate(r.end_date)
+        applies = !!s && !!e && date >= s && date <= e
+      }
+      if (!applies) continue
+      if (r.adjustment_type === 'percent') pct += Number(r.adjustment || 0)
+      else fixed += Number(r.adjustment || 0)
+    }
+    return { pct, fixed }
+  }
+
   const recommended = useMemo(() => {
     if (!prices) return [] as Array<{ room_type: string; base: number; next: number }>
-    const pct = dayHasEvents ? getIncreasePercentForDate(prices.date) : Math.max(0, (manualPercent || 0) / 100)
     const items = (prices.items || []).filter((x): x is { room_type: string; price: number } => x.price != null)
-    return items.map((x) => ({ room_type: x.room_type, base: x.price as number, next: Math.round((x.price as number) * (1 + pct)) }))
-  }, [prices, dayHasEvents, manualPercent])
+    const adj = getRuleAdjustmentForDate(prices.date)
+    const hasRules = adj.pct !== 0 || adj.fixed !== 0
+    const extraPct = !hasRules && !dayHasEvents ? Math.max(0, (manualPercent || 0) / 100) : 0
+    return items.map((x) => {
+      const base = x.price as number
+      const afterRules = Math.round((base * (1 + adj.pct / 100)) + adj.fixed)
+      const next = hasRules ? afterRules : Math.round(base * (1 + extraPct))
+      return { room_type: x.room_type, base, next }
+    })
+  }, [prices, activeRules, manualPercent, dayHasEvents])
 
   useEffect(() => {
     // Reset selection map whenever new prices load
@@ -239,6 +331,7 @@ export default function CalendarTab() {
                     const day = i + 1
                     const dateISO = isoDate(new Date(monthStart.getFullYear(), monthStart.getMonth(), day))
                     const dayEvents = eventsByDate.get(dateISO) || []
+                    const hasRule = activeRuleDates.has(dateISO)
                     const isSelected = selectedDate === dateISO
                     const isToday = dateISO === isoDate(today)
                     return (
@@ -256,6 +349,9 @@ export default function CalendarTab() {
                         {day}
                         {dayEvents.length > 0 && (
                           <span title={`${dayEvents.length} events`} className="absolute top-0.5 right-0.5 w-2 h-2 bg-red-600 rounded-full" />
+                        )}
+                        {hasRule && (
+                          <span title="Regla activa" className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-amber-500 rounded-full" />
                         )}
                       </button>
                     )
