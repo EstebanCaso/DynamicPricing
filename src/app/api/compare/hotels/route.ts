@@ -94,6 +94,18 @@ function standardizeRoomType(roomType?: string | null): string {
   return 'Other';
 }
 
+function parseStarsToNumber(stars: any): number | null {
+  if (stars === null || stars === undefined) return null;
+  if (typeof stars === 'number' && Number.isFinite(stars)) return Math.round(stars);
+  if (typeof stars === 'string') {
+    const match = stars.match(/\d/);
+    if (match) {
+      return parseInt(match[0], 10);
+    }
+  }
+  return null;
+}
+
 function pickRoomsForDate(
   dict: Record<string, Array<{ room_type?: string; price?: string }>> | null | undefined,
   candidates: string[]
@@ -293,7 +305,7 @@ export async function POST(request: NextRequest) {
     const filteredByStars = selectedStars != null
       ? competitorRows.filter((row) => {
           const s = (row as any)?.estrellas
-          const n = typeof s === 'string' ? Number.parseInt(s, 10) : (s as number | null | undefined)
+          const n = parseStarsToNumber(s);
           return Number.isFinite(n) && n === selectedStars
         })
       : competitorRows
@@ -335,8 +347,11 @@ export async function POST(request: NextRequest) {
         if (!nums.length) return null
         const avg = nums.reduce((a: number, b: number) => a + b, 0) / nums.length
         const s = (row as any)?.estrellas
-        const estrellas = typeof s === 'string' ? Number.parseInt(s, 10) : (s as number | null | undefined)
-        return { name: row.nombre || 'Hotel', avg, estrellas: Number.isFinite(estrellas as number) ? (estrellas as number) : null }
+        
+        console.log(`[DIAGNOSTIC] Raw 'estrellas' value for hotel ${row.nombre}:`, s, `(type: ${typeof s})`);
+
+        const estrellas = parseStarsToNumber(s);
+        return { name: row.nombre || 'Hotel', avg, estrellas }
       })
       .filter(Boolean) as Array<{ name: string; avg: number; estrellas: number | null }>
 
