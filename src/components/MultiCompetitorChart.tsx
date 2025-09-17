@@ -28,25 +28,32 @@ interface EventData {
     lugar: string;
 }
 
+// Function to generate a color from a string
+const stringToColor = (str: string) => {
+  let hash = 0
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  let color = '#'
+  for (let i = 0; i < 3; i++) {
+    const value = (hash >> (i * 8)) & 0xff
+    color += ('00' + value.toString(16)).substr(-2)
+  }
+  return color
+}
 
 const COMPETITOR_COLORS = ["#3B82F6", "#10B981", "#F59E0B", "#8B5CF6", "#EC4899", "#6366F1"];
+const BASE_COMPETITOR_COLOR = '#A0AEC0'; // Medium Gray
 
-const CustomTooltip = ({ active, payload, label, currencyCode, userHotelName, eventsData }: {
-  active?: boolean;
-  payload?: Array<{ dataKey: string; value: number; color: string }>;
-  label?: string;
-  currencyCode?: string;
-  userHotelName?: string;
-  eventsData?: EventData[];
-}) => {
+const CustomTooltip = ({ active, payload, label, currencyCode, userHotelName, eventsData }: any) => {
     if (active && payload && payload.length) {
       const formattedLabel = new Date(label + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
       
-      const userPayload = payload.find((p) => p.dataKey === userHotelName);
+      const userPayload = payload.find((p: any) => p.dataKey === userHotelName);
       const userPrice = userPayload ? userPayload.value : null;
 
       // Check if there's an event on this date
-      const eventOnDate = eventsData?.find((e) => e.fecha === label);
+      const eventOnDate = eventsData?.find((e: any) => e.fecha === label);
 
       // Sort payload by price descending (filter out events and non-numeric values)
       const sortedPayload = [...payload]
@@ -74,7 +81,7 @@ const CustomTooltip = ({ active, payload, label, currencyCode, userHotelName, ev
           )}
           
           <div className="space-y-1.5">
-            {sortedPayload.map((pld) => {
+            {sortedPayload.map((pld: any) => {
               const isUserHotel = pld.dataKey === userHotelName;
               const priceDiff = userPrice !== null ? pld.value - userPrice : null;
 
@@ -138,7 +145,7 @@ export default function MultiCompetitorChart({ userHotelData, competitorsData, e
     setActiveLines(allHotelNames);
   }, [allHotelNames]);
 
-  const handleLegendClick = (e: { dataKey: string }) => {
+  const handleLegendClick = (e: any) => {
     const { dataKey } = e;
     setActiveLines(prev => 
       prev.includes(dataKey)
@@ -172,7 +179,7 @@ export default function MultiCompetitorChart({ userHotelData, competitorsData, e
   const exportToCSV = () => {
     // Prepare data for CSV export (only active lines)
     const csvData = chartData.map(row => {
-      const csvRow: Record<string, string | number | null> = { Date: row.date };
+      const csvRow: any = { Date: row.date };
       
       // Add user hotel if active
       if (isLineActive(userHotelName) && row[userHotelName] !== null) {
@@ -230,7 +237,7 @@ export default function MultiCompetitorChart({ userHotelData, competitorsData, e
     dataPoint[userHotelName] = userPricePoint ? convertPriceToSelectedCurrency(userPricePoint.avgPrice) : null;
     
     // Add competitor prices and calculate daily average
-    const competitorPricesForDay: number[] = [];
+    let competitorPricesForDay: number[] = [];
     competitorsData.forEach(competitor => {
       const competitorPricePoint = competitor.data.find(d => d.date === date);
       if (competitorPricePoint) {

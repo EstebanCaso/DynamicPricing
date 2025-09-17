@@ -38,9 +38,7 @@ export default function ComparisonInsights({ userHotelData, competitorsData }: C
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: typeof selectedCurrency === 'object' && 'code' in selectedCurrency
-        ? (selectedCurrency as { code: string }).code
-        : (typeof selectedCurrency === 'string' ? selectedCurrency : 'USD'),
+      currency: selectedCurrency.code || 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(convertPriceToSelectedCurrency(value))
