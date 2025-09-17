@@ -203,7 +203,7 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
     fetchCompetitiveData()
   }, [selectedStars, selectedRoomType])
 
-  const fetchCompetitiveData = async () => {
+  const fetchCompetitiveData = async (clearFilters = false) => {
     try {
       if (competitorData) {
         setIsReloading(true);
@@ -211,6 +211,19 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
         setLoading(true)
       }
       setError(null)
+
+      // Clear filters if requested (when user explicitly clicks Refresh Data)
+      if (clearFilters) {
+        setSelectedStars('All')
+        setSelectedRoomType('All')
+        setSelectedCompetitors([])
+        setHistoricalComparisonData(null)
+        setEventsData([])
+        setShowCompetitorSelector(false)
+        // Clear localStorage as well
+        localStorage.removeItem('selectedCompetitors')
+        console.log('🔄 Filters cleared on refresh')
+      }
       
       // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -390,7 +403,7 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
           <h3 className="text-xl font-semibold text-red-700 mb-2">Data Loading Error</h3>
           <p className="text-red-600 text-lg mb-6">{error}</p>
           <button 
-            onClick={fetchCompetitiveData}
+            onClick={() => fetchCompetitiveData(false)}
             className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
           >
             <span className="flex items-center space-x-2">
@@ -435,7 +448,7 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
           </div>
           <div className="space-y-3">
             <button 
-              onClick={fetchCompetitiveData}
+              onClick={() => fetchCompetitiveData(false)}
               className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
             >
               <span className="flex items-center space-x-2">
@@ -513,7 +526,7 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
           </div>
 
           <button
-            onClick={fetchCompetitiveData}
+            onClick={() => fetchCompetitiveData(true)}
             disabled={loading}
             className={`px-4 py-2 rounded-lg text-white transition-all duration-300 shadow-lg hover:shadow-xl transform hover:scale-105 disabled:transform-none disabled:cursor-not-allowed ${
               loading 
