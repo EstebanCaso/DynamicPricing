@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 		const args = [latitude.toString(), longitude.toString(), radius.toString()]
 		console.log('[run-ticketmaster-js] Spawning process:', 'node', [scriptPath, ...args].join(' '))
 
-		return await new Promise((resolve) => {
+		return await new Promise<Response>((resolve) => {
 			const child = spawn('node', [scriptPath, ...args], {
 				cwd: process.cwd(),
 				stdio: ['pipe', 'pipe', 'pipe'],
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
 				if (code === 0) {
 					try {
 						const parsed = JSON.parse(stdout || '[]')
-						const events: any[] = Array.isArray(parsed) ? parsed : []
+						const events: Record<string, unknown>[] = Array.isArray(parsed) ? parsed : []
 
 						// Save to Supabase: clear user events then insert
 						const SUPABASE_URL = process.env.SUPABASE_URL
@@ -74,9 +74,9 @@ export async function POST(request: NextRequest) {
 							// Don't clear existing events - just insert new ones with conflict resolution
 
 							// Map events to DB schema and deduplicate
-							const mapped = events.map((ev) => ({
+								const mapped = events.map((ev: Record<string, unknown>) => ({
 								nombre: ev.nombre || ev.name || '',
-								fecha: (ev.fecha || ev.date || '').slice(0, 10),
+                                                          fecha: ((ev.fecha || ev.date || '') as string).slice(0, 10),
 								lugar: ev.lugar || ev.venue || '',
 								enlace: ev.enlace || ev.url || '',
 								hotel_referencia: hotelName || '',
@@ -111,7 +111,7 @@ export async function POST(request: NextRequest) {
 										body: JSON.stringify(batch)
 									})
 									if (res.ok) {
-										const json = (await res.json().catch(() => [])) as any[]
+										const json = (await res.json().catch(() => [])) as Record<string, unknown>[]
 										inserted += Array.isArray(json) ? json.length : batch.length
 										console.log('[run-ticketmaster-js] Batch inserted:', Array.isArray(json) ? json.length : batch.length)
 									} else {

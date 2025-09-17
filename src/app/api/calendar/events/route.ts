@@ -9,10 +9,10 @@ export async function GET(request: NextRequest) {
     {
       cookies: {
         get: (name: string) => request.cookies.get(name)?.value,
-        set: (name: string, value: string, options: any) => {
+        set: (name: string, value: string, options: Record<string, unknown>) => {
           response.cookies.set({ name, value, ...options })
         },
-        remove: (name: string, options: any) => {
+        remove: (name: string, options: Record<string, unknown>) => {
           response.cookies.set({ name, value: '', ...options })
         },
       },

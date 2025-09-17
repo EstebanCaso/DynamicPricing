@@ -9,12 +9,6 @@ interface AnalysisControlsProps {
   uniqueRoomTypes: string[];
   range: 1 | 7 | 30 | 90;
   setRange: (range: 1 | 7 | 30 | 90) => void;
-  targetMin: number;
-  setTargetMin: (min: number) => void;
-  targetMax: number;
-  setTargetMax: (max: number) => void;
-  events: string[];
-  setEvents: (events: string[]) => void;
   clickedRoomType: string | null;
   setClickedRoomType: (type: string | null) => void;
   // New props for expanded functionality
@@ -47,12 +41,6 @@ const AnalysisControls = memo(({
   uniqueRoomTypes,
   range,
   setRange,
-  targetMin,
-  setTargetMin,
-  targetMax,
-  setTargetMax,
-  events,
-  setEvents,
   clickedRoomType,
   setClickedRoomType,
   totalDataPoints = 0,

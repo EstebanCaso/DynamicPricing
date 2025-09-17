@@ -122,7 +122,7 @@ export default function EventInsights({ userHotelData, competitorsData, eventsDa
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: selectedCurrency?.code || 'USD',
+      currency: selectedCurrency || 'USD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(amount);

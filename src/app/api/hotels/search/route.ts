@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { spawn } from 'child_process'
-import path from 'path'
 
 export async function POST(request: NextRequest): Promise<Response> {
   try {
@@ -43,16 +42,16 @@ export async function POST(request: NextRequest): Promise<Response> {
             const hotels = JSON.parse(output.trim())
             
                          // Transformar los datos de Amadeus al formato esperado por el frontend
-             const transformedHotels = hotels.map((hotel: any) => ({
+             const transformedHotels = hotels.map((hotel: Record<string, unknown>) => ({
                name: hotel.name || 'Hotel sin nombre',
                hotelId: hotel.hotelId || hotel.id || `hotel-${Date.now()}-${Math.random()}`,
-               latitude: hotel.geoCode?.latitude || hotel.latitude || 0,
-               longitude: hotel.geoCode?.longitude || hotel.longitude || 0,
+                latitude: ((hotel as Record<string, unknown>)?.geoCode as Record<string, unknown>)?.latitude || (hotel as Record<string, unknown>)?.latitude || 0,
+                longitude: ((hotel as Record<string, unknown>)?.geoCode as Record<string, unknown>)?.longitude || (hotel as Record<string, unknown>)?.longitude || 0,
                address: {
-                 cityName: hotel.address?.cityName || hotel.cityName || 'Ciudad no especificada',
-                 countryCode: hotel.address?.countryCode || hotel.countryCode || 'ES',
-                 postalCode: hotel.address?.postalCode || hotel.postalCode,
-                 street: hotel.address?.street || hotel.street
+                 cityName: ((hotel as Record<string, unknown>)?.address as Record<string, unknown>)?.cityName || (hotel as Record<string, unknown>)?.cityName || 'Ciudad no especificada',
+                 countryCode: ((hotel as Record<string, unknown>)?.address as Record<string, unknown>)?.countryCode || (hotel as Record<string, unknown>)?.countryCode || 'ES',
+                 postalCode: ((hotel as Record<string, unknown>)?.address as Record<string, unknown>)?.postalCode || (hotel as Record<string, unknown>)?.postalCode,
+                 street: ((hotel as Record<string, unknown>)?.address as Record<string, unknown>)?.street || (hotel as Record<string, unknown>)?.street
                },
                distance: typeof hotel.distance === 'number' && !isNaN(hotel.distance) ? hotel.distance : 0
              }))

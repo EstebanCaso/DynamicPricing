@@ -431,7 +431,7 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
           <div className="text-left text-sm text-gray-600 mb-6 space-y-2">
             <div className="flex items-center space-x-2">
               <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-              <span>Ensure you're logged in to the application</span>
+              <span>Ensure you&apos;re logged in to the application</span>
             </div>
             <div className="flex items-center space-x-2">
               <span className="w-2 h-2 bg-red-500 rounded-full"></span>
@@ -891,7 +891,7 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
                   <div className="p-4 backdrop-blur-lg bg-purple-500/20 rounded-xl border border-purple-300/30 hover:bg-purple-500/30 transition-all duration-300">
                     <h4 className="font-medium text-purple-900 mb-2">🎯 Focused Tracking</h4>
                     <p className="text-sm text-purple-800">
-                      You're tracking {selectedCompetitors.length} main competitors: {selectedCompetitors.slice(0, 3).join(', ')}
+                      You&apos;re tracking {selectedCompetitors.length} main competitors: {selectedCompetitors.slice(0, 3).join(', ')}
                       {selectedCompetitors.length > 3 && ` and ${selectedCompetitors.length - 3} more`}.
                       {(() => {
                         const selectedCompetitorData = competitorData.competitors.filter(c => selectedCompetitors.includes(c.name))

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
-import { useSearchParams, useRouter, usePathname } from 'next/navigation'
+import { useSearchParams, usePathname } from 'next/navigation'
 import Image from 'next/image'
 import HotelsComparisonCard from '@/components/HotelsComparisonCard'
 import AnalysisTab from '@/components/AnalysisTab'
@@ -10,25 +10,18 @@ import PriceRulesView from '@/components/PriceRulesView'
 import CompetitorsTab from '@/components/CompetitorsTab'
 import CompetitorProfile from '@/components/CompetitorProfile'
 
-type OverviewStats = {
-  totalEvents: number
-  growthPercent: number
-  eventsToday: number
-}
-
-type AnalyticsRow = { fecha?: string | null }
 type EventItem = { fecha?: string | null }
+type AnalyticsRow = Record<string, unknown>
 
 function DashboardContent() {
   const [activeTab, setActiveTab] = useState('summary')
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const pathname = usePathname()
-  const [stats, setStats] = useState<OverviewStats | null>(null)
-  const [eventRows, setEventRows] = useState<AnalyticsRow[]>([])
-  const [events, setEvents] = useState<EventItem[]>([])
   const [loading, setLoading] = useState(false)
-  const [selectedCompetitor, setSelectedCompetitor] = useState<any | null>(null);
+  const [stats, setStats] = useState<Record<string, unknown> | null>(null)
+  const [eventRows, setEventRows] = useState<AnalyticsRow[]>([])
+  const searchParams = useSearchParams()
+  const pathname = usePathname()
+  const [events, setEvents] = useState<EventItem[]>([])
+  const [selectedCompetitor, setSelectedCompetitor] = useState<Record<string, unknown> | null>(null);
   const [showCalendarMenu, setShowCalendarMenu] = useState<boolean>(false)
   const calendarMenuRef = useRef<HTMLDivElement | null>(null)
 

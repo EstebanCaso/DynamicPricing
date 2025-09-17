@@ -94,7 +94,7 @@ function standardizeRoomType(roomType?: string | null): string {
   return 'Other';
 }
 
-function parseStarsToNumber(stars: any): number | null {
+function parseStarsToNumber(stars: unknown): number | null {
   if (stars === null || stars === undefined) return null;
   if (typeof stars === 'number' && Number.isFinite(stars)) return Math.round(stars);
   if (typeof stars === 'string') {
@@ -112,9 +112,9 @@ function pickRoomsForDate(
 ) {
   if (!dict) return undefined
   for (const c of candidates) {
-    if (Object.prototype.hasOwnProperty.call(dict, c)) return (dict as any)[c]
+    if (Object.prototype.hasOwnProperty.call(dict, c)) return (dict as Record<string, Array<{ room_type?: string; price?: string }>>)[c]
   }
-  const entries = Object.keys(dict).map((k) => [k.trim(), (dict as any)[k]] as const)
+  const entries = Object.keys(dict).map((k) => [k.trim(), (dict as Record<string, Array<{ room_type?: string; price?: string }>>)[k]] as const)
   for (const c of candidates) {
     const hit = entries.find(([k]) => k === c || new Date(k).toISOString().slice(0, 10) === c)
     if (hit) return hit[1]
@@ -130,10 +130,10 @@ export async function POST(request: NextRequest) {
     {
       cookies: {
         get: (name: string) => request.cookies.get(name)?.value,
-        set: (name: string, value: string, options: any) => {
+        set: (name: string, value: string, options: Record<string, unknown>) => {
           response.cookies.set({ name, value, ...options })
         },
-        remove: (name: string, options: any) => {
+        remove: (name: string, options: Record<string, unknown>) => {
           response.cookies.set({ name, value: '', ...options })
         },
       },
@@ -158,16 +158,16 @@ export async function POST(request: NextRequest) {
 
     const userId = user.id
     // Resolve city from nested user metadata
-    const md: any = user.user_metadata || {}
+    const md: Record<string, unknown> = user.user_metadata || {}
     const cityMetaRaw =
-      md?.hotel_info?.address?.cityName ||
-      md?.hotel_metadata?.address?.cityName ||
-      md?.address?.cityName ||
-      md?.cityName ||
-      md?.ciudad ||
-      md?.raw_user_meta_data?.hotel_info?.address?.cityName ||
-      md?.raw_user_meta_data?.hotel_metadata?.address?.cityName ||
-      md?.raw_user_meta_data?.cityName ||
+      (md as any)?.hotel_info?.address?.cityName ||
+      (md as any)?.hotel_metadata?.address?.cityName ||
+      (md as any)?.address?.cityName ||
+      (md as any)?.cityName ||
+      (md as any)?.ciudad ||
+      (md as any)?.raw_user_meta_data?.hotel_info?.address?.cityName ||
+      (md as any)?.raw_user_meta_data?.hotel_metadata?.address?.cityName ||
+      (md as any)?.raw_user_meta_data?.cityName ||
       ''
     const city = cityMetaRaw ? String(cityMetaRaw).trim() : ''
     const dateCandidates = getDateCandidates()
@@ -185,8 +185,8 @@ export async function POST(request: NextRequest) {
     })
 
     // 1) My hotel prices (only rows for canonical "today"): try Hotel_usuario(date, price) then fall back to hotel_usuario(checkin_date, price)
-    let myRows: any[] | null = null
-    let myErr: any = null
+    let myRows: unknown[] | null = null
+    let myErr: unknown = null
     {
       const attempt = await supabase
         .from('Hotel_usuario')
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
         .in('date', dateCandidates)
         .limit(500)
       if (!attempt.error && attempt.data && attempt.data.length >= 0) {
-        myRows = attempt.data as any[]
+        myRows = attempt.data as unknown[]
       } else {
         myErr = attempt.error
       }
@@ -208,7 +208,7 @@ export async function POST(request: NextRequest) {
         .in('checkin_date', dateCandidates)
         .limit(500)
       if (!fallback.error && fallback.data) {
-        myRows = fallback.data as any[]
+        myRows = fallback.data as unknown[]
       } else {
         myErr = myErr || fallback.error
       }
@@ -216,23 +216,27 @@ export async function POST(request: NextRequest) {
     if (!myRows) throw myErr || new Error('Failed to fetch user hotel prices')
 
     const allRoomTypes = new Set<string>();
-    myRows.forEach(r => {
-      if(r.room_type) {
-        const standardized = standardizeRoomType(r.room_type);
+    myRows.forEach((r: unknown) => {
+      const row = r as Record<string, unknown>;
+      if(row.room_type) {
+        const standardized = standardizeRoomType(row.room_type as string);
         if (standardized !== 'Other') {
           allRoomTypes.add(standardized);
         }
       }
     });
 
-    const myHotelName = myRows?.[0]?.hotel_name || user.user_metadata?.hotel_name || 'Mi hotel'
+    const myHotelName = (myRows?.[0] as Record<string, unknown>)?.hotel_name || user.user_metadata?.hotel_name || 'Mi hotel'
     
     const myFilteredRows = selectedRoomType 
-      ? myRows.filter(r => standardizeRoomType(r.room_type) === selectedRoomType)
+      ? myRows.filter((r: unknown) => {
+          const row = r as Record<string, unknown>;
+          return standardizeRoomType(row.room_type as string) === selectedRoomType;
+        })
       : myRows;
 
     const myPrices = (myFilteredRows || [])
-      .map((r: any) => parsePriceToNumber(r?.price))
+      .map((r: unknown) => parsePriceToNumber((r as Record<string, unknown>)?.price as string))
       .filter((n: number | null): n is number => n != null)
     const myAvg = myPrices.length ? myPrices.reduce((a: number, b: number) => a + b, 0) / myPrices.length : null
 
@@ -304,7 +308,7 @@ export async function POST(request: NextRequest) {
     // Optional filter by star rating before processing
     const filteredByStars = selectedStars != null
       ? competitorRows.filter((row) => {
-          const s = (row as any)?.estrellas
+          const s = (row as Record<string, unknown>)?.estrellas
           const n = parseStarsToNumber(s);
           return Number.isFinite(n) && n === selectedStars
         })
@@ -313,7 +317,7 @@ export async function POST(request: NextRequest) {
     const competitors = filteredByStars
       .map((row) => {
         // Some rows store JSON as string
-        let container: any = (row as any).rooms_jsonb ?? (row as any).rooms_jsnob
+        let container: unknown = (row as Record<string, unknown>).rooms_jsonb ?? (row as Record<string, unknown>).rooms_jsnob
         if (typeof container === 'string') {
           try {
             container = JSON.parse(container)
@@ -322,7 +326,7 @@ export async function POST(request: NextRequest) {
           }
         }
         // Try to get rooms for date candidates, but if none found, try any available date
-        let rooms = pickRoomsForDate(container as any, dateCandidates) as Array<RoomPrice> | undefined
+        const rooms = pickRoomsForDate(container as Record<string, Array<{ room_type?: string; price?: string }>> | null | undefined, dateCandidates) as Array<RoomPrice> | undefined
         
         if (!rooms || rooms.length === 0) return null
 
@@ -346,7 +350,7 @@ export async function POST(request: NextRequest) {
           .filter((n: number | null): n is number => n != null)
         if (!nums.length) return null
         const avg = nums.reduce((a: number, b: number) => a + b, 0) / nums.length
-        const s = (row as any)?.estrellas
+        const s = (row as Record<string, unknown>)?.estrellas
         
         console.log(`[DIAGNOSTIC] Raw 'estrellas' value for hotel ${row.nombre}:`, s, `(type: ${typeof s})`);
 

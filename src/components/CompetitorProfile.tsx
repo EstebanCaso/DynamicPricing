@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { useMemo } from 'react';
 
 interface CompetitorProfileProps {
-  competitor: any;
+  competitor: Record<string, unknown>;
   onClose: () => void;
 }
 
@@ -15,8 +15,18 @@ const parsePrice = (price: string | number): number => {
   return parseFloat(price.replace(/[^0-9.-]+/g, ''));
 };
 
-const CustomizedDot = (props: any) => {
-  const { cx, cy, stroke, payload, value, min, max } = props;
+const CustomizedDot = (props: { cx?: number; cy?: number; stroke?: string; value?: number; min?: number; max?: number }) => {
+  const { cx, cy, stroke, value, min, max } = props;
+
+  if (
+    typeof cx !== 'number' ||
+    typeof cy !== 'number' ||
+    typeof value !== 'number' ||
+    typeof min !== 'number' ||
+    typeof max !== 'number'
+  ) {
+    return null;
+  }
 
   if (value === min || value === max) {
     return <circle cx={cx} cy={cy} r={5} stroke={stroke} strokeWidth={2} fill="#fff" />;
@@ -49,15 +59,21 @@ const StarRating = ({ rating }: { rating: number | null }) => {
 };
 
 export default function CompetitorProfile({ competitor, onClose }: CompetitorProfileProps) {
-  const [historicalData, setHistoricalData] = useState<any[] | null>(null);
+  const [historicalData, setHistoricalData] = useState<Record<string, unknown>[] | null>(null);
   const [userHotelName, setUserHotelName] = useState('Your Hotel');
   const [loading, setLoading] = useState(false);
   const { currency, convertPriceToSelectedCurrency } = useCurrency();
+  const compName = String((competitor as Record<string, unknown>)?.name ?? '');
+  const checkinDate = String((competitor as Record<string, unknown>)?.checkinDate ?? '');
 
   const priceBounds = useMemo(() => {
     if (!historicalData) return { min: 0, max: 0 };
-    const competitorPrices = historicalData.map(d => d[competitor.name]).filter(p => p !== null);
-    const userPrices = historicalData.map(d => d[userHotelName]).filter(p => p !== null);
+    const competitorPrices = historicalData
+      .map((d) => (d as Record<string, unknown>)[compName])
+      .filter((p): p is number => typeof p === 'number');
+    const userPrices = historicalData
+      .map((d) => (d as Record<string, unknown>)[userHotelName])
+      .filter((p): p is number => typeof p === 'number');
     
     const allPrices = [...competitorPrices, ...userPrices];
     if (allPrices.length === 0) return { min: 0, max: 0 };
@@ -66,14 +82,16 @@ export default function CompetitorProfile({ competitor, onClose }: CompetitorPro
       min: Math.min(...allPrices),
       max: Math.max(...allPrices),
     };
-  }, [historicalData, competitor.name, userHotelName]);
+  }, [historicalData, compName, userHotelName]);
 
   const strategicSummary = useMemo(() => {
     if (!historicalData || historicalData.length === 0) {
       return null;
     }
 
-    const competitorPrices = historicalData.map(d => d[competitor.name]).filter(p => p !== null && p > 0) as number[];
+    const competitorPrices = historicalData
+      .map((d) => (d as Record<string, unknown>)[compName])
+      .filter((p): p is number => typeof p === 'number' && p > 0);
     if (competitorPrices.length === 0) return null;
     
     const avgPrice = competitorPrices.reduce((a, b) => a + b, 0) / competitorPrices.length;
@@ -82,10 +100,10 @@ export default function CompetitorProfile({ competitor, onClose }: CompetitorPro
 
     let cheaperDays = 0;
     let comparableDays = 0;
-    historicalData.forEach(d => {
-      const competitorPrice = d[competitor.name];
-      const userPrice = d[userHotelName];
-      if (competitorPrice !== null && userPrice !== null) {
+    historicalData.forEach((d) => {
+      const competitorPrice = (d as Record<string, unknown>)[compName];
+      const userPrice = (d as Record<string, unknown>)[userHotelName];
+      if (typeof competitorPrice === 'number' && typeof userPrice === 'number') {
         comparableDays++;
         if (competitorPrice < userPrice) {
           cheaperDays++;
@@ -96,7 +114,7 @@ export default function CompetitorProfile({ competitor, onClose }: CompetitorPro
     const cheaperPercentage = comparableDays > 0 ? (cheaperDays / comparableDays) * 100 : 0;
 
     return { avgPrice, minPrice, maxPrice, cheaperPercentage };
-  }, [historicalData, competitor.name, userHotelName]);
+  }, [historicalData, compName, userHotelName]);
 
 
   useEffect(() => {
@@ -116,7 +134,7 @@ export default function CompetitorProfile({ competitor, onClose }: CompetitorPro
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
-            competitorName: competitor.name
+            competitorName: compName
           }),
         });
         const data = await response.json();
@@ -126,13 +144,13 @@ export default function CompetitorProfile({ competitor, onClose }: CompetitorPro
             const userHotelName = data.userHotelData?.length > 0 ? data.userHotelData[0].hotel_name : 'Your Hotel';
             setUserHotelName(userHotelName);
 
-            const competitorDates = data.competitorData.map((item: any) => item.date).sort((a: string, b: string) => new Date(a).getTime() - new Date(b).getTime());
-            const competitorDataMap = new Map(data.competitorData.map((item: any) => [item.date, item.avgPrice]));
-            const userDataMap = new Map(data.userHotelData.map((item: any) => [item.date, item.avgPrice]));
+            const competitorDates = data.competitorData.map((item: Record<string, unknown>) => item.date).sort((a: string, b: string) => new Date(a).getTime() - new Date(b).getTime());
+            const competitorDataMap = new Map(data.competitorData.map((item: Record<string, unknown>) => [item.date, item.avgPrice]));
+            const userDataMap = new Map(data.userHotelData.map((item: Record<string, unknown>) => [item.date, item.avgPrice]));
             
             const finalChartData = competitorDates.map((date: string) => ({
               date,
-              [competitor.name]: competitorDataMap.get(date) || null,
+              [compName]: competitorDataMap.get(date) || null,
               [userHotelName]: userDataMap.get(date) || null,
             }));
 
@@ -155,8 +173,8 @@ export default function CompetitorProfile({ competitor, onClose }: CompetitorPro
       >
         <div className="flex justify-between items-start mb-6 pb-4 border-b">
             <div>
-              <h2 className="text-2xl font-bold text-gray-800">{competitor.name}</h2>
-              <StarRating rating={competitor.estrellas} />
+              <h2 className="text-2xl font-bold text-gray-800">{compName}</h2>
+              <StarRating rating={typeof (competitor as Record<string, unknown>)?.estrellas === 'number' ? (competitor as Record<string, unknown>)?.estrellas as number : null} />
             </div>
             <button onClick={onClose} className="text-gray-500 hover:text-gray-800 text-3xl leading-none p-2 -mt-2">&times;</button>
         </div>
@@ -189,7 +207,7 @@ export default function CompetitorProfile({ competitor, onClose }: CompetitorPro
         ) : !historicalData || historicalData.length === 0 ? (
           <div className="text-center p-8 bg-gray-50 rounded-lg">
             <p className="font-semibold text-gray-700">No historical data available</p>
-            <p className="text-sm text-gray-500 mt-1">No price history was found for this competitor for a check-in on {competitor.checkinDate}.</p>
+            <p className="text-sm text-gray-500 mt-1">No price history was found for this competitor for a check-in on {checkinDate}.</p>
           </div>
         ) : historicalData.length < 2 ? (
           <div className="text-center p-8 bg-blue-50 rounded-lg border border-blue-200">
@@ -198,11 +216,11 @@ export default function CompetitorProfile({ competitor, onClose }: CompetitorPro
                   Not enough historical data points were found to generate a chart.
               </p>
               <div className="mt-4 text-left bg-white p-4 rounded-md shadow-sm">
-                <p className="text-sm text-gray-600">Check-in Date: <span className="font-medium text-gray-800">{competitor.checkinDate}</span></p>
-                <p className="text-sm text-gray-600">Scrape Date: <span className="font-medium text-gray-800">{historicalData[0].date}</span></p>
-                <p className="text-sm text-gray-600">Competitor Price: <span className="font-medium text-gray-800">{currency.format(convertPriceToSelectedCurrency(historicalData[0][competitor.name], 'MXN'))}</span></p>
-                {historicalData[0][userHotelName] && (
-                   <p className="text-sm text-gray-600">Your Price: <span className="font-medium text-gray-800">{currency.format(convertPriceToSelectedCurrency(historicalData[0][userHotelName], 'MXN'))}</span></p>
+                <p className="text-sm text-gray-600">Check-in Date: <span className="font-medium text-gray-800">{checkinDate}</span></p>
+                <p className="text-sm text-gray-600">Scrape Date: <span className="font-medium text-gray-800">{String((historicalData[0] as Record<string, unknown>)?.date ?? '')}</span></p>
+                <p className="text-sm text-gray-600">Competitor Price: <span className="font-medium text-gray-800">{currency.format(convertPriceToSelectedCurrency((historicalData[0] as Record<string, unknown>)[compName] as number, 'MXN'))}</span></p>
+                {typeof (historicalData[0] as Record<string, unknown>)[userHotelName] === 'number' && (
+                   <p className="text-sm text-gray-600">Your Price: <span className="font-medium text-gray-800">{currency.format(convertPriceToSelectedCurrency((historicalData[0] as Record<string, unknown>)[userHotelName] as number, 'MXN'))}</span></p>
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-4">A price evolution chart requires at least two data points from different dates.</p>
@@ -222,7 +240,7 @@ export default function CompetitorProfile({ competitor, onClose }: CompetitorPro
                     <Legend />
                     <Line 
                       type="linear" 
-                      dataKey={competitor.name} 
+                      dataKey={compName} 
                       stroke="#9CA3AF" 
                       strokeWidth={3} 
                       dot={<CustomizedDot min={priceBounds.min} max={priceBounds.max} />}

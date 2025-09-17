@@ -32,7 +32,7 @@ export default function LoginPage() {
     e.preventDefault()
     setIsLoading(true)
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) {
         alert(error.message)
         setIsLoading(false)
@@ -42,7 +42,7 @@ export default function LoginPage() {
       await supabase.auth.getSession()
       const redirect = new URLSearchParams(window.location.search).get('redirectTo') || '/dashboard'
       router.replace(redirect)
-    } catch (err) {
+    } catch {
       alert('Login failed')
     } finally {
       setIsLoading(false)
@@ -131,7 +131,7 @@ export default function LoginPage() {
           {/* Sign up link */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600">
-              You don't have an account?{' '}
+              You don&apos;t have an account?{' '}
               <Link href="/signup" className="text-red-600 underline font-medium hover:text-red-700">
                 Sign up
               </Link>

@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Executing command:', `node ${scriptPath} ${args.join(' ')}`)
 
-    return new Promise((resolve) => {
+    return new Promise<Response>((resolve) => {
       const child = spawn('node', [scriptPath, ...args], {
         cwd: process.cwd(),
         stdio: ['pipe', 'pipe', 'pipe']

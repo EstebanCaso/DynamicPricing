@@ -2,30 +2,16 @@
 
 import {
   ResponsiveContainer,
-  LineChart,
-  Line,
   CartesianGrid,
   XAxis,
   YAxis,
   Tooltip,
   Legend,
-  ReferenceLine,
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   Cell,
-  Brush,
-  ReferenceArea,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
   PieChart,
   Pie,
-  ScatterChart,
-  Scatter,
   PieLabelRenderProps,
 } from "recharts";
 
@@ -35,7 +21,6 @@ import { supabase } from "@/lib/supabaseClient";
 import { 
   standardizeRoomType,
   fetchUserHotelData,
-  fetchCompetitorData,
   logDataFlow,
   cleanPrice,
   type Currency,
@@ -46,9 +31,6 @@ import { useRevenueAnalysis } from "@/hooks/useRevenueAnalysis";
 import { useHistoricalData } from "@/hooks/useHistoricalData";
 import { runCompleteTestSuite, type AnalyticsTestSuite } from "@/lib/analyticsTestSuite";
 
-import HistoricalPricesChart from "./HistoricalPricesChart";
-import PriceStats from "./PriceStats";
-import RevenueByRoomTypeChart from "./RevenueByRoomTypeChart";
 import AnalysisControls from "./AnalysisControls";
 import MarketPositionCard from "./MarketPositionCard";
 
@@ -73,10 +55,10 @@ const renderCustomizedLabel = (props: CustomPieLabelProps) => {
   
   const sin = Math.sin(-midAngle * RADIAN);
   const cos = Math.cos(-midAngle * RADIAN);
-  const sx = Number(cx) + (outerRadius + 10) * cos;
-  const sy = Number(cy) + (outerRadius + 10) * sin;
-  const mx = Number(cx) + (outerRadius + 30) * cos;
-  const my = Number(cy) + (outerRadius + 30) * sin;
+  const sx = Number(cx) + (Number(outerRadius) + 10) * cos;
+  const sy = Number(cy) + (Number(outerRadius) + 10) * sin;
+  const mx = Number(cx) + (Number(outerRadius) + 30) * cos;
+  const my = Number(cy) + (Number(outerRadius) + 30) * sin;
   const ex = mx + (cos >= 0 ? 1 : -1) * 22;
   const ey = my;
   const textAnchor = cos >= 0 ? 'start' : 'end';
@@ -1108,12 +1090,6 @@ export default function AnalysisTab() {
               uniqueRoomTypes={uniqueRoomTypes}
               range={range}
               setRange={setRange}
-              targetMin={targetMin}
-              setTargetMin={setTargetMin}
-              targetMax={targetMax}
-              setTargetMax={setTargetMax}
-              events={events}
-              setEvents={setEvents}
               clickedRoomType={clickedRoomType}
               setClickedRoomType={setClickedRoomType}
               totalDataPoints={supabaseData.length}

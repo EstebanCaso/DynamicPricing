@@ -236,7 +236,7 @@ export default function MultiCompetitorChart({ userHotelData, competitorsData, e
     dataPoint[userHotelName] = userPricePoint ? convertPriceToSelectedCurrency(userPricePoint.avgPrice) : null;
     
     // Add competitor prices and calculate daily average
-    let competitorPricesForDay: number[] = [];
+    const competitorPricesForDay: number[] = [];
     competitorsData.forEach(competitor => {
       const competitorPricePoint = competitor.data.find(d => d.date === date);
       if (competitorPricePoint) {
@@ -305,27 +305,20 @@ export default function MultiCompetitorChart({ userHotelData, competitorsData, e
             tickFormatter={(dateStr) => dateStr.slice(-2)} // Show only the day
             padding={{ left: 0, right: 10 }}
           />
-          <YAxis tick={{ fontSize: 12 }} 
-            tickFormatter={(value) => 
-              selectedCurrency?.code 
-                ? new Intl.NumberFormat('en-US', { 
-                    style: 'currency', 
-                    currency: selectedCurrency.code, 
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0,
-                    useGrouping: true
-                  }).format(value as number)
-                : new Intl.NumberFormat('en-US', { 
-                    style: 'currency', 
-                    currency: 'USD', 
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0,
-                    useGrouping: true
-                  }).format(value as number)
+          <YAxis
+            tick={{ fontSize: 12 }}
+            tickFormatter={(value) =>
+              new Intl.NumberFormat('en-US', {
+                style: 'currency',
+                currency: selectedCurrency || 'USD',
+                minimumFractionDigits: 0,
+                maximumFractionDigits: 0,
+                useGrouping: true,
+              }).format(value as number)
             }
           />
-          <Tooltip 
-            content={<CustomTooltip currencyCode={selectedCurrency.code} userHotelName={userHotelName} eventsData={eventsData} />}
+          <Tooltip
+            content={<CustomTooltip currencyCode={selectedCurrency} userHotelName={userHotelName} eventsData={eventsData} />}
           />
           <Legend 
             onClick={handleLegendClick}
