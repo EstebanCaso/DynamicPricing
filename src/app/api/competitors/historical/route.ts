@@ -13,10 +13,10 @@ export async function POST(request: NextRequest) {
     {
       cookies: {
         get: (name: string) => request.cookies.get(name)?.value,
-        set: (name: string, value: string, options: any) => {
+        set: (name: string, value: string, options: Record<string, unknown>) => {
           response.cookies.set({ name, value, ...options });
         },
-        remove: (name: string, options: any) => {
+        remove: (name: string, options: Record<string, unknown>) => {
           response.cookies.set({ name, value: '', ...options });
         },
       },
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       }
 
       const competitorData = Object.entries(competitorScrape.rooms_jsonb).map(([date, rooms]) => {
-        const prices = (rooms as any[]).map(room => parsePrice(room.price)).filter(p => !isNaN(p));
+        const prices = (rooms as Record<string, unknown>[]).map(room => parsePrice(room.price as string)).filter(p => !isNaN(p));
         const avgPrice = prices.length > 0 ? prices.reduce((a, b) => a + b, 0) / prices.length : 0;
         return { date, avgPrice };
       }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     if (userHotelError) throw userHotelError;
     
-    let userHotelData = [];
+    let userHotelData: Record<string, unknown>[] = [];
     if(userHotelDataRaw) {
       const dailyPrices: { [key: string]: number[] } = {};
       userHotelDataRaw.forEach(item => {

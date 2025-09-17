@@ -159,7 +159,7 @@ export default function WelcomePage() {
         }, 1000)
 
         // Esperar a que todos los scripts terminen
-        const [hotelResult, songkickResult, ticketmasterResult] = await Promise.all([
+        await Promise.all([
           hotelPromise,
           songkickPromise,
           ticketmasterPromise

@@ -1,9 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useState } from 'react'
-import { 
-  logDataFlow
-} from '@/lib/dataUtils'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { supabase } from '@/lib/supabaseClient'
 import CurrencySelector from './CurrencySelector'
@@ -75,8 +72,8 @@ export default function CalendarTab() {
         // Support both { events } and { data: { events } }
         const incoming = Array.isArray(json?.events) ? json.events : json?.data?.events
         setEvents(incoming || [])
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load events')
+      } catch (e: unknown) {
+        setError((e as Error)?.message || 'Failed to load events')
         setEvents([])
       } finally {
         setLoadingEvents(false)
@@ -114,7 +111,8 @@ export default function CalendarTab() {
 
   // Load active price rules to highlight dates
   const [activeRuleDates, setActiveRuleDates] = useState<Set<string>>(new Set())
-  const [activeRules, setActiveRules] = useState<Array<{ rule_type: 'competition' | 'weekend' | 'high_season' | 'low_season' | 'holiday'; start_date: string | null; end_date: string | null; holiday_date: string | null; adjustment: number; adjustment_type: 'percent' | 'fixed'; }>>([])
+  type Rule = { rule_type: 'competition' | 'weekend' | 'high_season' | 'low_season' | 'holiday'; start_date: string | null; end_date: string | null; holiday_date: string | null; adjustment: number; adjustment_type: 'percent' | 'fixed' }
+  const [activeRules, setActiveRules] = useState<Rule[]>([])
   useEffect(() => {
     const loadActiveRules = async () => {
       try {
@@ -134,7 +132,15 @@ export default function CalendarTab() {
           const end = endOfMonth(new Date(today.getFullYear(), today.getMonth() + 2, 1))
           return d >= start && d <= end
         }
-        const rules = (data as any[]) || []
+        const rawRules = (data as Record<string, unknown>[]) || []
+        const rules: Rule[] = rawRules.map((r) => ({
+          rule_type: (r.rule_type as Rule['rule_type']) ?? 'competition',
+          start_date: (r.start_date as string) ?? null,
+          end_date: (r.end_date as string) ?? null,
+          holiday_date: (r.holiday_date as string) ?? null,
+          adjustment: Number(r.adjustment ?? 0),
+          adjustment_type: (r.adjustment_type as 'percent' | 'fixed') ?? 'percent',
+        }))
         for (const r of rules) {
           if (r.rule_type === 'holiday') {
             const d = parseYMDToLocalDate(r.holiday_date)
@@ -245,8 +251,8 @@ export default function CalendarTab() {
       const json = await res.json()
       if (!json?.success) throw new Error(json?.error || 'Failed to load prices')
       setPrices({ hotelName: json.data.hotelName, date: json.data.date, items: json.data.prices || [] })
-    } catch (e: any) {
-      setError(e?.message || 'Failed to load prices')
+    } catch (e: unknown) {
+      setError((e as Error)?.message || 'Failed to load prices')
       setPrices(null)
     } finally {
       setLoadingPrices(false)
@@ -257,18 +263,6 @@ export default function CalendarTab() {
     setSelectedDate(null)
     setPrices(null)
     setError(null)
-  }
-
-  const toggleSelectAll = () => {
-    const nextValue = !selectAll
-    setSelectAll(nextValue)
-    const next: Record<string, boolean> = {}
-    for (const r of recommended) next[r.room_type] = nextValue
-    setSelectedMap(next)
-    if (!nextValue) {
-      // Exiting bulk mode when nothing is selected
-      setBulkMode(false)
-    }
   }
 
   const toggleOne = (roomType: string) => {
@@ -300,8 +294,8 @@ export default function CalendarTab() {
       if (selectedDate) {
         setAppliedDates((prev) => new Set(prev).add(selectedDate))
       }
-    } catch (e: any) {
-      setError(e?.message || 'Failed to apply updates')
+    } catch (e: unknown) {
+      setError((e as Error)?.message || 'Failed to apply updates')
     } finally {
       setIsApplying(false)
     }
@@ -359,10 +353,10 @@ export default function CalendarTab() {
                           })
                           const json = await res.json()
                           if (!json?.success) continue
-                          const baseItems = (json.data?.prices || []).filter((x: any) => x?.room_type && x?.price != null)
+                          const baseItems = (json.data?.prices || []).filter((x: Record<string, unknown>) => x?.room_type && x?.price != null)
                           // Compute adjustments using rules for this date
                           const adj = getRuleAdjustmentForDate(dateISO)
-                          const updatedItems = baseItems.map((x: any) => {
+                          const updatedItems = baseItems.map((x: Record<string, unknown>) => {
                             const base = Number(x.price)
                             const next = Math.round((base * (1 + adj.pct / 100)) + adj.fixed)
                             return { room_type: x.room_type, new_price: next }

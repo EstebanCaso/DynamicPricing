@@ -9,7 +9,7 @@ import HotelAutocomplete from '@/components/HotelAutocomplete'
 import { Hotel } from '@/types/hotel'
 
 // Función de utilidad para formatear la distancia de manera segura
-const formatDistance = (distance: any): string => {
+const formatDistance = (distance: unknown): string => {
   if (typeof distance === 'number' && !isNaN(distance) && distance > 0) {
     return ` (${distance.toFixed(1)} km)`
   }
@@ -128,7 +128,7 @@ export default function SignupPage() {
       await supabase.auth.getSession()
       // Redirigir a la página de bienvenida para ejecutar los scripts de scraping
       router.replace('/welcome')
-    } catch (err) {
+    } catch {
       alert('Signup failed')
     } finally {
       setIsLoading(false)

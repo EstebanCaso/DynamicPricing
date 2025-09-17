@@ -43,10 +43,10 @@ export async function POST(request: NextRequest) {
             console.log(`Cookie ${name}:`, cookie ? 'present' : 'missing')
             return cookie
           },
-          set: (name: string, value: string, options: any) => {
+          set: (name: string, value: string, options: Record<string, unknown>) => {
             response.cookies.set({ name, value, ...options })
           },
-          remove: (name: string, options: any) => {
+          remove: (name: string, options: Record<string, unknown>) => {
             response.cookies.set({ name, value: '', ...options })
           },
         },
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
       } else {
         console.log('⚠️  No competitors found in hoteles_parallel, trying hotels_parallel...')
       }
-    } catch (e) {
+    } catch {
       console.log('⚠️  Error with hoteles_parallel, trying hotels_parallel...')
     }
     
@@ -206,8 +206,8 @@ export async function POST(request: NextRequest) {
         if (competitorData && competitorData.length > 0) {
           console.log(`✅ Found ${competitorData.length} competitors in hotels_parallel (fallback)`)
         }
-      } catch (e) {
-        console.log('⚠️  Error with hotels_parallel fallback:', e)
+      } catch {
+        console.log('⚠️  Error with hotels_parallel fallback')
       }
     }
 
@@ -240,7 +240,6 @@ export async function POST(request: NextRequest) {
           // If ciudad is empty or "EMPTY", try to extract city from hotel name
           if (!hotelCity || hotelCity === 'EMPTY' || hotelCity === 'Unknown City') {
             // Try to extract city from hotel name (e.g., "Homewood Suites By Hilton Chula Vista E" -> "Chula Vista")
-            const nameParts = hotelName.split(' ')
             const possibleCities = ['Tijuana', 'Chula Vista', 'San Diego', 'Ensenada', 'Mexicali']
             for (const city of possibleCities) {
               if (hotelName.toLowerCase().includes(city.toLowerCase())) {
@@ -273,14 +272,14 @@ export async function POST(request: NextRequest) {
           const currentDateRooms = roomsJson?.[currentDate] || []
           
           // Handle different room data structures
-          const roomTypes: RoomTypeData[] = currentDateRooms.map((room: any) => {
+          const roomTypes: RoomTypeData[] = currentDateRooms.map((room: Record<string, unknown>) => {
             // Handle both room structures
             const roomType = room.room_type || room.type || room.roomType || 'Standard'
             const price = room.price || room.rate || 0
             
             return {
               roomType: roomType,
-              price: parseFloat(price) || 0,
+              price: parseFloat(price as string) || 0,
               date: currentDate
             }
           })

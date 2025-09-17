@@ -66,21 +66,13 @@ export default function ComparisonKpiCards({ userHotelData, competitorsData }: C
   const priceDiffPercent = competitorAvgPrice > 0 ? (priceDiff / competitorAvgPrice) * 100 : 0
 
   const formatCurrency = (value: number) => {
-    return selectedCurrency.code
-      ? new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency: selectedCurrency.code,
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-          useGrouping: true
-        }).format(value)
-      : new Intl.NumberFormat('en-US', {
-          style: 'currency',
-          currency: 'USD',
-          minimumFractionDigits: 0,
-          maximumFractionDigits: 0,
-          useGrouping: true
-        }).format(value)
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: selectedCurrency || 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+      useGrouping: true
+    }).format(value)
   }
 
   return (

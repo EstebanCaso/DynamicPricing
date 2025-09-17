@@ -24,7 +24,7 @@ export function HotelsComparisonCard() {
   const [data, setData] = useState<CompareData | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const { selectedCurrency, currency, convertPriceToSelectedCurrency, exchangeRate } = useCurrency()
+  const { selectedCurrency, currency, convertPriceToSelectedCurrency } = useCurrency()
 
   // Force re-render when currency changes
   useEffect(() => {
@@ -39,8 +39,8 @@ export function HotelsComparisonCard() {
         const json = await res.json()
         if (!json?.success) throw new Error(json?.error || 'Failed')
         setData(json.data)
-      } catch (e: any) {
-        setError(e?.message || 'Failed to load')
+      } catch (e: unknown) {
+        setError((e as Error)?.message || 'Failed to load')
         setData(null)
       } finally {
         setLoading(false)
@@ -112,7 +112,7 @@ const AnalysisTab = dynamic(() => import('@/components/AnalysisTab'), {
 export default function DashboardClient() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { selectedCurrency, currency, convertPriceToSelectedCurrency, exchangeRate } = useCurrency()
+  const { selectedCurrency, currency, convertPriceToSelectedCurrency } = useCurrency()
   
   // Force re-render when currency changes
   useEffect(() => {

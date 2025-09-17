@@ -1,5 +1,5 @@
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
 interface CurrencySelectorProps {
   className?: string;
