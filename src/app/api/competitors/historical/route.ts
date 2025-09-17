@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     if (userHotelError) throw userHotelError;
     
-    let userHotelData = [];
+    let userHotelData: Array<{ date: string; avgPrice: number; hotel_name: string }> = [];
     if(userHotelDataRaw) {
       const dailyPrices: { [key: string]: number[] } = {};
       userHotelDataRaw.forEach(item => {

@@ -119,14 +119,6 @@ export default function EventInsights({ userHotelData, competitorsData, eventsDa
     return results.sort((a, b) => Math.abs(b.priceChangePercent) - Math.abs(a.priceChangePercent));
   }, [userHotelData, competitorsData, eventsData, convertPriceToSelectedCurrency]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: selectedCurrency?.code || 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
 
   const formatDate = (dateStr: string) => {
     return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', { 
