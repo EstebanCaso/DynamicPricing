@@ -130,7 +130,6 @@ const CustomTooltip = ({ active, payload, label, currencyCode, userHotelName, ev
 
 export default function MultiCompetitorChart({ userHotelData, competitorsData, eventsData }: ChartProps) {
   const { convertPriceToSelectedCurrency, selectedCurrency } = useCurrency()
-  const [highlightedLine, setHighlightedLine] = useState<string | null>(null);
   const [activeLines, setActiveLines] = useState<string[]>([]);
   const chartRef = useRef<HTMLDivElement>(null);
 
@@ -329,16 +328,17 @@ export default function MultiCompetitorChart({ userHotelData, competitorsData, e
             content={<CustomTooltip currencyCode={selectedCurrency.code} userHotelName={userHotelName} eventsData={eventsData} />}
           />
           <Legend 
-            onMouseEnter={(e) => setHighlightedLine(e.dataKey)}
-            onMouseLeave={() => setHighlightedLine(null)}
             onClick={handleLegendClick}
             wrapperStyle={{
-              paddingTop: '20px'
+              paddingTop: '20px',
+              cursor: 'pointer'
             }}
             formatter={(value: string) => (
               <span style={{ 
                 opacity: isLineActive(value) ? 1 : 0.4,
-                transition: 'opacity 0.2s ease'
+                transition: 'opacity 0.2s ease',
+                cursor: 'pointer',
+                userSelect: 'none'
               }}>
                 {value}
               </span>
@@ -360,8 +360,8 @@ export default function MultiCompetitorChart({ userHotelData, competitorsData, e
             type="linear"
             dataKey="marketAverage"
             stroke="#6B7280"
-            strokeWidth={highlightedLine === 'marketAverage' ? 4 : 3}
-            strokeOpacity={isLineActive('marketAverage') ? (highlightedLine === 'marketAverage' ? 1 : 0.8) : 0.2}
+            strokeWidth={3}
+            strokeOpacity={isLineActive('marketAverage') ? 0.8 : 0}
             strokeDasharray="8 4"
             dot={false}
             connectNulls={false}
@@ -373,8 +373,8 @@ export default function MultiCompetitorChart({ userHotelData, competitorsData, e
             type="linear"
             dataKey={userHotelName}
             stroke="#E53E3E" // Red color for user's hotel
-            strokeWidth={highlightedLine === userHotelName ? 5 : 4}
-            strokeOpacity={isLineActive(userHotelName) ? (highlightedLine === userHotelName ? 1 : 0.8) : 0.2}
+            strokeWidth={4}
+            strokeOpacity={isLineActive(userHotelName) ? 1 : 0}
             connectNulls
             dot={false}
             name={userHotelName}
@@ -382,16 +382,14 @@ export default function MultiCompetitorChart({ userHotelData, competitorsData, e
 
           {/* Competitor Lines */}
           {competitorsData.map((competitor, index) => {
-            const isHovered = highlightedLine === competitor.name;
-
             return (
               <Line
                 key={competitor.name}
                 type="linear"
                 dataKey={competitor.name}
                 stroke={COMPETITOR_COLORS[index % COMPETITOR_COLORS.length]}
-                strokeWidth={isHovered ? 5 : 3}
-                strokeOpacity={isLineActive(competitor.name) ? (isHovered ? 1 : 0.8) : 0.2}
+                strokeWidth={3}
+                strokeOpacity={isLineActive(competitor.name) ? 0.8 : 0}
                 connectNulls
                 dot={false}
                 name={competitor.name}
