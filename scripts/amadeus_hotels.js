@@ -1,4 +1,4 @@
-import 'dotenv/config';
+// dotenv/config not needed in Vercel - env vars are already available
 import { v4 as uuidv4, validate as uuidValidate } from 'uuid';
 
 // --- Configuración Amadeus ---

@@ -1,4 +1,4 @@
-import 'dotenv/config'
+// dotenv/config not needed in Vercel - env vars are already available
 import fetch from 'node-fetch'
 
 export class EventsFetcher {
