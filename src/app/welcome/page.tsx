@@ -71,8 +71,8 @@ export default function WelcomePage() {
           return result
         })
 
-        // Ejecutar Songkick y guardar en Supabase
-        const songkickPromise = fetch('/api/python/run-events-js', {
+        // Ejecutar Songkick y guardar en Supabase (solo si hay coordenadas)
+        const songkickPromise = (hotelInfo.latitude && hotelInfo.longitude) ? fetch('/api/python/run-events-js', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -95,10 +95,10 @@ export default function WelcomePage() {
           const result = await response.json()
           console.log('Resultado scraping Songkick:', result)
           return result
-        })
+        }) : Promise.resolve({ success: false, skipped: true })
 
-        // Ejecutar Ticketmaster y guardar en Supabase
-        const ticketmasterPromise = fetch('/api/python/run-ticketmaster-js', {
+        // Ejecutar Ticketmaster y guardar en Supabase (solo si hay coordenadas)
+        const ticketmasterPromise = (hotelInfo.latitude && hotelInfo.longitude) ? fetch('/api/python/run-ticketmaster-js', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -121,7 +121,7 @@ export default function WelcomePage() {
           const result = await response.json()
           console.log('Resultado scraping Ticketmaster:', result)
           return result
-        })
+        }) : Promise.resolve({ success: false, skipped: true })
 
         // Simular progreso más realista basado en tiempo estimado para los scripts ejecutados
         const startTime = Date.now()

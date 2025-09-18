@@ -289,9 +289,12 @@ def post_hotel(session: requests.Session, url: str, headers: dict, data: dict):
 
 def insert_hotels_supabase(hotels: List[Dict[str, Any]], ciudad: str):
     """
-    Inserta cada hotel (un registro por hotel) en la tabla hoteles_parallel de Supabase.
+    Inserta o actualiza cada hotel en la tabla hoteles_parallel de Supabase.
+    - Si (nombre, ciudad) ya existe: fusiona rooms_jsonb agregando nuevas fechas y
+      actualiza fecha_scrape a hoy.
+    - Si no existe: inserta un nuevo registro.
     """
-    url = f"{SUPABASE_URL}/rest/v1/hoteles_parallel"
+    base_url = f"{SUPABASE_URL}/rest/v1/hoteles_parallel"
     headers = {
         "apikey": SUPABASE_KEY,
         "Authorization": f"Bearer {SUPABASE_KEY}",
@@ -299,19 +302,56 @@ def insert_hotels_supabase(hotels: List[Dict[str, Any]], ciudad: str):
     }
     with requests.Session() as session:
         for hotel in hotels:
+            today_str = datetime.today().strftime("%Y-%m-%d")
             data = {
                 "nombre": hotel["nombre"],
                 "estrellas": hotel["estrellas"],
                 "url": hotel["url"],
                 "ubicacion": hotel["ubicacion"],
-                "fecha_scrape": hotel["fecha_scrape"],
+                "fecha_scrape": today_str,
                 "rooms_jsonb": hotel["rooms_jsonb"],
                 "ciudad": ciudad
             }
-            logger.info(f"[INSERT] Se va a guardar hotel: {hotel['nombre']} con estrellas: {hotel['estrellas']} y url: {hotel['url']} en ciudad: {ciudad}")
+            nombre = hotel.get("nombre") or ""
+            logger.info(f"[UPSERT] Procesando hotel: {nombre} en ciudad: {ciudad}")
             try:
-                r = post_hotel(session, url, headers, data)
-                logger.info(f"Status: {r.status_code}, Response: {r.text}")
+                # 1) Buscar si ya existe por nombre+ciudad
+                select_params = {
+                    "select": "id,rooms_jsonb,fecha_scrape",
+                    "nombre": f"eq.{nombre}",
+                    "ciudad": f"eq.{ciudad}",
+                }
+                r_get = session.get(base_url, headers=headers, params=select_params)
+                if r_get.status_code == 200:
+                    existing = r_get.json()
+                else:
+                    existing = []
+                if isinstance(existing, list) and len(existing) > 0:
+                    # 2) Fusionar rooms_jsonb agregando solo fechas nuevas
+                    existing_row = existing[0]
+                    existing_rooms = existing_row.get("rooms_jsonb") or {}
+                    new_rooms = data["rooms_jsonb"] or {}
+                    merged_rooms = dict(existing_rooms)
+                    # Agregar solo las fechas que no existen actualmente
+                    for date_key, rooms_list in (new_rooms.items() if isinstance(new_rooms, dict) else []):
+                        if date_key not in merged_rooms:
+                            merged_rooms[date_key] = rooms_list
+                    # 3) PATCH para actualizar rooms_jsonb y fecha_scrape
+                    patch_payload = {
+                        "rooms_jsonb": merged_rooms,
+                        "fecha_scrape": today_str,
+                    }
+                    r_patch = session.patch(
+                        base_url,
+                        headers=headers,
+                        params={"nombre": f"eq.{nombre}", "ciudad": f"eq.{ciudad}"},
+                        json=patch_payload,
+                    )
+                    logger.info(f"[PATCH] {nombre} ({ciudad}) Status: {r_patch.status_code} Body: {r_patch.text}")
+                else:
+                    # 4) Insertar nuevo registro
+                    r_insert = post_hotel(session, base_url, headers, data)
+                    logger.info(f"[INSERT] {nombre} ({ciudad}) Status: {r_insert.status_code} Body: {r_insert.text}")
             except Exception as e:
                 logger.error(f"Error upserting: {data}")
                 logger.error(f"Exception: {e}")

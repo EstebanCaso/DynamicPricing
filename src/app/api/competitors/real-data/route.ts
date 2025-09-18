@@ -92,6 +92,8 @@ export async function POST(request: NextRequest) {
     
     // Try multiple paths to get the city from user metadata
     const userCity = city || 
+      rawUserMetadata.hotel_info?.address?.cityName ||
+      userMetadata.hotel_info?.address?.cityName ||
       rawUserMetadata.hotel_metadata?.address?.cityName ||
       userMetadata.hotel_metadata?.address?.cityName ||
       userMetadata.address?.cityName ||

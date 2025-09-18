@@ -28,6 +28,8 @@ export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [displayText, setDisplayText] = useState('')
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
+  const [locationError, setLocationError] = useState<string | null>(null)
   const router = useRouter()
 
   const fullText = "Join to \nArkus Dynamic \nPricing."
@@ -43,6 +45,53 @@ export default function SignupPage() {
       return () => clearTimeout(timeout)
     }
   }, [currentIndex, fullText])
+
+  // Capturar ubicación del usuario al cargar la página
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          })
+          setLocationError(null)
+        },
+        (error) => {
+          console.warn('Error getting location:', error)
+          setLocationError(error.message)
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000 // 5 minutos
+        }
+      )
+    } else {
+      setLocationError('Geolocation not supported')
+    }
+  }, [])
+
+  // Reverse geocoding para obtener ciudad a partir de coordenadas
+  async function reverseGeocodeCity(lat: number, lng: number): Promise<{ cityName: string | null; countryCode: string | null }> {
+    try {
+      const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lng)}&zoom=10&addressdetails=1`
+      const res = await fetch(url, {
+        headers: {
+          // Nominatim recomienda un User-Agent o Referer identificable
+          'Accept': 'application/json'
+        }
+      })
+      if (!res.ok) return { cityName: null, countryCode: null }
+      const data = await res.json()
+      const addr = data?.address || {}
+      const city = addr.city || addr.town || addr.village || addr.municipality || addr.county || null
+      const countryCode = addr.country_code ? String(addr.country_code).toUpperCase() : null
+      return { cityName: city, countryCode }
+    } catch {
+      return { cityName: null, countryCode: null }
+    }
+  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -64,6 +113,37 @@ export default function SignupPage() {
     setIsLoading(true)
     try {
       const { email, password, name, phone } = formData
+      const trimmedHotelName = (formData.hotel || '').trim()
+      let hotelInfo = selectedHotel ? {
+        name: selectedHotel.name,
+        hotelId: selectedHotel.hotelId,
+        latitude: selectedHotel.latitude,
+        longitude: selectedHotel.longitude,
+        address: selectedHotel.address,
+        distance: selectedHotel.distance,
+        isCustom: false
+      } : (trimmedHotelName ? {
+        name: trimmedHotelName,
+        latitude: userLocation?.lat || null,
+        longitude: userLocation?.lng || null,
+        isCustom: true,
+        locationSource: userLocation ? 'user_location' : 'none'
+      } : null)
+
+      // Si es hotel custom con coordenadas, resolver ciudad y anexarla al metadata
+      if (hotelInfo && (hotelInfo as any).isCustom && hotelInfo.latitude && hotelInfo.longitude) {
+        const { cityName, countryCode } = await reverseGeocodeCity(hotelInfo.latitude as number, hotelInfo.longitude as number)
+        if (cityName || countryCode) {
+          hotelInfo = {
+            ...hotelInfo,
+            address: {
+              ...(hotelInfo as any).address,
+              cityName: cityName || (hotelInfo as any)?.address?.cityName || undefined,
+              countryCode: countryCode || (hotelInfo as any)?.address?.countryCode || undefined
+            }
+          }
+        }
+      }
       
       // Crear el usuario
       const { data, error } = await supabase.auth.signUp({ 
@@ -75,14 +155,9 @@ export default function SignupPage() {
             name,
             full_name: name,
             phone,
-            hotel_info: selectedHotel ? {
-              name: selectedHotel.name,
-              hotelId: selectedHotel.hotelId,
-              latitude: selectedHotel.latitude,
-              longitude: selectedHotel.longitude,
-              address: selectedHotel.address,
-              distance: selectedHotel.distance
-            } : null
+            hotel_info: hotelInfo,
+            // Guardar ciudad al nivel raíz para fácil acceso por APIs
+            cityName: (hotelInfo as any)?.address?.cityName || null
           }
         }
       })
@@ -100,14 +175,8 @@ export default function SignupPage() {
             name,
             full_name: name,
             phone,
-            hotel_info: selectedHotel ? {
-              name: selectedHotel.name,
-              hotelId: selectedHotel.hotelId,
-              latitude: selectedHotel.latitude,
-              longitude: selectedHotel.longitude,
-              address: selectedHotel.address,
-              distance: selectedHotel.distance
-            } : null
+            hotel_info: hotelInfo,
+            cityName: (hotelInfo as any)?.address?.cityName || null
           }
         })
 
@@ -227,7 +296,11 @@ export default function SignupPage() {
             <div>
               <HotelAutocomplete
                 value={formData.hotel}
-                onChange={(value) => setFormData({ ...formData, hotel: value })}
+                onChange={(value) => {
+                  // Si el usuario empieza a escribir, limpiar la selección previa
+                  if (selectedHotel) setSelectedHotel(null)
+                  setFormData({ ...formData, hotel: value })
+                }}
                 onHotelSelect={handleHotelSelect}
                 placeholder="Write your Hotel Name"
                 className="w-full"
@@ -245,6 +318,22 @@ export default function SignupPage() {
                        {selectedHotel.address.cityName}, {selectedHotel.address.countryCode}
                        {formatDistance(selectedHotel.distance)}
                      </span>
+                  </div>
+                </div>
+              )}
+              {!selectedHotel && formData.hotel.trim() && (
+                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-sm text-blue-800">
+                    <strong>Custom Hotel:</strong> {formData.hotel.trim()}
+                    <br />
+                    <span className="text-blue-600">
+                      {userLocation ? 
+                        `📍 Using your current location (${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)})` :
+                        locationError ? 
+                          `⚠️ Location not available: ${locationError}` :
+                          '📍 Getting your location...'
+                      }
+                    </span>
                   </div>
                 </div>
               )}
