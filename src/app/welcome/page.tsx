@@ -48,8 +48,8 @@ export default function WelcomePage() {
           userUuid: user.id
         })
         
-        // Ejecutar hotel_propio.js para precios de hoteles
-        const hotelPromise = fetch('/api/python/run-hotel-js', {
+        // Ejecutar scraping de hoteles usando nueva API route
+        const hotelPromise = fetch('/api/scraping/hotel', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -71,8 +71,8 @@ export default function WelcomePage() {
           return result
         })
 
-        // Ejecutar Songkick y guardar en Supabase (solo si hay coordenadas)
-        const songkickPromise = (hotelInfo.latitude && hotelInfo.longitude) ? fetch('/api/python/run-events-js', {
+        // Ejecutar Songkick usando nueva API route (solo si hay coordenadas)
+        const songkickPromise = (hotelInfo.latitude && hotelInfo.longitude) ? fetch('/api/scraping/songkick', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
@@ -97,8 +97,8 @@ export default function WelcomePage() {
           return result
         }) : Promise.resolve({ success: false, skipped: true })
 
-        // Ejecutar Ticketmaster y guardar en Supabase (solo si hay coordenadas)
-        const ticketmasterPromise = (hotelInfo.latitude && hotelInfo.longitude) ? fetch('/api/python/run-ticketmaster-js', {
+        // Ejecutar Ticketmaster usando nueva API route (solo si hay coordenadas)
+        const ticketmasterPromise = (hotelInfo.latitude && hotelInfo.longitude) ? fetch('/api/scraping/ticketmaster', {
           method: 'POST',
           headers: { 
             'Content-Type': 'application/json',
