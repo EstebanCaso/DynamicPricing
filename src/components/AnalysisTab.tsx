@@ -853,16 +853,16 @@ export default function AnalysisTab() {
         color: '#10b981',
         betterWhen: 'higher'
       },
-      {
-        id: 'market_position',
-        name: 'Market Position Index',
-        icon: '📊',
-        yourValue: 100 + marketPosition,
-        marketValue: 100, // Market average baseline
-        unit: 'index',
-        color: '#8b5cf6',
-        betterWhen: 'higher'
-      }
+      // {
+      //   id: 'market_position',
+      //   name: 'Market Position Index',
+      //   icon: '📊',
+      //   yourValue: 100 + marketPosition,
+      //   marketValue: 100, // Market average baseline
+      //   unit: 'index',
+      //   color: '#8b5cf6',
+      //   betterWhen: 'higher'
+      // }
     ];
 
     // Calculate performance indicators for each metric
