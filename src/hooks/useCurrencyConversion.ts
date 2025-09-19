@@ -97,8 +97,8 @@ export const useCurrencyConversion = (selectedCurrency: Currency) => {
     isLoadingRate,
     lastRateFetch,
     convertPriceToSelectedCurrency,
-    currency: currency(),
-    numberFmt: numberFmt(),
+    currency,
+    numberFmt,
     fetchExchangeRate
   };
 };

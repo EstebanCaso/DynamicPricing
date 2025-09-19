@@ -448,7 +448,7 @@ export default function AnalysisTab() {
   // Function to handle bar clicks for filtering with enhanced feedback
   const handleBarClick = (data: any, index: number) => {
     const roomType = data.room_type;
-            console.log(`🎯 Drill-down: Clicked on ${roomType} (Revenue: ${currency?.format(data.total_revenue) || `$${data.total_revenue}`})`);
+            console.log(`🎯 Drill-down: Clicked on ${roomType} (Revenue: ${currency ? currency().format(data.total_revenue) : `$${data.total_revenue}`})`);
     
     // Start transition animation
     setIsTransitioning(true);
@@ -792,103 +792,129 @@ export default function AnalysisTab() {
     return (ourHotelEntry.revenue / marketAvg) * 100;
   }, [ourHotelEntry, marketAvg]);
 
-  // Performance vs Goals Data
-  const performanceGoalsData = useMemo(() => {
-    console.log('🔄 Calculating Performance vs Goals...');
+  // Performance vs Market Comparison Data
+  const performanceComparisonData = useMemo(() => {
+    console.log('🔄 Calculating Performance vs Market Comparison...');
     
     if (!supabaseData || supabaseData.length === 0) {
-      console.log('ℹ️ No user data for goals analysis');
+      console.log('ℹ️ No user data for market comparison');
       return [];
     }
 
-    // Calculate current performance metrics
+    // Calculate current performance metrics from real data
     const totalRevenue = supabaseData.reduce((sum, item) => 
       sum + convertPriceToSelectedCurrency(item.processed_price, item.processed_currency), 0
     );
     
     const avgPrice = totalRevenue / Math.max(supabaseData.length, 1);
-    const occupancyRate = 75; // Simplified - would come from actual occupancy data
-    const customerRating = 4.2; // Would come from reviews/ratings
-    const marketShare = ourHotelEntry ? (ourHotelEntry.revenue / (marketAvg * 10)) * 100 : 15;
+    
+    // Use the same ADR calculation as Market Position for consistency
+    const consistentADR = ourHotelEntry?.revenue || avgPrice;
+    
+    // Calculate realistic occupancy based on data patterns
+    const daysWithData = new Set(supabaseData.map(item => item.checkin_date?.split('T')[0])).size;
+    const totalDaysInRange = range || 30;
+    const dataIntensity = Math.min(daysWithData / totalDaysInRange, 1);
+    const occupancyRate = Math.round((60 + dataIntensity * 25) * 10) / 10;
+    
+    // Calculate market position percentage
+    const marketPosition = ourHotelEntry && marketAvg ? 
+      Math.round(((ourHotelEntry.revenue / marketAvg - 1) * 100) * 10) / 10 : 0;
 
-    // Define 4 key goals that fit perfectly in the component
-    const goals = [
+    // Define comparison metrics: Your Hotel vs Market Average
+    const metrics = [
       {
-        id: 'revenue',
-        name: 'Monthly Revenue',
-        current: totalRevenue,
-        target: totalRevenue * 1.2, // 20% increase goal
-        unit: 'currency',
-        icon: '💰',
-        color: '#10b981',
-        description: 'Total revenue this period',
-        actionable: 'Increase average price by $10-15'
-      },
-      {
-        id: 'avg_price',
-        name: 'Average Price',
-        current: avgPrice,
-        target: avgPrice * 1.15, // 15% increase goal
-        unit: 'currency',
+        id: 'adr',
+        name: 'Average Daily Rate',
         icon: '💵',
+        yourValue: consistentADR,
+        marketValue: marketAvg || consistentADR,
+        unit: 'currency',
         color: '#3b82f6',
-        description: 'Average room price',
-        actionable: 'Optimize pricing on weekends'
+        betterWhen: 'higher'
       },
       {
         id: 'occupancy',
         name: 'Occupancy Rate',
-        current: occupancyRate,
-        target: 85,
-        unit: 'percentage',
         icon: '🏨',
+        yourValue: null,
+        marketValue: null,
+        unit: 'percentage',
         color: '#f59e0b',
-        description: 'Room occupancy percentage',
-        actionable: 'Improve marketing during low seasons'
+        betterWhen: 'higher'
       },
       {
-        id: 'rating',
-        name: 'Customer Rating',
-        current: customerRating,
-        target: 4.5,
-        unit: 'rating',
-        icon: '⭐',
+        id: 'revenue_per_room',
+        name: 'Revenue per Available Room',
+        icon: '💰',
+        yourValue: null,
+        marketValue: null,
+        unit: 'currency',
+        color: '#10b981',
+        betterWhen: 'higher'
+      },
+      {
+        id: 'market_position',
+        name: 'Market Position Index',
+        icon: '📊',
+        yourValue: 100 + marketPosition,
+        marketValue: 100, // Market average baseline
+        unit: 'index',
         color: '#8b5cf6',
-        description: 'Average customer rating',
-        actionable: 'Focus on service quality improvements'
+        betterWhen: 'higher'
       }
     ];
 
-    // Calculate progress and status for each goal
-    const goalsWithProgress = goals.map(goal => {
-      const progress = Math.min((goal.current / goal.target) * 100, 100);
-      let status = 'on-track';
-      let statusColor = '#10b981';
+    // Calculate performance indicators for each metric
+    const metricsWithComparison = metrics.map(metric => {
+      // Handle null values
+      if (metric.yourValue === null || metric.marketValue === null) {
+        return {
+          ...metric,
+          difference: 0,
+          percentageDiff: 0,
+          performance: 'neutral',
+          performanceColor: '#6b7280',
+          isAboveMarket: false
+        };
+      }
       
-      if (progress < 60) {
-        status = 'behind';
-        statusColor = '#ef4444';
-      } else if (progress < 80) {
-        status = 'at-risk';
-        statusColor = '#f59e0b';
-      } else if (progress >= 100) {
-        status = 'exceeded';
-        statusColor = '#10b981';
+      const difference = metric.yourValue - metric.marketValue;
+      const percentageDiff = metric.marketValue > 0 ? 
+        Math.round((difference / metric.marketValue) * 100 * 10) / 10 : 0;
+      
+      let performance = 'neutral';
+      let performanceColor = '#6b7280';
+      
+      if (metric.betterWhen === 'higher') {
+        if (percentageDiff > 10) {
+          performance = 'excellent';
+          performanceColor = '#059669';
+        } else if (percentageDiff > 0) {
+          performance = 'good';
+          performanceColor = '#10b981';
+        } else if (percentageDiff > -10) {
+          performance = 'fair';
+          performanceColor = '#f59e0b';
+        } else {
+          performance = 'poor';
+          performanceColor = '#dc2626';
+        }
       }
 
       return {
-        ...goal,
-        progress: Math.round(progress * 10) / 10,
-        status,
-        statusColor,
-        gap: goal.target - goal.current,
-        gapPercentage: ((goal.target - goal.current) / goal.target) * 100
+        ...metric,
+        difference,
+        percentageDiff,
+        performance,
+        performanceColor,
+        isAboveMarket: percentageDiff > 0
       };
     });
 
-    console.log(`✅ Performance Goals Data:`, goalsWithProgress);
-    return goalsWithProgress;
-  }, [supabaseData, marketAvg, ourHotelEntry, convertPriceToSelectedCurrency]);
+    console.log(`✅ Performance Comparison Data:`, metricsWithComparison);
+    return metricsWithComparison;
+  }, [supabaseData, marketAvg, ourHotelEntry, convertPriceToSelectedCurrency, range]);
 
   const HistoricalRevenueTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length || !visibleData || visibleData.length === 0) return null;
@@ -902,12 +928,12 @@ export default function AnalysisTab() {
                       return (
       <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
         <div className="font-medium text-gray-900">{label}</div>
-                        <div className="text-gray-700">Revenue: {currency?.format(current) || `$${current}`}</div>
+                        <div className="text-gray-700">Revenue: {currency ? currency().format(current) : `$${current}`}</div>
         {prev !== undefined && (
           <div className="text-gray-600">
-                          Prev: {currency?.format(prev) || `$${prev}`}
+                          Prev: {currency ? currency().format(prev) : `$${prev}`}
             <span className="ml-2" style={{ color: deltaColor }}>
-                              {deltaSign}{currency?.format(Math.abs(delta)) || `$${Math.abs(delta)}`}
+                              {deltaSign}{currency ? currency().format(Math.abs(delta)) : `$${Math.abs(delta)}`}
             </span>
                       </div>
         )}
@@ -1126,34 +1152,34 @@ export default function AnalysisTab() {
               performanceDeltaPerc={performanceDeltaPerc}
               marketAvg={marketAvg}
               userHotelName={userHotelName}
-              currency={currency}
+              currency={currency()}
               loading={loading}
             />
 
         </div>
 
           {/* Charts Grid - Perfectly aligned with consistent heights */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 lg:gap-6">
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 mt-6">
             {/* Top Left: Performance vs Goals */}
             <div className="lg:col-span-1 h-[600px] animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-              <div className={`backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl hover:scale-[1.01] transition-all duration-500 h-full flex flex-col group ${
+              <div className={`backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full flex flex-col group ${
                 isTransitioning ? 'animate-pulse' : ''
               }`}>
           <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Performance vs Goals</h3>
-                    <p className="text-sm text-gray-600">Track progress toward targets</p>
+                    <h3 className="text-lg font-semibold text-gray-900">Performance vs Market</h3>
+                    <p className="text-sm text-gray-600">Compare your metrics against market average</p>
                   </div>
             <div className="flex items-center gap-2">
               {loading && (
                 <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">Loading...</span>
               )}
-                    {!loading && performanceGoalsData.length === 0 && (
-                      <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg">No goals data</span>
+                    {!loading && performanceComparisonData.length === 0 && (
+                      <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-1 rounded-lg">No comparison data</span>
                     )}
-                    {!loading && performanceGoalsData.length > 0 && (
+                    {!loading && performanceComparisonData.length > 0 && (
                       <span className="text-xs text-green-600 bg-green-50 px-2 py-1 rounded-lg">
-                        {performanceGoalsData.filter(g => g.status === 'on-track' || g.status === 'exceeded').length} on track
+                        {performanceComparisonData.filter(m => m.isAboveMarket).length} above market
                       </span>
                   )}
             </div>
@@ -1167,120 +1193,130 @@ export default function AnalysisTab() {
                         <p className="text-xs text-gray-600">Loading goals data...</p>
                       </div>
                     </div>
-                  ) : performanceGoalsData.length === 0 ? (
+                  ) : performanceComparisonData.length === 0 ? (
                     <div className="flex items-center justify-center h-full text-gray-500">
                       <div className="text-center">
-                        <div className="text-4xl mb-2">🎯</div>
-                        <p className="text-sm">No goals data available</p>
-                        <p className="text-xs mt-1">Load data to see performance analysis</p>
+                        <div className="text-4xl mb-2">📊</div>
+                        <p className="text-sm">No comparison data available</p>
+                        <p className="text-xs mt-1">Load data to see market comparison</p>
                       </div>
                     </div>
                   ) : (
-                    <div className="h-full flex flex-col">
-                      {/* Goals Progress List - Ultra Compact for 4 visible items */}
-                      <div className="space-y-2 flex-1">
-                        {performanceGoalsData.map((goal, index) => (
+                    <div className="h-full flex flex-col overflow-hidden">
+                      {/* Market Comparison List - Side by Side Layout */}
+                      <div className="space-y-3 flex-1 overflow-y-auto pr-2">
+                        {performanceComparisonData.map((metric, index) => (
                           <div
-                            key={goal.id}
-                            className="group relative backdrop-blur-sm bg-white/5 border border-white/10 rounded-lg p-2.5 hover:bg-white/10 transition-all duration-300 cursor-pointer hover:scale-[1.01]"
-                            onClick={() => {
-                              console.log(`🎯 Goal Drill-down: ${goal.name}`);
-                              console.log(`   📊 Current: ${goal.unit === 'currency' ? (currency?.format(goal.current) || `$${goal.current}`) : goal.unit === 'percentage' ? `${goal.current}%` : goal.current}`);
-                              console.log(`   🎯 Target: ${goal.unit === 'currency' ? (currency?.format(goal.target) || `$${goal.target}`) : goal.unit === 'percentage' ? `${goal.target}%` : goal.target}`);
-                              console.log(`   📈 Progress: ${goal.progress}%`);
-                              console.log(`   💡 Action: ${goal.actionable}`);
-                            }}
+                            key={metric.id}
+                            className="group relative backdrop-blur-sm bg-white/5 border border-white/10 rounded-lg p-3 hover:bg-white/10 transition-all duration-300"
                           >
-                            {/* Goal Header - Ultra Compact */}
-                            <div className="flex items-center justify-between mb-1.5">
+                            {/* Metric Header */}
+                            <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center gap-2">
-                                <div className="text-base">{goal.icon}</div>
+                                <div className="text-lg">{metric.icon}</div>
                                 <div>
-                                  <h4 className="font-semibold text-gray-900 text-xs leading-tight">{goal.name}</h4>
+                                  <h4 className="font-semibold text-gray-900 text-sm">{metric.name}</h4>
                                 </div>
                               </div>
                               <div className="text-right">
-                                <div className="text-sm font-bold" style={{ color: goal.statusColor }}>
-                                  {goal.progress}%
+                                <div className="text-sm font-bold flex items-center gap-1" style={{ color: metric.performanceColor }}>
+                                  {metric.isAboveMarket ? '↗' : '↘'}
+                                  {metric.percentageDiff > 0 ? '+' : ''}{metric.percentageDiff}%
                                 </div>
                               </div>
                             </div>
 
-                            {/* Progress Bar - Ultra Compact */}
-                            <div className="mb-1.5">
-                              <div className="flex justify-between text-xs text-gray-600 mb-1">
-                                <span className="text-xs">
-                                  {goal.unit === 'currency' 
-                                    ? (currency?.format(goal.current) || `$${Math.round(goal.current)}`)
-                                    : goal.unit === 'percentage' 
-                                    ? `${Math.round(goal.current)}%`
-                                    : goal.unit === 'rating'
-                                    ? `${goal.current}/5`
-                                    : Math.round(goal.current)
+                            {/* Side by Side Comparison */}
+                            <div className="grid grid-cols-2 gap-3">
+                              {/* Your Hotel - Left Side */}
+                              <div className="bg-arkus-50/50 rounded-lg p-2">
+                                <div className="text-xs text-gray-600 mb-1">Your Hotel</div>
+                                <div className="text-lg font-bold text-arkus-700">
+                                  {metric.yourValue === null 
+                                    ? 'N/A'
+                                    : metric.unit === 'currency' 
+                                    ? (currency ? currency().format(metric.yourValue) : `$${Math.round(metric.yourValue)}`)
+                                    : metric.unit === 'percentage' 
+                                    ? `${Math.round(metric.yourValue)}%`
+                                    : metric.unit === 'index'
+                                    ? `${Math.round(metric.yourValue)}`
+                                    : Math.round(metric.yourValue)
                                   }
+                                </div>
+                              </div>
+
+                              {/* Market Average - Right Side */}
+                              <div className="bg-gray-50/50 rounded-lg p-2">
+                                <div className="text-xs text-gray-600 mb-1">Market Average</div>
+                                <div className="text-lg font-bold text-gray-700">
+                                  {metric.marketValue === null 
+                                    ? 'N/A'
+                                    : metric.unit === 'currency' 
+                                    ? (currency ? currency().format(metric.marketValue) : `$${Math.round(metric.marketValue)}`)
+                                    : metric.unit === 'percentage' 
+                                    ? `${Math.round(metric.marketValue)}%`
+                                    : metric.unit === 'index'
+                                    ? `${Math.round(metric.marketValue)}`
+                                    : Math.round(metric.marketValue)
+                                  }
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Performance Indicator Bar */}
+                            <div className="mt-2">
+                              <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                                <span className="capitalize" style={{ color: metric.performanceColor }}>
+                                  {metric.performance}
                                 </span>
-                                <span className="text-xs">
-                                  {goal.unit === 'currency' 
-                                    ? (currency?.format(goal.target) || `$${Math.round(goal.target)}`)
-                                    : goal.unit === 'percentage' 
-                                    ? `${goal.target}%`
-                                    : goal.unit === 'rating'
-                                    ? `${goal.target}/5`
-                                    : goal.target
+                                <span>
+                                  Difference: {metric.yourValue === null || metric.marketValue === null
+                                    ? 'N/A'
+                                    : metric.unit === 'currency' 
+                                    ? (currency ? currency().format(Math.abs(metric.difference)) : `$${Math.round(Math.abs(metric.difference))}`)
+                                    : `${Math.abs(Math.round(metric.difference))}${metric.unit === 'percentage' ? '%' : ''}`
                                   }
                                 </span>
                               </div>
-                              <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
+                              <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden relative">
+                                <div className="absolute inset-0 flex">
+                                  {/* Below market section */}
+                                  <div className="w-1/2 bg-red-200"></div>
+                                  {/* Above market section */}
+                                  <div className="w-1/2 bg-green-200"></div>
+                                </div>
+                                {/* Performance indicator */}
                                 <div 
-                                  className="h-1.5 rounded-full transition-all duration-500 relative"
+                                  className="absolute top-0 h-2 w-1 transition-all duration-500"
                                   style={{ 
-                                    width: `${Math.min(goal.progress, 100)}%`,
-                                    backgroundColor: goal.statusColor 
+                                    left: `${50 + Math.max(-50, Math.min(50, metric.percentageDiff / 2))}%`,
+                                    backgroundColor: metric.performanceColor 
                                   }}
                                 >
-                                  {/* Shimmer effect */}
-                                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-pulse"></div>
                                 </div>
-                              </div>
-                            </div>
-
-                            {/* Action Item - Ultra Compact */}
-                            <div className="bg-gray-50/30 rounded-md p-1.5">
-                              <div className="text-xs text-gray-700 leading-tight">
-                                <span className="font-medium text-gray-900">💡</span> {goal.actionable}
-                              </div>
-                            </div>
-
-                            {/* Hover Tooltip - Fixed positioning */}
-                            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 opacity-0 hover:opacity-100 transition-opacity duration-200 pointer-events-none z-30">
-                              <div className="bg-gray-900 text-white rounded-lg shadow-xl p-2 text-xs whitespace-nowrap">
-                                <div className="font-medium mb-1">{goal.name}</div>
-                                <div className="space-y-1">
-                                  <div>Gap: {goal.unit === 'currency' ? (currency?.format(Math.abs(goal.gap)) || `$${Math.round(Math.abs(goal.gap))}`) : `${Math.round(Math.abs(goal.gap))}${goal.unit === 'percentage' ? '%' : ''}`}</div>
-                                  <div>Status: <span style={{ color: goal.statusColor }}>{goal.status.replace('-', ' ')}</span></div>
-                                </div>
-                                {/* Tooltip Arrow */}
-                                <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
                               </div>
                             </div>
                           </div>
                         ))}
                       </div>
 
-                      {/* Summary - Minimal Inline */}
-                      <div className="mt-1 pt-1 border-t border-gray-200/20">
-                        <div className="flex justify-center gap-4 text-xs">
-                          <div className="flex items-center gap-1">
-                            <div className="w-2 h-2 bg-green-600 rounded-full"></div>
-                            <span className="text-gray-600">{performanceGoalsData.filter(g => g.status === 'on-track' || g.status === 'exceeded').length} On Track</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <div className="w-2 h-2 bg-yellow-600 rounded-full"></div>
-                            <span className="text-gray-600">{performanceGoalsData.filter(g => g.status === 'at-risk').length} At Risk</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <div className="w-2 h-2 bg-red-600 rounded-full"></div>
-                            <span className="text-gray-600">{performanceGoalsData.filter(g => g.status === 'behind').length} Behind</span>
+                      {/* Summary - Performance Overview */}
+                      <div className="mt-2 pt-2 border-t border-gray-200/20">
+                        <div className="text-center">
+                          <div className="text-xs text-gray-600 mb-1">Overall Performance</div>
+                          <div className="flex justify-center gap-3 text-xs">
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-green-600 rounded-full"></div>
+                              <span className="text-gray-600">{performanceComparisonData.filter(m => m.performance === 'excellent' || m.performance === 'good').length} Above Market</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-yellow-600 rounded-full"></div>
+                              <span className="text-gray-600">{performanceComparisonData.filter(m => m.performance === 'fair').length} At Market</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 bg-red-600 rounded-full"></div>
+                              <span className="text-gray-600">{performanceComparisonData.filter(m => m.performance === 'poor').length} Below Market</span>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1361,11 +1397,11 @@ export default function AnalysisTab() {
                             }}
                           />
                           <YAxis 
-                            tickFormatter={(value) => currency?.format(value) || `$${value}`}
+                            tickFormatter={(value) => currency ? currency().format(value) : `$${value}`}
                           />
                           <Tooltip 
                             formatter={(value: any, name: string) => [
-                              currency?.format(value) || `$${value}`,
+                              currency ? currency().format(value) : `$${value}`,
                               name === 'price' ? 'Your Price' : 'Market Estimate'
                             ]}
                             labelFormatter={(label) => {
@@ -1409,7 +1445,7 @@ export default function AnalysisTab() {
 
             {/* Bottom Left: Revenue Distribution by Room Type */}
             <div className="lg:col-span-1 h-[600px] animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
-              <div className={`backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-500 h-full flex flex-col ${
+              <div className={`backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-xl p-6 hover:shadow-2xl transition-all duration-300 h-full flex flex-col ${
                 isTransitioning ? 'animate-pulse' : ''
               }`}>
                 <div className="flex items-center justify-between mb-6">
@@ -1495,9 +1531,9 @@ export default function AnalysisTab() {
                               return (
                                 <div className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-lg">
                                   <div className="font-medium text-gray-900">{data.room_type}</div>
-                                  <div className="text-gray-700">Revenue: {currency?.format(data.total_revenue) || `$${data.total_revenue}`}</div>
+                                  <div className="text-gray-700">Revenue: {currency ? currency().format(data.total_revenue) : `$${data.total_revenue}`}</div>
                                   <div className="text-gray-600">Share: {percentage}%</div>
-                                                                      <div className="text-gray-500">Avg Price: {currency?.format(data.avg_price) || `$${data.avg_price}`}</div>
+                                                                      <div className="text-gray-500">Avg Price: {currency ? currency().format(data.avg_price) : `$${data.avg_price}`}</div>
                                   <div className="text-gray-500">Bookings: {data.count}</div>
                                 </div>
                               );
@@ -1516,7 +1552,7 @@ export default function AnalysisTab() {
                       <div>
                         <p className="text-xs text-gray-600">Total Revenue</p>
                         <p className="text-lg font-semibold text-gray-800">
-                                                      {currency?.format(revenueByRoomTypeData.reduce((sum, item) => sum + item.total_revenue, 0)) || `$${revenueByRoomTypeData.reduce((sum, item) => sum + item.total_revenue, 0)}`}
+                                                      {currency ? currency().format(revenueByRoomTypeData.reduce((sum, item) => sum + item.total_revenue, 0)) : `$${revenueByRoomTypeData.reduce((sum, item) => sum + item.total_revenue, 0)}`}
                         </p>
                       </div>
                       <div>
@@ -1819,7 +1855,7 @@ export default function AnalysisTab() {
                                  }
                                  
                                  const tooltipText = hasData 
-                                   ? `Day ${data.day}: ${currency?.format(data.price || 0) || '$0'}\n${data.bookings || 0} bookings\nIntensity: ${intensity.toFixed(2)}`
+                                   ? `Day ${data.day}: ${currency ? currency().format(data.price || 0) : '$0'}\n${data.bookings || 0} bookings\nIntensity: ${intensity.toFixed(2)}`
                                    : `Day ${data.day}: No data available`;
                                  
                                  return (
@@ -1835,7 +1871,7 @@ export default function AnalysisTab() {
                                      onClick={() => {
                                      if (hasData && data.price && currency) {
                                        console.log(`📅 Day ${data.day} Drill-down:`);
-                                       console.log(`   💰 Price: ${currency?.format(data.price) || `$${data.price}`}`);
+                                       console.log(`   💰 Price: ${currency ? currency().format(data.price) : `$${data.price}`}`);
                                        console.log(`   📊 Bookings: ${data.bookings || 0}`);
                                        console.log(`   📈 Intensity: ${intensity.toFixed(2)}`);
                                        
@@ -1873,7 +1909,7 @@ export default function AnalysisTab() {
                                          <div className="space-y-1">
                                            <div className="flex justify-between">
                                              <span>Price:</span>
-                                             <span className="font-medium">{currency?.format(data.price) || `$${data.price}`}</span>
+                                             <span className="font-medium">{currency ? currency().format(data.price) : `$${data.price}`}</span>
                                            </div>
                                            <div className="flex justify-between">
                                              <span>Bookings:</span>

@@ -103,9 +103,6 @@ export default function MarketPositionCard({
           {/* Market Rank */}
           <div className="flex items-center justify-between p-4 bg-white/50 rounded-xl">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-to-br from-arkus-500 to-arkus-600 rounded-lg flex items-center justify-center text-white font-bold text-lg">
-                {marketPositionData.position || '?'}
-              </div>
               <div>
                 <p className="text-sm font-medium text-gray-700">Market Rank</p>
                 <p className="text-xs text-gray-500">
@@ -161,22 +158,6 @@ export default function MarketPositionCard({
                 {currency.format(marketPositionData.marketAverage)}
               </div>
             </div>
-          </div>
-
-          {/* Quick Insight */}
-          <div className="mt-4 p-4 bg-gradient-to-r from-arkus-50 to-arkus-100 rounded-xl border border-arkus-200">
-            <p className="text-sm text-arkus-700 text-center font-medium">
-              {marketPositionData.position && marketPositionData.totalHotels > 0 && (
-                <>
-                  {marketPositionData.position <= marketPositionData.totalHotels / 3 
-                    ? "🎯 Excellent positioning! You're in the top tier of the market." 
-                    : marketPositionData.position <= (marketPositionData.totalHotels * 2) / 3
-                    ? "⚖️ Mid-market position. Consider optimization opportunities."
-                    : "📊 Premium positioning. Monitor competitor movements carefully."
-                  }
-                </>
-              )}
-            </p>
           </div>
         </div>
       )}
