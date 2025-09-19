@@ -32,7 +32,7 @@ export const useRevenueAnalysis = ({
     }
 
     if (range && range > 0) {
-      const endDate = new Date("2025-10-30");
+      const endDate = new Date(); // Use current date instead of hardcoded date
       const rangeStart = new Date(endDate);
       rangeStart.setDate(endDate.getDate() - range);
       
@@ -77,7 +77,7 @@ export const useRevenueAnalysis = ({
     }
 
     if (range && range > 0) {
-      const endDate = new Date("2025-10-30");
+      const endDate = new Date(); // Use current date instead of hardcoded date
       const rangeStart = new Date(endDate);
       rangeStart.setDate(endDate.getDate() - range);
       filteredData = filteredData.filter((item) => {
@@ -127,7 +127,7 @@ export const useRevenueAnalysis = ({
     
     // Only apply date range filter, not room type filter
     if (range && range > 0) {
-      const endDate = new Date("2025-10-30");
+      const endDate = new Date(); // Use current date instead of hardcoded date
       const rangeStart = new Date(endDate);
       rangeStart.setDate(endDate.getDate() - range);
       

@@ -3,8 +3,6 @@
 import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import { useSearchParams, usePathname } from 'next/navigation'
 import Image from 'next/image'
-import { useCurrency } from '@/contexts/CurrencyContext'
-import CurrencySelector from '@/components/CurrencySelector'
 import HotelsComparisonCard from '@/components/HotelsComparisonCard'
 import AnalysisTab from '@/components/AnalysisTab'
 import CalendarTab from '@/components/CalendarTab'
@@ -20,29 +18,24 @@ function DashboardContent() {
   const [loading, setLoading] = useState(false)
   const [stats, setStats] = useState<Record<string, unknown> | null>(null)
   const [eventRows, setEventRows] = useState<AnalyticsRow[]>([])
-  const [kpis, setKpis] = useState<Record<string, unknown> | null>(null)
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const [events, setEvents] = useState<EventItem[]>([])
   const [selectedCompetitor, setSelectedCompetitor] = useState<Record<string, unknown> | null>(null);
   const [showCalendarMenu, setShowCalendarMenu] = useState<boolean>(false)
   const calendarMenuRef = useRef<HTMLDivElement | null>(null)
-  
-  // Currency context
-  const { selectedCurrency, convertPriceToSelectedCurrency, currency } = useCurrency()
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true)
-        const [statsRes, analyticsRes, kpisRes] = await Promise.all([
+        const [statsRes, analyticsRes] = await Promise.all([
           fetch('/api/stats/overview', { cache: 'no-store' }),
           fetch('/api/analytics/view', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ metric: 'price-trends' }),
           }),
-          fetch('/api/dashboard/kpis', { cache: 'no-store' }),
         ])
 
         if (statsRes.ok) {
@@ -56,13 +49,6 @@ function DashboardContent() {
           const analyticsData = await analyticsRes.json()
           if (analyticsData.success && Array.isArray(analyticsData.data)) {
             setEventRows(analyticsData.data)
-          }
-        }
-
-        if (kpisRes.ok) {
-          const kpisData = await kpisRes.json()
-          if (kpisData.success) {
-            setKpis(kpisData.data)
           }
         }
 
@@ -174,74 +160,89 @@ function DashboardContent() {
         <div className="absolute bottom-1/3 right-10 w-56 h-56 bg-arkus-300 rounded-full mix-blend-multiply filter blur-xl opacity-15 animate-float" style={{animationDelay: '3s'}}></div>
       </div>
       
-      {/* Main Content with Glassmorphism */}
-      <div className="relative z-[10000]">
-        {/* Top Navigation Bar - Glassmorphism */}
-        <div className="container mx-auto px-6 py-4 relative z-[10000]">
-          <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-[25px] shadow-xl px-6 py-4 hover:shadow-2xl transition-all duration-300">
-            <div className="flex items-center justify-between">
-              {/* Logo */}
+      {/* Main Content */}
+      <div className="relative z-10">
+        {/* Header */}
+        <div className="backdrop-blur-xl bg-glass-100 border-b border-glass-200 shadow-xl">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
               <div className="flex items-center">
-                <div className="w-8 h-8">
-                  <Image
-                    src="/assets/logos/logo.png"
-                    alt="Arkus Dynamic Pricing Logo"
-                    width={32}
-                    height={32}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
+                <Image 
+                  src="/assets/logos/logo.png" 
+                  alt="Dynamic Pricing Logo" 
+                  width={40} 
+                  height={40} 
+                  className="rounded-lg shadow-lg"
+                />
+                <span className="ml-3 text-xl font-bold text-gray-900">Dynamic Pricing</span>
               </div>
-
-              {/* Navigation Tabs - Centered */}
-              <div className="flex space-x-9">
-                {tabs.map((tab) => {
-                  if (tab.id !== 'calendar') {
-                    return (
-                      <button
-                        key={tab.id}
-                        onClick={() => handleTabClick(tab.id)}
-                        className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                          activeTab === tab.id
-                            ? 'bg-arkus-600 text-white shadow-lg'
-                            : 'bg-glass-200 text-gray-700 hover:bg-glass-300 hover:shadow-md'
-                        }`}
-                      >
-                        {tab.name}
-                      </button>
-                    )
-                  }
-                  const calendarActive = activeTab === 'calendar'
+              <div className="text-sm text-gray-600">{new Date().toLocaleDateString()}</div>
+            </div>
+          </div>
+        </div>
+        
+        {/* Navigation */}
+        <div className="backdrop-blur-xl bg-glass-100 border-b border-glass-200 shadow-lg">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav className="flex space-x-1 py-4">
+              {tabs.map((tab) => {
+                if (tab.id === 'calendar') {
                   return (
                     <div key={tab.id} ref={calendarMenuRef} className="relative">
                       <button
                         aria-expanded={showCalendarMenu}
                         onClick={() => setShowCalendarMenu((v) => !v)}
                         className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                          calendarActive ? 'bg-arkus-600 text-white shadow-lg' : 'bg-glass-200 text-gray-700 hover:bg-glass-300 hover:shadow-md'
+                          activeTab === tab.id
+                            ? 'bg-arkus-600 text-white shadow-lg'
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
                         }`}
                       >
                         {tab.name}
+                        <svg className={`ml-2 h-4 w-4 inline transition-transform ${showCalendarMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
                       </button>
                       {showCalendarMenu && (
-                        <div className="absolute left-0 top-full mt-2 w-56 rounded-xl border border-black/10 bg-white shadow-lg z-[9999]">
-                          <button className="w-full text-left px-4 py-2 hover:bg-gray-50 rounded-t-xl" onClick={() => handleCalendarViewChange('calendar')}>Calendario</button>
-                          <button className="w-full text-left px-4 py-2 hover:bg-gray-50 rounded-b-xl" onClick={() => handleCalendarViewChange('rules')}>Reglas de Precios</button>
+                        <div className="absolute left-0 mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-xl z-50">
+                          <button 
+                            onClick={() => handleCalendarViewChange('calendar')}
+                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-t-lg"
+                          >
+                            📅 Calendar View
+                          </button>
+                          <button 
+                            onClick={() => handleCalendarViewChange('rules')}
+                            className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-b-lg"
+                          >
+                            ⚙️ Pricing Rules
+                          </button>
                         </div>
                       )}
                     </div>
                   )
-                })}
-              </div>
-
-              {/* User Icon */}
-              <div className="w-8 h-8 bg-glass-300 rounded-full border border-glass-400"></div>
-            </div>
+                } else {
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => handleTabClick(tab.id)}
+                      className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
+                        activeTab === tab.id
+                          ? 'bg-arkus-600 text-white shadow-lg'
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
+                      }`}
+                    >
+                      {tab.name}
+                    </button>
+                  )
+                }
+              })}
+            </nav>
           </div>
         </div>
-
-        {/* Main Content */}
-        <div className="container mx-auto px-6 py-8">
+        
+        {/* Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {activeTab === 'analysis' ? (
             <AnalysisTab />
           ) : activeTab === 'calendar' ? (
@@ -256,22 +257,19 @@ function DashboardContent() {
                   <h1 className="text-3xl font-bold text-gray-900">Executive Summary</h1>
                   <p className="text-gray-600 mt-2">Real-time performance metrics and market intelligence</p>
                 </div>
-                <div className="flex items-center space-x-4">
-                  <CurrencySelector className="text-sm" showLabel={false} />
-                  <div className="text-sm text-gray-500">
-                    Last updated: {new Date().toLocaleDateString('en-US', { 
-                      month: 'short', 
-                      day: 'numeric', 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
-                    })}
-                  </div>
+                <div className="text-sm text-gray-500">
+                  Last updated: {new Date().toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
                 </div>
               </div>
 
               {/* KPI Grid */}
               <div>
-                  <div className={`grid grid-cols-1 gap-6 mb-8 ${kpis?.occupancy?.hasData ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                     
                     {/* Revenue */}
                     <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
@@ -281,37 +279,15 @@ function DashboardContent() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
                         </svg>
                       </div>
-                      <div className="text-2xl font-bold text-gray-900 mb-1">
-                        {loading ? '...' : kpis?.revenue ? 
-                          currency.format(convertPriceToSelectedCurrency(kpis.revenue.current, kpis.revenue.currency || 'USD')) : 
-                          currency.format(0)
-                        }
-                      </div>
-                      <div className={`text-xs font-medium ${loading ? 'text-gray-400' : (kpis?.revenue?.growth >= 0 ? 'text-green-600' : 'text-red-600')}`}>
+                      <div className="text-2xl font-bold text-gray-900 mb-1">$125,450</div>
+                      <div className="text-xs text-green-600 font-medium">
                         <span className="inline-flex items-center">
-                          {!loading && kpis?.revenue?.growth !== undefined && (
-                            <svg className={`w-3 h-3 mr-1 ${kpis.revenue.growth >= 0 ? '' : 'rotate-180'}`} fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                            </svg>
-                          )}
-                          {loading ? '...' : kpis?.revenue?.growth !== undefined ? `${kpis.revenue.growth > 0 ? '+' : ''}${kpis.revenue.growth}% MoM` : 'No data'}
+                          <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                          </svg>
+                          +12.3% MoM
                         </span>
                       </div>
-                      {!loading && kpis?.revenue && (
-                        <div className="text-xs text-gray-500 mt-1" title={kpis.revenue.methodology}>
-                          {kpis.revenue.isRealData ? (
-                            <span className="inline-flex items-center">
-                              <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
-                              Real data
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center">
-                              <span className="w-2 h-2 bg-orange-500 rounded-full mr-1"></span>
-                              Market estimate
-                            </span>
-                          )}
-                        </div>
-                      )}
                     </div>
 
                     {/* Market Position */}
@@ -322,38 +298,28 @@ function DashboardContent() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
                       </div>
-                      <div className="text-2xl font-bold text-gray-900 mb-1">
-                        {loading ? '...' : kpis?.marketPosition?.rank ? `#${kpis.marketPosition.rank}` : 'N/A'}
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        {loading ? '...' : kpis?.marketPosition?.total ? `of ${kpis.marketPosition.total} properties` : 'No data'}
-                      </div>
+                      <div className="text-2xl font-bold text-gray-900 mb-1">#3</div>
+                      <div className="text-xs text-gray-600">of 12 properties</div>
                     </div>
 
-                    {/* Occupancy - Only show if data is available */}
-                    {kpis?.occupancy?.hasData && (
-                      <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Occupancy</span>
-                          <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                          </svg>
-                        </div>
-                        <div className="text-2xl font-bold text-gray-900 mb-1">
-                          {loading ? '...' : kpis?.occupancy?.rate !== null ? `${kpis.occupancy.rate}%` : 'N/A'}
-                        </div>
-                        <div className={`text-xs font-medium ${loading ? 'text-gray-400' : (kpis?.occupancy?.growth >= 0 ? 'text-green-600' : 'text-red-600')}`}>
-                          <span className="inline-flex items-center">
-                            {!loading && kpis?.occupancy?.growth !== null && (
-                              <svg className={`w-3 h-3 mr-1 ${kpis.occupancy.growth >= 0 ? '' : 'rotate-180'}`} fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                              </svg>
-                            )}
-                            {loading ? '...' : kpis?.occupancy?.growth !== null ? `${kpis.occupancy.growth > 0 ? '+' : ''}${kpis.occupancy.growth}% WoW` : 'No data'}
-                          </span>
-                        </div>
+                    {/* Occupancy */}
+                    <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Occupancy</span>
+                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
                       </div>
-                    )}
+                      <div className="text-2xl font-bold text-gray-900 mb-1">87.2%</div>
+                      <div className="text-xs text-green-600 font-medium">
+                        <span className="inline-flex items-center">
+                          <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                          </svg>
+                          +5.1% WoW
+                        </span>
+                      </div>
+                    </div>
 
                     {/* ADR */}
                     <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
@@ -363,15 +329,10 @@ function DashboardContent() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                         </svg>
                       </div>
-                      <div className="text-2xl font-bold text-gray-900 mb-1">
-                        {loading ? '...' : kpis?.adr?.current ? 
-                          currency.format(convertPriceToSelectedCurrency(kpis.adr.current, kpis.adr.currency || 'MXN')) : 
-                          currency.format(0)
-                        }
-                      </div>
+                      <div className="text-2xl font-bold text-gray-900 mb-1">$148</div>
                       <div className="text-xs text-gray-600">avg daily rate</div>
                     </div>
-                </div>
+                  </div>
 
                   {/* Action Items & Navigation */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -503,14 +464,14 @@ function DashboardContent() {
                 <div className="mb-4">
                   <h3 className="text-lg font-semibold text-gray-900">Market Position Overview</h3>
                   <p className="text-sm text-gray-600 mt-1">Competitive landscape and pricing trends</p>
-              </div>
+                </div>
                 <HotelsComparisonCard />
               </div>
             </div>
           )}
         </div>
       </div>
-      
+
       {selectedCompetitor && (
         <CompetitorProfile 
           competitor={selectedCompetitor} 

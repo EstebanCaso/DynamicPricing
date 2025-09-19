@@ -107,7 +107,7 @@ export const useHistoricalData = ({
         }
 
         if (range && range > 0) {
-          const endDate = new Date("2025-10-30");
+          const endDate = new Date(); // Use current date instead of hardcoded date
           const rangeStart = new Date(endDate);
           rangeStart.setDate(endDate.getDate() - range);
 
