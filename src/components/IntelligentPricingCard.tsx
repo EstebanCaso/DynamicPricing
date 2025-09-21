@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
+import { usePriceUpdates } from '@/contexts/PriceUpdateContext';
 
 interface AIRecommendation {
   recommendedPrice: number;
@@ -48,6 +49,7 @@ export default function IntelligentPricingCard({
   className = ""
 }: IntelligentPricingCardProps) {
   const { currency, convertPriceToSelectedCurrency } = useCurrency();
+  const { triggerPriceUpdate } = usePriceUpdates();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -106,23 +108,41 @@ export default function IntelligentPricingCard({
 
   const applyRecommendation = async (recommendation: AIRecommendation) => {
     try {
-      // Aquí implementarías la lógica para aplicar el precio recomendado
-      console.log('🚀 Aplicando recomendación:', recommendation);
+      console.log('🚀 Applying recommendation:', recommendation);
       
-      // Simular aplicación del precio
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Update price in database
+      const response = await fetch('/api/calendar/apply-prices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          date: targetDate,
+          prices: [{
+            room_type: 'Standard', // Default room type
+            new_price: recommendation.recommendedPrice
+          }]
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to apply price');
+      }
+
+      // Trigger global price update
+      triggerPriceUpdate(targetDate, recommendation.recommendedPrice);
       
-      // Notificar al componente padre
+      // Notify parent component
       if (onRecommendationApplied) {
         onRecommendationApplied(recommendation);
       }
 
-      // Mostrar confirmación
-      alert(`✅ Precio aplicado: ${currency.format(recommendation.recommendedPrice)}`);
+      // Show confirmation
+      alert(`✅ Price applied: ${currency.format(recommendation.recommendedPrice)} MXN`);
 
     } catch (err) {
-      console.error('❌ Error aplicando recomendación:', err);
-      alert('❌ Error aplicando recomendación');
+      console.error('❌ Error applying recommendation:', err);
+      alert('❌ Error applying recommendation');
     }
   };
 
@@ -159,10 +179,10 @@ export default function IntelligentPricingCard({
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              🤖 Análisis Inteligente de Pricing
+              🤖 Intelligent Pricing Analysis
             </h3>
             <p className="text-sm text-gray-600">
-              IA analiza eventos, competencia y mercado para {targetDate}
+              AI analyzes events, competition and market for {targetDate}
             </p>
           </div>
           
@@ -170,7 +190,7 @@ export default function IntelligentPricingCard({
             {isAnalyzing && (
               <div className="flex items-center gap-2 text-sm text-blue-600">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                Analizando...
+                Analyzing...
               </div>
             )}
             
@@ -179,7 +199,7 @@ export default function IntelligentPricingCard({
               disabled={isAnalyzing}
               className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
             >
-              🔄 Re-analizar
+              🔄 Re-analyze
             </button>
           </div>
         </div>
@@ -190,8 +210,8 @@ export default function IntelligentPricingCard({
         {isAnalyzing && (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">La IA está analizando eventos, competencia y mercado...</p>
-            <p className="text-sm text-gray-500 mt-2">Esto puede tomar unos segundos</p>
+            <p className="text-gray-600">AI is analyzing events, competition and market...</p>
+            <p className="text-sm text-gray-500 mt-2">This may take a few seconds</p>
           </div>
         )}
 
@@ -199,14 +219,14 @@ export default function IntelligentPricingCard({
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-center gap-2 text-red-800">
               <span className="text-xl">❌</span>
-              <span className="font-medium">Error en análisis</span>
+              <span className="font-medium">Analysis Error</span>
             </div>
             <p className="text-red-700 mt-2">{error}</p>
             <button
               onClick={runAnalysis}
               className="mt-3 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
             >
-              🔄 Intentar de nuevo
+              🔄 Try Again
             </button>
           </div>
         )}
@@ -217,23 +237,23 @@ export default function IntelligentPricingCard({
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center gap-2 text-blue-800 mb-2">
                 <span className="text-xl">📊</span>
-                <span className="font-medium">Resumen del Análisis</span>
+                <span className="font-medium">Analysis Summary</span>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
-                  <div className="text-blue-600 font-medium">Fecha</div>
+                  <div className="text-blue-600 font-medium">Date</div>
                   <div className="text-blue-800">{targetDate}</div>
                 </div>
                 <div>
-                  <div className="text-blue-600 font-medium">Versión IA</div>
+                  <div className="text-blue-600 font-medium">AI Version</div>
                   <div className="text-blue-800">{analysisResult.data.aiVersion}</div>
                 </div>
                 <div>
-                  <div className="text-blue-600 font-medium">Análisis</div>
+                  <div className="text-blue-600 font-medium">Analysis</div>
                   <div className="text-blue-800">{analysisResult.data.timestamp}</div>
                 </div>
                 <div>
-                  <div className="text-blue-600 font-medium">Confianza</div>
+                  <div className="text-blue-600 font-medium">Confidence</div>
                   <div className={`px-2 py-1 rounded-full text-xs font-medium ${getConfidenceColor(selectedRecommendation.confidence)}`}>
                     {selectedRecommendation.confidence}%
                   </div>
