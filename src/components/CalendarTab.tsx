@@ -284,10 +284,10 @@ export default function CalendarTab() {
   const handleAIRecommendationApplied = async (recommendation: any) => {
     console.log('✅ AI recommendation applied:', recommendation);
     
-    // Update price in global context
+    // Update price in global context for the specific room type
     try {
-      await updatePrice('Standard Room', recommendation.recommendedPrice, 'AI Recommendation');
-      console.log('✅ Price updated in global context');
+      await updatePrice(recommendation.roomType, recommendation.recommendedPrice, 'AI Recommendation');
+      console.log(`✅ Price updated for ${recommendation.roomType} in global context`);
     } catch (error) {
       console.error('❌ Error updating price:', error);
     }

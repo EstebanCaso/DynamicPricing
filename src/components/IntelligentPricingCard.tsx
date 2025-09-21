@@ -5,6 +5,7 @@ import { useCurrency } from '@/contexts/CurrencyContext';
 import { usePriceContext } from '@/contexts/PriceContext';
 
 interface AIRecommendation {
+  roomType: string; // NEW: Room type
   recommendedPrice: number;
   currentPrice: number;
   priceChange: number;
@@ -19,6 +20,13 @@ interface AIRecommendation {
   };
   riskFactors: string[];
   alternativePrices: { price: number; scenario: string; probability: number }[];
+  competitorAnalysis: {
+    mainCompetitors: any[];
+    competitorAverage: number;
+    marketPosition: 'leader' | 'premium' | 'competitive' | 'budget';
+    priceGap: number;
+    opportunity: number;
+  };
 }
 
 interface AIAnalysisResult {
@@ -54,6 +62,7 @@ export default function IntelligentPricingCard({
   const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedRecommendation, setSelectedRecommendation] = useState<AIRecommendation | null>(null);
+  const [selectedRoomType, setSelectedRoomType] = useState<string>(''); // NEW: Track selected room type
 
   // Ejecutar análisis automáticamente cuando cambie la fecha
   useEffect(() => {
@@ -92,7 +101,9 @@ export default function IntelligentPricingCard({
       
       // Select first recommendation by default
       if (result.data?.recommendations.length > 0) {
-        setSelectedRecommendation(result.data.recommendations[0]);
+        const firstRecommendation = result.data.recommendations[0];
+        setSelectedRecommendation(firstRecommendation);
+        setSelectedRoomType(firstRecommendation.roomType);
       }
 
       console.log(`✅ Analysis completed:`, result);
@@ -111,8 +122,8 @@ export default function IntelligentPricingCard({
       // Apply the recommended price using the global price context
       console.log('🚀 Applying recommendation:', recommendation);
       
-      // Update price in the global context
-      await updatePrice('Standard Room', recommendation.recommendedPrice, 'AI Recommendation');
+      // Update price in the global context for the specific room type
+      await updatePrice(recommendation.roomType, recommendation.recommendedPrice, 'AI Recommendation');
       
       // Notify parent component
       if (onRecommendationApplied) {
@@ -120,7 +131,7 @@ export default function IntelligentPricingCard({
       }
 
       // Show confirmation
-      alert(`✅ Price applied: ${currency.format(recommendation.recommendedPrice)} MXN`);
+      alert(`✅ Price applied for ${recommendation.roomType}: ${currency.format(recommendation.recommendedPrice)} MXN`);
 
     } catch (err) {
       console.error('❌ Error applying recommendation:', err);
@@ -213,46 +224,82 @@ export default function IntelligentPricingCard({
           </div>
         )}
 
-        {analysisResult?.data && selectedRecommendation && (
+        {analysisResult?.data && analysisResult.data.recommendations.length > 0 && (
           <div className="space-y-6">
-            {/* Analysis Summary */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="flex items-center gap-2 text-blue-800 mb-2">
-                <span className="text-xl">📊</span>
-                <span className="font-medium">Analysis Summary</span>
+            {/* Room Type Selection */}
+            {analysisResult.data.recommendations.length > 1 && (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
+                  🏨 Select Room Type
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {analysisResult.data.recommendations.map((rec, index) => (
+                    <button
+                      key={index}
+                      onClick={() => {
+                        setSelectedRecommendation(rec);
+                        setSelectedRoomType(rec.roomType);
+                      }}
+                      className={`p-3 rounded-lg border-2 transition-all ${
+                        selectedRoomType === rec.roomType
+                          ? 'border-blue-500 bg-blue-50 text-blue-700'
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="text-sm font-medium">{rec.roomType}</div>
+                      <div className="text-xs text-gray-500 mt-1">
+                        Current: {currency.format(rec.currentPrice)} MXN
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        Recommended: {currency.format(rec.recommendedPrice)} MXN
+                      </div>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <div className="text-blue-600 font-medium">Date</div>
-                  <div className="text-blue-800">{targetDate}</div>
+            )}
+
+            {/* Analysis Summary */}
+            {selectedRecommendation && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-blue-800 mb-2">
+                  <span className="text-xl">📊</span>
+                  <span className="font-medium">Analysis Summary - {selectedRecommendation.roomType}</span>
                 </div>
-                <div>
-                  <div className="text-blue-600 font-medium">AI Version</div>
-                  <div className="text-blue-800">{analysisResult.data.aiVersion}</div>
-                </div>
-                <div>
-                  <div className="text-blue-600 font-medium">Analysis</div>
-                  <div className="text-blue-800">{analysisResult.data.timestamp}</div>
-                </div>
-                <div>
-                  <div className="text-blue-600 font-medium">Confidence</div>
-                  <div className={`px-2 py-1 rounded-full text-xs font-medium ${getConfidenceColor(selectedRecommendation.confidence)}`}>
-                    {selectedRecommendation.confidence}%
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div>
+                    <div className="text-blue-600 font-medium">Date</div>
+                    <div className="text-blue-800">{targetDate}</div>
+                  </div>
+                  <div>
+                    <div className="text-blue-600 font-medium">AI Version</div>
+                    <div className="text-blue-800">{analysisResult.data.aiVersion}</div>
+                  </div>
+                  <div>
+                    <div className="text-blue-600 font-medium">Analysis</div>
+                    <div className="text-blue-800">{analysisResult.data.timestamp}</div>
+                  </div>
+                  <div>
+                    <div className="text-blue-600 font-medium">Confidence</div>
+                    <div className={`px-2 py-1 rounded-full text-xs font-medium ${getConfidenceColor(selectedRecommendation.confidence)}`}>
+                      {selectedRecommendation.confidence}%
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Main Recommendation */}
-            <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  💡 Main Recommendation
-                </h4>
-                <div className={`px-3 py-1 rounded-full text-sm font-medium ${getConfidenceColor(selectedRecommendation.confidence)}`}>
-                  {selectedRecommendation.confidence}% confidence
+            {selectedRecommendation && (
+              <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                    💡 Main Recommendation - {selectedRecommendation.roomType}
+                  </h4>
+                  <div className={`px-3 py-1 rounded-full text-sm font-medium ${getConfidenceColor(selectedRecommendation.confidence)}`}>
+                    {selectedRecommendation.confidence}% confidence
+                  </div>
                 </div>
-              </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* Current vs Recommended Price */}
@@ -324,6 +371,65 @@ export default function IntelligentPricingCard({
                 </div>
               </div>
             </div>
+
+            {/* Competitor Analysis */}
+            {selectedRecommendation && selectedRecommendation.competitorAnalysis && (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
+                  🏨 Competitor Analysis - {selectedRecommendation.roomType}
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Main Competitors:</span>
+                      <span className="font-semibold text-gray-900">
+                        {selectedRecommendation.competitorAnalysis.mainCompetitors.length}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Competitor Average:</span>
+                      <span className="font-semibold text-purple-600">
+                        {currency.format(selectedRecommendation.competitorAnalysis.competitorAverage)} MXN
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Market Position:</span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        selectedRecommendation.competitorAnalysis.marketPosition === 'leader' ? 'bg-yellow-100 text-yellow-800' :
+                        selectedRecommendation.competitorAnalysis.marketPosition === 'premium' ? 'bg-blue-100 text-blue-800' :
+                        selectedRecommendation.competitorAnalysis.marketPosition === 'competitive' ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {selectedRecommendation.competitorAnalysis.marketPosition}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Price Gap:</span>
+                      <span className={`font-semibold ${
+                        selectedRecommendation.competitorAnalysis.priceGap >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {selectedRecommendation.competitorAnalysis.priceGap >= 0 ? '+' : ''}
+                        {currency.format(selectedRecommendation.competitorAnalysis.priceGap)} MXN
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">Opportunity:</span>
+                      <span className="font-semibold text-purple-600">
+                        {(selectedRecommendation.competitorAnalysis.opportunity * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600">vs Market Avg:</span>
+                      <span className="text-sm text-gray-500">
+                        Market: {currency.format(1928.21)} MXN
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* AI Reasoning */}
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">

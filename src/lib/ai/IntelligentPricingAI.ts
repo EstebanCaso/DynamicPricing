@@ -46,6 +46,7 @@ export interface MarketIntelligence {
 }
 
 export interface PricingRecommendation {
+  roomType: string; // NEW: Specific room type
   recommendedPrice: number;
   currentPrice: number;
   priceChange: number;
@@ -60,6 +61,13 @@ export interface PricingRecommendation {
   };
   riskFactors: string[];
   alternativePrices: { price: number; scenario: string; probability: number }[];
+  competitorAnalysis: {
+    mainCompetitors: CompetitorIntelligence[];
+    competitorAverage: number;
+    marketPosition: 'leader' | 'premium' | 'competitive' | 'budget';
+    priceGap: number;
+    opportunity: number;
+  };
 }
 
 export interface EventHistory {
@@ -91,12 +99,12 @@ export class IntelligentPricingAI {
   }
 
   /**
-   * Main function: Analyzes and recommends prices for a specific day
+   * Main function: Analyzes and recommends prices for all room types for a specific day
    */
   async analyzeAndRecommendPricing(
     targetDate: string,
     hotelId: string
-  ): Promise<PricingRecommendation> {
+  ): Promise<PricingRecommendation[]> {
     console.log(`🤖 AI: Starting analysis for ${targetDate}`);
 
     try {
@@ -108,25 +116,41 @@ export class IntelligentPricingAI {
       const eventIntelligence = await this.analyzeEventsWithAI(events);
       console.log(`🧠 Event analysis completed`);
 
-      // 3. Identify main competitors (not just all competitors)
-      const competitorIntelligence = await this.identifyMainCompetitorsWithAI(events, hotelId);
-      console.log(`🏨 Main competitors identified: ${competitorIntelligence.filter(c => c.isMainCompetitor).length}`);
+      // 3. Get current room types and prices
+      const roomTypes = await this.getRoomTypes(hotelId);
+      console.log(`🏨 Room types found: ${roomTypes.length}`);
 
-      // 4. Analyze dynamic market
-      const marketIntelligence = await this.analyzeMarketDynamics(eventIntelligence, competitorIntelligence);
-      console.log(`📊 Market analysis completed`);
+      // 4. Generate recommendations for each room type
+      const recommendations: PricingRecommendation[] = [];
+      
+      for (const roomType of roomTypes) {
+        try {
+          // Identify main competitors for this room type
+          const competitorIntelligence = await this.identifyMainCompetitorsWithAI(events, hotelId, roomType);
+          console.log(`🏨 Main competitors for ${roomType}: ${competitorIntelligence.filter(c => c.isMainCompetitor).length}`);
 
-      // 5. Generate intelligent recommendation
-      const recommendation = await this.generateIntelligentRecommendation(
-        eventIntelligence,
-        competitorIntelligence,
-        marketIntelligence,
-        hotelId,
-        targetDate
-      );
+          // Analyze dynamic market for this room type
+          const marketIntelligence = await this.analyzeMarketDynamics(eventIntelligence, competitorIntelligence);
 
-      console.log(`✅ Recommendation generated: $${recommendation.recommendedPrice} MXN`);
-      return recommendation;
+          // Generate intelligent recommendation for this room type
+          const recommendation = await this.generateIntelligentRecommendation(
+            eventIntelligence,
+            competitorIntelligence,
+            marketIntelligence,
+            hotelId,
+            targetDate,
+            roomType
+          );
+
+          recommendations.push(recommendation);
+          console.log(`✅ Recommendation for ${roomType}: $${recommendation.recommendedPrice} MXN`);
+
+        } catch (error) {
+          console.error(`❌ Error analyzing ${roomType}:`, error);
+        }
+      }
+
+      return recommendations;
 
     } catch (error) {
       console.error('❌ Error in AI analysis:', error);
@@ -135,7 +159,29 @@ export class IntelligentPricingAI {
   }
 
   /**
-   * Obtiene eventos para una fecha específica
+   * Gets room types for the hotel
+   */
+  private async getRoomTypes(hotelId: string): Promise<string[]> {
+    try {
+      const { data, error } = await supabase
+        .from('hotel_usuario')
+        .select('room_type')
+        .eq('user_id', hotelId)
+        .not('room_type', 'is', null);
+
+      if (error) throw error;
+
+      // Return unique room types
+      const roomTypes = [...new Set(data?.map(item => item.room_type) || [])];
+      return roomTypes.length > 0 ? roomTypes : ['Standard Room', 'Deluxe Room', 'Suite']; // Fallback
+    } catch (error) {
+      console.error('Error getting room types:', error);
+      return ['Standard Room', 'Deluxe Room', 'Suite']; // Fallback
+    }
+  }
+
+  /**
+   * Gets events for a specific date
    */
   private async getEventsForDate(date: string) {
     const { data, error } = await supabase
@@ -312,9 +358,9 @@ export class IntelligentPricingAI {
   }
 
   /**
-   * Identifies main competitors using AI (not just all competitors)
+   * Identifies main competitors using AI for a specific room type
    */
-  private async identifyMainCompetitorsWithAI(events: any[], hotelId: string): Promise<CompetitorIntelligence[]> {
+  private async identifyMainCompetitorsWithAI(events: any[], hotelId: string, roomType: string): Promise<CompetitorIntelligence[]> {
     // Get competitor data from database
     const { data: competitors, error } = await supabase
       .from('hoteles_parallel')
@@ -561,40 +607,43 @@ export class IntelligentPricingAI {
   }
 
   /**
-   * Genera recomendación inteligente final
+   * Generates intelligent pricing recommendation for a specific room type
    */
   private async generateIntelligentRecommendation(
     eventIntelligence: EventIntelligence[],
     competitorIntelligence: CompetitorIntelligence[],
     marketIntelligence: MarketIntelligence,
     hotelId: string,
-    targetDate: string
+    targetDate: string,
+    roomType: string
   ): Promise<PricingRecommendation> {
     
-    // Obtener precio actual del hotel
-    const currentPrice = await this.getCurrentHotelPrice(hotelId, targetDate);
+    // Get current price for this room type
+    const currentPrice = await this.getCurrentHotelPrice(hotelId, targetDate, roomType);
     
-    // Calcular precio recomendado
+    // Calculate recommended price based on room type analysis
     const recommendedPrice = await this.calculateOptimalPrice(
       currentPrice,
       eventIntelligence,
       competitorIntelligence,
-      marketIntelligence
+      marketIntelligence,
+      roomType
     );
 
-    // Generar razonamiento
+    // Generate reasoning for this room type
     const reasoning = await this.generateReasoning(
       eventIntelligence,
       competitorIntelligence,
       marketIntelligence,
       currentPrice,
-      recommendedPrice
+      recommendedPrice,
+      roomType
     );
 
-    // Calcular confianza
+    // Calculate confidence
     const confidence = this.calculateConfidence(eventIntelligence, competitorIntelligence, marketIntelligence);
 
-    // Calcular impacto esperado
+    // Calculate expected impact
     const expectedOutcomes = this.calculateExpectedOutcomes(
       currentPrice,
       recommendedPrice,
@@ -602,6 +651,7 @@ export class IntelligentPricingAI {
     );
 
     const recommendation = {
+      roomType,
       recommendedPrice,
       currentPrice,
       priceChange: recommendedPrice - currentPrice,
@@ -610,7 +660,14 @@ export class IntelligentPricingAI {
       reasoning,
       expectedOutcomes,
       riskFactors: this.identifyRiskFactors(eventIntelligence, marketIntelligence),
-      alternativePrices: [] as { price: number; scenario: string; probability: number }[]
+      alternativePrices: [] as { price: number; scenario: string; probability: number }[],
+      competitorAnalysis: {
+        mainCompetitors: competitorIntelligence.filter(c => c.isMainCompetitor),
+        competitorAverage: this.calculateCompetitorAverage(competitorIntelligence),
+        marketPosition: this.determineMarketPosition(currentPrice, competitorIntelligence),
+        priceGap: this.calculatePriceGap(currentPrice, competitorIntelligence),
+        opportunity: this.calculateOpportunity(currentPrice, competitorIntelligence, marketIntelligence)
+      }
     };
 
     // Generar precios alternativos después de crear la recomendación
@@ -620,31 +677,33 @@ export class IntelligentPricingAI {
   }
 
   /**
-   * Obtiene precio actual del hotel
+   * Gets current hotel price for a specific room type
    */
-  private async getCurrentHotelPrice(hotelId: string, date: string): Promise<number> {
+  private async getCurrentHotelPrice(hotelId: string, date: string, roomType: string): Promise<number> {
     const { data, error } = await supabase
       .from('hotel_usuario')
       .select('price')
       .eq('user_id', hotelId)
       .eq('checkin_date', date)
+      .eq('room_type', roomType)
       .limit(1);
 
     if (error || !data || data.length === 0) {
-      return 150; // Precio por defecto
+      return 1500; // Default price in MXN
     }
 
-    return parseFloat(data[0].price) || 150;
+    return parseFloat(data[0].price) || 1500;
   }
 
   /**
-   * Calcula precio óptimo usando IA
+   * Calculates optimal price using AI for a specific room type
    */
   private async calculateOptimalPrice(
     currentPrice: number,
     eventIntelligence: EventIntelligence[],
     competitorIntelligence: CompetitorIntelligence[],
-    marketIntelligence: MarketIntelligence
+    marketIntelligence: MarketIntelligence,
+    roomType: string
   ): Promise<number> {
     
     // Calcular multiplicador de eventos
