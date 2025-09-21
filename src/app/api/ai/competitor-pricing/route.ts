@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { standardizeRoomType, groupRoomsByStandardizedType, standardizeCompetitorRoomTypes, standardizeHotelRoomTypes, type StandardizedRoomType } from '@/lib/roomTypeStandardization'
+import { formatCurrencyCard } from '@/lib/currencyFormatting'
 
 // ===== TYPES =====
 interface CompetitorPricingData {
@@ -243,10 +244,10 @@ export async function POST(request: NextRequest) {
       if (competitorPrices.length > 0) {
         // Undercut by 3% and round to nearest 10
         suggestedPrice = Math.round((medianPrice * 0.97) / 10) * 10
-        reasoning.push(`Competitor median: ${medianPrice} MXN, undercut by 3%: ${suggestedPrice} MXN`)
+        reasoning.push(`Competitor median: ${formatCurrencyCard(medianPrice)}, undercut by 3%: ${formatCurrencyCard(suggestedPrice)}`)
       } else {
         suggestedPrice = Math.round((1928.21 * 0.97) / 10) * 10 // Market average fallback
-        reasoning.push(`No competitors found, using market average (1,928.21 MXN) with 3% undercut: ${suggestedPrice} MXN`)
+        reasoning.push(`No competitors found, using market average (${formatCurrencyCard(1928.21)}) with 3% undercut: ${formatCurrencyCard(suggestedPrice)}`)
       }
 
       // Apply event markup if significant events exist
@@ -255,7 +256,7 @@ export async function POST(request: NextRequest) {
         const eventImpact = Math.min(1.2, 1 + (allEvents.length * 0.05)) // Max 20% increase
         eventMultiplier = eventImpact
         suggestedPrice = Math.round((suggestedPrice * eventMultiplier) / 10) * 10
-        reasoning.push(`${allEvents.length} events detected, applying ${((eventMultiplier - 1) * 100).toFixed(1)}% markup: ${suggestedPrice} MXN`)
+        reasoning.push(`${allEvents.length} events detected, applying ${((eventMultiplier - 1) * 100).toFixed(1)}% markup: ${formatCurrencyCard(suggestedPrice)}`)
       } else {
         reasoning.push(`No events detected, pricing based on competitor analysis only`)
       }
@@ -280,11 +281,11 @@ export async function POST(request: NextRequest) {
           
           if (minPrice !== null && finalPrice < minPrice) {
             finalPrice = minPrice
-            reasoning.push(`Applied minimum price constraint: ${finalPrice} MXN`)
+            reasoning.push(`Applied minimum price constraint: ${formatCurrencyCard(finalPrice)}`)
           }
           if (maxPrice !== null && finalPrice > maxPrice) {
             finalPrice = maxPrice
-            reasoning.push(`Applied maximum price constraint: ${finalPrice} MXN`)
+            reasoning.push(`Applied maximum price constraint: ${formatCurrencyCard(finalPrice)}`)
           }
         }
       } catch (error) {

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { usePriceContext } from '@/contexts/PriceContext';
+import { formatCurrencyCard, formatCurrencyCompact } from '@/lib/currencyFormatting';
 
 interface CompetitorPricingResult {
   date: string;
@@ -37,13 +38,6 @@ const CompetitorPricingCard: React.FC<CompetitorPricingCardProps> = ({
   const [analysisResult, setAnalysisResult] = useState<CompetitorPricingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const { updatePrice, refreshPrices } = usePriceContext();
-
-  const currency = new Intl.NumberFormat('es-MX', {
-    style: 'currency',
-    currency: 'MXN',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  });
 
   const runCompetitorAnalysis = async () => {
     if (!targetDate || !hotelId) {
@@ -219,7 +213,7 @@ const CompetitorPricingCard: React.FC<CompetitorPricingCardProps> = ({
                         roomTypeData.finalPrice < roomTypeData.currentPrice ? 'text-red-600' : 'text-gray-600'
                       }`}>
                         {roomTypeData.currentPrice > roomTypeData.finalPrice ? '-' : '+'}
-                        {currency.format(Math.abs(roomTypeData.finalPrice - roomTypeData.currentPrice))} MXN
+                        {formatCurrencyCard(Math.abs(roomTypeData.finalPrice - roomTypeData.currentPrice))}
                       </div>
                     </div>
                   </div>
@@ -228,25 +222,25 @@ const CompetitorPricingCard: React.FC<CompetitorPricingCardProps> = ({
                     <div className="text-center">
                       <div className="text-xs text-gray-500">Current Price</div>
                       <div className="font-medium text-gray-900">
-                        {currency.format(roomTypeData.currentPrice)} MXN
+                        {formatCurrencyCard(roomTypeData.currentPrice)}
                       </div>
                     </div>
                     <div className="text-center">
                       <div className="text-xs text-gray-500">Competitor Median</div>
                       <div className="font-medium text-blue-600">
-                        {currency.format(roomTypeData.medianPrice)} MXN
+                        {formatCurrencyCard(roomTypeData.medianPrice)}
                       </div>
                     </div>
                     <div className="text-center">
                       <div className="text-xs text-gray-500">Suggested Price</div>
                       <div className="font-medium text-purple-600">
-                        {currency.format(roomTypeData.suggestedPrice)} MXN
+                        {formatCurrencyCard(roomTypeData.suggestedPrice)}
                       </div>
                     </div>
                     <div className="text-center">
                       <div className="text-xs text-gray-500">Final Price</div>
                       <div className="font-semibold text-green-600">
-                        {currency.format(roomTypeData.finalPrice)} MXN
+                        {formatCurrencyCard(roomTypeData.finalPrice)}
                       </div>
                     </div>
                   </div>
@@ -257,7 +251,7 @@ const CompetitorPricingCard: React.FC<CompetitorPricingCardProps> = ({
                       Found {roomTypeData.competitorPrices.length} competitor prices: 
                       {roomTypeData.competitorPrices.slice(0, 5).map((price, i) => (
                         <span key={i} className="ml-1">
-                          {currency.format(price)} MXN
+                          {formatCurrencyCompact(price)}
                           {i < Math.min(roomTypeData.competitorPrices.length - 1, 4) ? ',' : ''}
                         </span>
                       ))}

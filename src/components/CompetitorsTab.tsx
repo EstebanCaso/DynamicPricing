@@ -18,6 +18,7 @@ import ComparisonInsights from './ComparisonInsights';
 import EventInsights from './EventInsights';
 import CompetitorPricingCard from './CompetitorPricingCard';
 import { standardizeRoomType, type StandardizedRoomType } from '@/lib/roomTypeStandardization';
+import { formatCurrencyCompact, formatCurrencyCard } from '@/lib/currencyFormatting';
 
 interface Competitor {
   id: string
@@ -443,11 +444,11 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
 
   const formatCurrencyValue = (amount: number) => {
     if (typeof amount !== 'number' || isNaN(amount)) {
-      return currency.format(0)
+      return formatCurrencyCompact(0, selectedCurrency as 'MXN' | 'USD')
     }
     // Apply currency conversion before formatting
     const convertedAmount = convertPriceToSelectedCurrency(amount, 'MXN');
-    return currency.format(convertedAmount)
+    return formatCurrencyCompact(convertedAmount, selectedCurrency as 'MXN' | 'USD')
   }
 
   // Force re-render when currency changes
