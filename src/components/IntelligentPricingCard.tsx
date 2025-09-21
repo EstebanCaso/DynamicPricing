@@ -371,6 +371,7 @@ export default function IntelligentPricingCard({
                 </div>
               </div>
             </div>
+            )}
 
             {/* Competitor Analysis */}
             {selectedRecommendation && selectedRecommendation.competitorAnalysis && (
