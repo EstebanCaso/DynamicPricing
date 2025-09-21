@@ -170,14 +170,14 @@ export default function IntelligentPricingCard({
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            🤖 Intelligent Pricing Analysis
-          </h3>
-          <p className="text-sm text-gray-600">
-            AI analyzes events, competition, and market for {targetDate}
-          </p>
-        </div>
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              🤖 Intelligent Pricing Analysis
+            </h3>
+            <p className="text-sm text-gray-600">
+              AI analyzes events, competition, and market for {targetDate}
+            </p>
+          </div>
           
           <div className="flex items-center gap-3">
             {isAnalyzing && (
