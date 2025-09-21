@@ -516,7 +516,7 @@ export class IntelligentPricingAI {
       marketIntelligence
     );
 
-    return {
+    const recommendation = {
       recommendedPrice,
       currentPrice,
       priceChange: recommendedPrice - currentPrice,
@@ -525,8 +525,13 @@ export class IntelligentPricingAI {
       reasoning,
       expectedOutcomes,
       riskFactors: this.identifyRiskFactors(eventIntelligence, marketIntelligence),
-      alternativePrices: this.generateAlternativePrices(recommendation, marketIntelligence)
+      alternativePrices: [] as { price: number; scenario: string; probability: number }[]
     };
+
+    // Generar precios alternativos después de crear la recomendación
+    recommendation.alternativePrices = this.generateAlternativePrices(recommendation, marketIntelligence);
+
+    return recommendation;
   }
 
   /**
