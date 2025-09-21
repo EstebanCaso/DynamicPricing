@@ -16,7 +16,7 @@ import MultiCompetitorChart from './MultiCompetitorChart'; // Import the new cha
 import ComparisonKpiCards from './ComparisonKpiCards';
 import ComparisonInsights from './ComparisonInsights';
 import EventInsights from './EventInsights';
-import IntelligentPricingCard from './IntelligentPricingCard';
+import CompetitorPricingCard from './CompetitorPricingCard';
 
 interface Competitor {
   id: string
@@ -161,15 +161,17 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
   }
 
   // Handle AI recommendation application
-  const handleAIRecommendationApplied = async (recommendation: any) => {
-    console.log('✅ AI recommendation applied:', recommendation);
+  const handleAIRecommendationApplied = async (result: any) => {
+    console.log('✅ Competitor pricing analysis applied:', result);
     
-    // Update price in global context for the specific room type
+    // Update prices in global context for all room types
     try {
-      await updatePrice(recommendation.roomType, recommendation.recommendedPrice, 'AI Recommendation');
-      console.log(`✅ Price updated for ${recommendation.roomType} in global context`);
+      for (const roomTypeData of result.roomTypes) {
+        await updatePrice(roomTypeData.roomType, roomTypeData.finalPrice, 'Competitor-Driven AI Analysis');
+        console.log(`✅ Price updated for ${roomTypeData.roomType}: ${roomTypeData.finalPrice} MXN`);
+      }
     } catch (error) {
-      console.error('❌ Error updating price:', error);
+      console.error('❌ Error updating prices:', error);
     }
     
     // Reload competitor data to show updated prices
@@ -626,10 +628,10 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
           
           {/* AI Analysis Component */}
           {showAIAnalysis && selectedDate && hotelId && (
-            <IntelligentPricingCard
+            <CompetitorPricingCard
               targetDate={selectedDate}
               hotelId={hotelId}
-              onRecommendationApplied={handleAIRecommendationApplied}
+              onPricingApplied={handleAIRecommendationApplied}
             />
           )}
         </div>
