@@ -975,8 +975,8 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
                         <div className="text-sm text-gray-500">Baseline</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 border border-blue-200">
-                          Position #{competitorData.position || 'N/A'}
+                        <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-glass-100 text-gray-800 border border-gray-200 backdrop-blur-sm">
+                          Your Hotel
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
