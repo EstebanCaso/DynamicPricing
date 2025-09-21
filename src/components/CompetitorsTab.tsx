@@ -243,6 +243,13 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
           aValue = a.avg * 0.80; // 80% occupancy
           bValue = b.avg * 0.80;
           break;
+        case 'position':
+          // For position sorting, we need to calculate the actual position based on price
+          const allCompetitors = [...competitors, { name: competitorData?.myHotelName || 'You', avg: competitorData?.myAvg || 0, estrellas: null }];
+          const sortedByPrice = allCompetitors.sort((x, y) => y.avg - x.avg);
+          aValue = sortedByPrice.findIndex(c => c.name === a.name) + 1;
+          bValue = sortedByPrice.findIndex(c => c.name === b.name) + 1;
+          break;
         default:
           return 0;
       }
@@ -251,6 +258,19 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
       if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
       return 0;
     });
+  };
+
+  // Calculate position for each competitor based on price ranking
+  const calculatePosition = (competitor: { name: string; avg: number; estrellas: number | null }) => {
+    if (!competitorData) return 0;
+    
+    const allCompetitors = [
+      ...competitorData.competitors,
+      { name: competitorData.myHotelName, avg: competitorData.myAvg || 0, estrellas: null }
+    ];
+    
+    const sortedByPrice = allCompetitors.sort((a, b) => b.avg - a.avg);
+    return sortedByPrice.findIndex(c => c.name === competitor.name) + 1;
   };
 
   const handleCompareCompetitors = async () => {
@@ -876,6 +896,15 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
                     <tr>
                       <th 
                         className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort('position')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Position
+                          {getSortIcon('position')}
+                        </div>
+                      </th>
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
                         onClick={() => handleSort('name')}
                       >
                         <div className="flex items-center gap-2">
@@ -925,6 +954,13 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
                     {/* Your Hotel Row - Highlighted */}
                     <tr className="bg-yellow-50">
                       <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center justify-center">
+                          <span className="inline-flex items-center justify-center w-8 h-8 text-sm font-bold text-white bg-yellow-500 rounded-full">
+                            {calculatePosition({ name: competitorData.myHotelName, avg: competitorData.myAvg || 0, estrellas: null })}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-semibold text-gray-900">{competitorData.myHotelName} (You)</div>
                         <div className="text-xs text-gray-500">Your Property</div>
                       </td>
@@ -972,6 +1008,19 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
                               key={index} 
                               className={`group hover:bg-gray-50 ${isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''}`}
                             >
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <div className="flex items-center justify-center">
+                                  <span className={`inline-flex items-center justify-center w-8 h-8 text-sm font-bold rounded-full ${
+                                    calculatePosition(competitor) <= 3 
+                                      ? 'text-white bg-green-500' 
+                                      : calculatePosition(competitor) <= 5 
+                                        ? 'text-white bg-blue-500' 
+                                        : 'text-white bg-gray-500'
+                                  }`}>
+                                    {calculatePosition(competitor)}
+                                  </span>
+                                </div>
+                              </td>
                               <td 
                                 className="px-6 py-4 whitespace-nowrap cursor-pointer"
                                 onClick={() => {
@@ -1011,7 +1060,7 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
                         })
                       ) : (
                         <tr>
-                          <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
+                          <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
                             <div className="py-8">
                               <div className="text-lg font-medium text-gray-600 mb-2">
                                 {selectedCompetitors.length > 0 ? 'No main competitors found' : 'No competitors found'}
