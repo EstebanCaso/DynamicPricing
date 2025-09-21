@@ -402,23 +402,74 @@ export default function CalendarTab() {
           </div>
           <CurrencySelector showLabel={true} />
           <button
-            onClick={() => {
-              // Redirect to Competitors tab
-              const competitorsTab = document.querySelector('[data-tab="competitors"]') as HTMLElement;
-              if (competitorsTab) {
-                competitorsTab.click();
-              } else {
-                // Fallback: try to find the tab by text content
-                const tabs = document.querySelectorAll('[role="tab"]');
-                const competitorsTabElement = Array.from(tabs).find(tab => 
-                  tab.textContent?.toLowerCase().includes('competitor')
-                ) as HTMLElement;
-                if (competitorsTabElement) {
-                  competitorsTabElement.click();
+            onClick={async () => {
+              try {
+                // Show loading state
+                const button = event?.target as HTMLButtonElement;
+                const originalText = button?.textContent;
+                if (button) {
+                  button.textContent = 'Redirecting...';
+                  button.disabled = true;
+                }
+
+                // First, trigger AI analysis for the selected date
+                if (selectedDate && hotelId) {
+                  console.log(`🤖 Triggering AI analysis for ${selectedDate}`);
+                  
+                  const aiResponse = await fetch('/api/ai/competitor-pricing', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      targetDate: selectedDate,
+                      hotelId: hotelId
+                    })
+                  });
+
+                  if (aiResponse.ok) {
+                    const aiResult = await aiResponse.json();
+                    console.log('✅ AI analysis completed:', aiResult.data?.summary);
+                    
+                    // Show success message
+                    alert(`✅ AI analysis completed!\n\n${aiResult.data?.summary}\n\nRedirecting to Competitors tab to view detailed results...`);
+                  } else {
+                    console.error('❌ AI analysis failed');
+                    alert('❌ AI analysis failed. Please try again.');
+                  }
+                }
+
+                // Then redirect to Competitors tab
+                const competitorsTab = document.querySelector('[data-tab="competitors"]') as HTMLElement;
+                if (competitorsTab) {
+                  competitorsTab.click();
+                } else {
+                  // Fallback: try to find the tab by text content
+                  const tabs = document.querySelectorAll('[role="tab"]');
+                  const competitorsTabElement = Array.from(tabs).find(tab => 
+                    tab.textContent?.toLowerCase().includes('competitor')
+                  ) as HTMLElement;
+                  if (competitorsTabElement) {
+                    competitorsTabElement.click();
+                  }
+                }
+
+                // Reset button state
+                if (button && originalText) {
+                  button.textContent = originalText;
+                  button.disabled = false;
+                }
+              } catch (error) {
+                console.error('Error in Apply AI Changes:', error);
+                alert('❌ Error applying AI changes. Please try again.');
+                
+                // Reset button state
+                const button = event?.target as HTMLButtonElement;
+                if (button) {
+                  button.textContent = 'Apply AI Changes';
+                  button.disabled = false;
                 }
               }
             }}
-            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-medium flex items-center gap-2 backdrop-blur-sm border border-white/20 shadow-lg"
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-medium flex items-center gap-2 backdrop-blur-sm border border-white/20 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span className="text-lg">🤖</span>
             Apply AI Changes

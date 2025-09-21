@@ -153,6 +153,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No hotel data found for the specified date' }, { status: 404 })
     }
 
+    console.log(`🏨 Found ${hotelData.length} hotel room records for ${targetDate}`)
+    hotelData.forEach(record => {
+      console.log(`   📋 Room: ${record.room_type} - Price: ${record.price} MXN`)
+    })
+
     // Standardize hotel room types
     const standardizedHotelData = standardizeHotelRoomTypes(hotelData)
     console.log(`🏨 Standardized ${hotelData.length} hotel room types`)
@@ -198,118 +203,128 @@ export async function POST(request: NextRequest) {
       if (hotelRecords.length === 0) continue
 
       const roomType = standardizedRoomType as StandardizedRoomType
-      const currentPrice = parsePriceToNumber(hotelRecords[0].price)
-      const originalRoomType = hotelRecords[0].original_room_type || hotelRecords[0].room_type
-      
-      if (currentPrice === null) continue
+      console.log(`🏨 Processing standardized room type: ${roomType} (${hotelRecords.length} room variations)`)
 
-      console.log(`🏨 Processing standardized room type: ${roomType} (original: ${originalRoomType}, current: ${currentPrice} MXN)`)
+      // Process each room variation within this standardized type
+      for (let i = 0; i < hotelRecords.length; i++) {
+        const hotelRecord = hotelRecords[i]
+        const currentPrice = parsePriceToNumber(hotelRecord.price)
+        const originalRoomType = hotelRecord.original_room_type || hotelRecord.room_type
+        
+        if (currentPrice === null) {
+          console.log(`   ⚠️ Skipping ${originalRoomType} - invalid price: ${hotelRecord.price}`)
+          continue
+        }
 
-      // 5. Find competitor prices for this standardized room type
-      const competitorPrices: number[] = []
-      
-      for (const competitor of standardizedCompetitorData) {
-        if (!competitor.rooms_jsonb || typeof competitor.rooms_jsonb !== 'object') continue
+        console.log(`   📋 Processing room variation ${i + 1}/${hotelRecords.length}: ${originalRoomType} - Current: ${currentPrice} MXN`)
+
+        // 5. Find competitor prices for this standardized room type
+        const competitorPrices: number[] = []
         
-        const dateRooms = competitor.rooms_jsonb[targetDate]
-        if (!Array.isArray(dateRooms)) continue
-        
-        for (const room of dateRooms) {
-          if (!room.room_type || !room.price) continue
+        for (const competitor of standardizedCompetitorData) {
+          if (!competitor.rooms_jsonb || typeof competitor.rooms_jsonb !== 'object') continue
           
-          // Check if competitor room type matches our standardized room type
-          if (room.room_type === roomType) {
-            const price = parsePriceToNumber(room.price)
-            if (price !== null) {
-              competitorPrices.push(price)
-              console.log(`   📊 Competitor ${competitor.nombre}: ${room.original_room_type || room.room_type} → ${roomType} = ${price} MXN`)
+          const dateRooms = competitor.rooms_jsonb[targetDate]
+          if (!Array.isArray(dateRooms)) continue
+          
+          for (const room of dateRooms) {
+            if (!room.room_type || !room.price) continue
+            
+            // Check if competitor room type matches our standardized room type
+            if (room.room_type === roomType) {
+              const price = parsePriceToNumber(room.price)
+              if (price !== null) {
+                competitorPrices.push(price)
+                console.log(`     📊 Competitor ${competitor.nombre}: ${room.original_room_type || room.room_type} → ${roomType} = ${price} MXN`)
+              }
             }
           }
         }
-      }
 
-      // 6. Calculate median competitor price
-      const medianPrice = competitorPrices.length > 0 
-        ? competitorPrices.sort((a, b) => a - b)[Math.floor(competitorPrices.length / 2)]
-        : 1928.21 // Market average fallback
+        // 6. Calculate median competitor price
+        const medianPrice = competitorPrices.length > 0 
+          ? competitorPrices.sort((a, b) => a - b)[Math.floor(competitorPrices.length / 2)]
+          : 1928.21 // Market average fallback
 
-      console.log(`   📈 Found ${competitorPrices.length} competitor prices, median: ${medianPrice} MXN`)
+        console.log(`     📈 Found ${competitorPrices.length} competitor prices, median: ${medianPrice} MXN`)
 
-      // 7. Apply pricing rules
-      let suggestedPrice = medianPrice
-      let eventMultiplier = 1.0
-      const reasoning: string[] = []
+        // 7. Apply pricing rules
+        let suggestedPrice = medianPrice
+        let eventMultiplier = 1.0
+        const reasoning: string[] = []
 
-      // Base competitor-based pricing
-      if (competitorPrices.length > 0) {
-        // Undercut by 3% and round to nearest 10
-        suggestedPrice = Math.round((medianPrice * 0.97) / 10) * 10
-        reasoning.push(`Competitor median: ${formatCurrencyCard(medianPrice)}, undercut by 3%: ${formatCurrencyCard(suggestedPrice)}`)
-      } else {
-        suggestedPrice = Math.round((1928.21 * 0.97) / 10) * 10 // Market average fallback
-        reasoning.push(`No competitors found, using market average (${formatCurrencyCard(1928.21)}) with 3% undercut: ${formatCurrencyCard(suggestedPrice)}`)
-      }
-
-      // Apply event markup if significant events exist
-      if (allEvents.length > 0) {
-        // Simple event impact calculation
-        const eventImpact = Math.min(1.2, 1 + (allEvents.length * 0.05)) // Max 20% increase
-        eventMultiplier = eventImpact
-        suggestedPrice = Math.round((suggestedPrice * eventMultiplier) / 10) * 10
-        reasoning.push(`${allEvents.length} events detected, applying ${((eventMultiplier - 1) * 100).toFixed(1)}% markup: ${formatCurrencyCard(suggestedPrice)}`)
-      } else {
-        reasoning.push(`No events detected, pricing based on competitor analysis only`)
-      }
-
-      // 8. Apply min/max constraints (if room_types table exists)
-      let finalPrice = suggestedPrice
-      let minPrice: number | undefined
-      let maxPrice: number | undefined
-
-      // Try to get min/max prices from room_types table
-      try {
-        const { data: roomTypeData } = await supabase
-          .from('room_types')
-          .select('min_price, max_price')
-          .eq('nombre', roomType)
-          .eq('fecha', targetDate)
-          .limit(1)
-
-        if (roomTypeData && roomTypeData.length > 0) {
-          minPrice = roomTypeData[0].min_price
-          maxPrice = roomTypeData[0].max_price
-          
-          if (minPrice !== null && finalPrice < minPrice) {
-            finalPrice = minPrice
-            reasoning.push(`Applied minimum price constraint: ${formatCurrencyCard(finalPrice)}`)
-          }
-          if (maxPrice !== null && finalPrice > maxPrice) {
-            finalPrice = maxPrice
-            reasoning.push(`Applied maximum price constraint: ${formatCurrencyCard(finalPrice)}`)
-          }
+        // Base competitor-based pricing
+        if (competitorPrices.length > 0) {
+          // Undercut by 3% and round to nearest 10
+          suggestedPrice = Math.round((medianPrice * 0.97) / 10) * 10
+          reasoning.push(`Competitor median: ${formatCurrencyCard(medianPrice)}, undercut by 3%: ${formatCurrencyCard(suggestedPrice)}`)
+        } else {
+          suggestedPrice = Math.round((1928.21 * 0.97) / 10) * 10 // Market average fallback
+          reasoning.push(`No competitors found, using market average (${formatCurrencyCard(1928.21)}) with 3% undercut: ${formatCurrencyCard(suggestedPrice)}`)
         }
-      } catch (error) {
-        console.log(`Room_types table not found or error accessing it: ${error}`)
+
+        // Apply event markup if significant events exist
+        if (allEvents.length > 0) {
+          // Simple event impact calculation
+          const eventImpact = Math.min(1.2, 1 + (allEvents.length * 0.05)) // Max 20% increase
+          eventMultiplier = eventImpact
+          suggestedPrice = Math.round((suggestedPrice * eventMultiplier) / 10) * 10
+          reasoning.push(`${allEvents.length} events detected, applying ${((eventMultiplier - 1) * 100).toFixed(1)}% markup: ${formatCurrencyCard(suggestedPrice)}`)
+        } else {
+          reasoning.push(`No events detected, pricing based on competitor analysis only`)
+        }
+
+        // 8. Apply min/max constraints (if room_types table exists)
+        let finalPrice = suggestedPrice
+        let minPrice: number | undefined
+        let maxPrice: number | undefined
+
+        // Try to get min/max prices from room_types table
+        try {
+          const { data: roomTypeData } = await supabase
+            .from('room_types')
+            .select('min_price, max_price')
+            .eq('nombre', originalRoomType) // Use original room type for lookup
+            .eq('fecha', targetDate)
+            .limit(1)
+
+          if (roomTypeData && roomTypeData.length > 0) {
+            minPrice = roomTypeData[0].min_price
+            maxPrice = roomTypeData[0].max_price
+            
+            if (minPrice !== null && finalPrice < minPrice) {
+              finalPrice = minPrice
+              reasoning.push(`Applied minimum price constraint: ${formatCurrencyCard(finalPrice)}`)
+            }
+            if (maxPrice !== null && finalPrice > maxPrice) {
+              finalPrice = maxPrice
+              reasoning.push(`Applied maximum price constraint: ${formatCurrencyCard(finalPrice)}`)
+            }
+          }
+        } catch (error) {
+          console.log(`Room_types table not found or error accessing it: ${error}`)
+        }
+
+        // Ensure reasonable bounds
+        finalPrice = Math.max(500, Math.min(5000, finalPrice))
+
+        // Add result for this room variation
+        roomTypeResults.push({
+          roomType,
+          originalRoomType,
+          competitorPrices,
+          medianPrice,
+          currentPrice,
+          suggestedPrice,
+          eventMultiplier,
+          finalPrice,
+          minPrice,
+          maxPrice,
+          reasoning
+        })
+
+        console.log(`     ✅ Final price for ${originalRoomType}: ${finalPrice} MXN (was ${currentPrice} MXN)`)
       }
-
-      // Ensure reasonable bounds
-      finalPrice = Math.max(500, Math.min(5000, finalPrice))
-
-      roomTypeResults.push({
-        roomType,
-        originalRoomType,
-        competitorPrices,
-        medianPrice,
-        currentPrice,
-        suggestedPrice,
-        eventMultiplier,
-        finalPrice,
-        minPrice,
-        maxPrice,
-        reasoning
-      })
-
-      console.log(`   ✅ Final price for ${roomType}: ${finalPrice} MXN (was ${currentPrice} MXN)`)
     }
 
     // 9. Update database with final prices
