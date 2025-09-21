@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, Suspense } from 'react'
 import { useSearchParams, usePathname } from 'next/navigation'
 import Image from 'next/image'
 import { useCurrency } from '@/contexts/CurrencyContext'
+import { PriceProvider } from '@/contexts/PriceContext'
 import CurrencySelector from '@/components/CurrencySelector'
 import HotelsComparisonCard from '@/components/HotelsComparisonCard'
 import AnalysisTab from '@/components/AnalysisTab'
@@ -531,7 +532,9 @@ export default function DashboardPage() {
         </div>
       </div>
     }>
-      <DashboardContent />
+      <PriceProvider hotelId="current-user">
+        <DashboardContent />
+      </PriceProvider>
     </Suspense>
   )
 }

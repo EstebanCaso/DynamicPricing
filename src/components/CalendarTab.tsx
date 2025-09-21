@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useCurrency } from '@/contexts/CurrencyContext'
+import { usePriceContext } from '@/contexts/PriceContext'
 import { supabase } from '@/lib/supabaseClient'
 import CurrencySelector from './CurrencySelector'
 import IntelligentPricingCard from './IntelligentPricingCard'
@@ -47,6 +48,7 @@ export default function CalendarTab() {
   const [hotelId, setHotelId] = useState<string | null>(null)
   const [showAIAnalysis, setShowAIAnalysis] = useState<boolean>(false)
   const { selectedCurrency, currency, convertPriceToSelectedCurrency } = useCurrency()
+  const { currentPrices, updatePrice } = usePriceContext()
 
   // Force re-render when currency changes
   useEffect(() => {
@@ -278,10 +280,19 @@ export default function CalendarTab() {
     }
   }
 
-  // Manejar aplicación de recomendación de IA
-  const handleAIRecommendationApplied = (recommendation: any) => {
-    console.log('✅ Recomendación de IA aplicada:', recommendation);
-    // Recargar precios para mostrar el cambio
+  // Handle AI recommendation application
+  const handleAIRecommendationApplied = async (recommendation: any) => {
+    console.log('✅ AI recommendation applied:', recommendation);
+    
+    // Update price in global context
+    try {
+      await updatePrice('Standard Room', recommendation.recommendedPrice, 'AI Recommendation');
+      console.log('✅ Price updated in global context');
+    } catch (error) {
+      console.error('❌ Error updating price:', error);
+    }
+    
+    // Reload prices to show the change
     if (selectedDate) {
       handleSelectDate(selectedDate);
     }
@@ -690,7 +701,7 @@ export default function CalendarTab() {
               </div>
             )}
 
-            {/* Botón para mostrar análisis de IA */}
+            {/* Button to show AI analysis */}
             {selectedDate && hotelId && (
               <div className="mt-6">
                 <button
@@ -703,7 +714,7 @@ export default function CalendarTab() {
               </div>
             )}
 
-            {/* Componente de análisis de IA */}
+            {/* AI Analysis Component */}
             {showAIAnalysis && selectedDate && hotelId && (
               <div className="mt-6">
                 <IntelligentPricingCard

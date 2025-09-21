@@ -1,11 +1,11 @@
 /**
- * Sistema de IA Inteligente para Pricing Dinámico
- * Analiza eventos, competencia y mercado para ajustar precios automáticamente
+ * Intelligent AI System for Dynamic Pricing
+ * Analyzes events, competition, and market to automatically adjust prices
  */
 
 import { supabase } from '@/lib/supabaseClient';
 
-// ===== TIPOS DE DATOS =====
+// ===== DATA TYPES =====
 export interface EventIntelligence {
   eventId: string;
   eventName: string;
@@ -33,6 +33,8 @@ export interface CompetitorIntelligence {
   pricingStrategy: 'premium' | 'competitive' | 'budget' | 'dynamic';
   threatLevel: 'low' | 'medium' | 'high';
   similarityScore: number; // 0-1
+  isMainCompetitor: boolean; // NEW: Identifies real main competitors
+  marketPosition: 'leader' | 'premium' | 'competitive' | 'budget';
 }
 
 export interface MarketIntelligence {
@@ -76,7 +78,7 @@ export interface CompetitorReaction {
   timing: 'early' | 'same_day' | 'late';
 }
 
-// ===== CLASE PRINCIPAL DE IA =====
+// ===== MAIN AI CLASS =====
 export class IntelligentPricingAI {
   private apiKeys: {
     openai?: string;
@@ -89,7 +91,7 @@ export class IntelligentPricingAI {
   }
 
   /**
-   * Main function: Analyzes and recommends pricing for a specific day
+   * Main function: Analyzes and recommends prices for a specific day
    */
   async analyzeAndRecommendPricing(
     targetDate: string,
@@ -106,11 +108,11 @@ export class IntelligentPricingAI {
       const eventIntelligence = await this.analyzeEventsWithAI(events);
       console.log(`🧠 Event analysis completed`);
 
-      // 3. Identify direct competitors
-      const competitorIntelligence = await this.identifyCompetitorsWithAI(events, hotelId);
-      console.log(`🏨 Competitors identified: ${competitorIntelligence.length}`);
+      // 3. Identify main competitors (not just all competitors)
+      const competitorIntelligence = await this.identifyMainCompetitorsWithAI(events, hotelId);
+      console.log(`🏨 Main competitors identified: ${competitorIntelligence.filter(c => c.isMainCompetitor).length}`);
 
-      // 4. Analyze market dynamics
+      // 4. Analyze dynamic market
       const marketIntelligence = await this.analyzeMarketDynamics(eventIntelligence, competitorIntelligence);
       console.log(`📊 Market analysis completed`);
 
@@ -310,197 +312,159 @@ export class IntelligentPricingAI {
   }
 
   /**
-   * Identifies direct competitors using AI and real market data
+   * Identifies main competitors using AI (not just all competitors)
    */
-  private async identifyCompetitorsWithAI(events: any[], hotelId: string): Promise<CompetitorIntelligence[]> {
-    try {
-      // Get real competitor data from the competitors API
-      const competitorResponse = await fetch('/api/competitors/real-data', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          selectedStars: [4, 5], // Focus on similar star ratings
-          selectedRoomType: 'Standard',
-          selectedDateRange: 30,
-          city: 'Tijuana' // Adjust based on your location
-        }),
-      });
+  private async identifyMainCompetitorsWithAI(events: any[], hotelId: string): Promise<CompetitorIntelligence[]> {
+    // Get competitor data from database
+    const { data: competitors, error } = await supabase
+      .from('hoteles_parallel')
+      .select('*')
+      .limit(50);
 
-      const competitorData = await competitorResponse.json();
-      
-      if (!competitorData.success || !competitorData.data) {
-        console.log('No competitor data available, using fallback analysis');
-        return this.getFallbackCompetitorAnalysis();
+    if (error) throw error;
+
+    const competitorIntelligence: CompetitorIntelligence[] = [];
+
+    for (const competitor of competitors || []) {
+      try {
+        // Analyze if it's a main competitor for the day's events
+        const competitorAnalysis = await this.analyzeMainCompetitorRelevance(competitor, events);
+        
+        competitorIntelligence.push({
+          hotelId: competitor.id,
+          hotelName: competitor.nombre,
+          distance: competitorAnalysis.distance,
+          currentPrice: competitorAnalysis.currentPrice,
+          priceTrend: competitorAnalysis.priceTrend,
+          occupancyRate: competitorAnalysis.occupancyRate,
+          competitiveLevel: competitorAnalysis.level,
+          pricingStrategy: competitorAnalysis.strategy,
+          threatLevel: competitorAnalysis.threat,
+          similarityScore: competitorAnalysis.similarity,
+          isMainCompetitor: competitorAnalysis.isMainCompetitor,
+          marketPosition: competitorAnalysis.marketPosition
+        });
+      } catch (error) {
+        console.error(`Error analyzing competitor ${competitor.nombre}:`, error);
       }
-
-      const marketData = competitorData.data;
-      const competitors = marketData.competitors || [];
-      const marketAvg = marketData.marketMetrics?.avgPrice || 1928.21; // Use real market average
-
-      console.log(`📊 Real market data: ${competitors.length} competitors, Market Avg: $${marketAvg} MXN`);
-
-      const competitorIntelligence: CompetitorIntelligence[] = [];
-
-      // Analyze each competitor
-      for (const competitor of competitors) {
-        try {
-          const analysis = await this.analyzeRealCompetitor(competitor, marketAvg, events);
-          competitorIntelligence.push(analysis);
-        } catch (error) {
-          console.error(`Error analyzing competitor ${competitor.name}:`, error);
-        }
-      }
-
-      // Sort by competitive threat level
-      return competitorIntelligence.sort((a, b) => {
-        const threatOrder = { high: 3, medium: 2, low: 1 };
-        return threatOrder[b.threatLevel] - threatOrder[a.threatLevel];
-      });
-
-    } catch (error) {
-      console.error('Error getting competitor data:', error);
-      return this.getFallbackCompetitorAnalysis();
     }
+
+    return competitorIntelligence;
   }
 
   /**
-   * Analyzes a real competitor from the API data
+   * Analyzes main competitor relevance for specific events
    */
-  private async analyzeRealCompetitor(
-    competitor: any, 
-    marketAvg: number, 
-    events: any[]
-  ): Promise<CompetitorIntelligence> {
-    
-    // Calculate competitive metrics
-    const priceDifference = competitor.avgPrice - marketAvg;
-    const priceDifferencePercent = (priceDifference / marketAvg) * 100;
-    
-    // Determine competitive level based on price proximity to market average
-    let competitiveLevel: 'direct' | 'indirect' | 'distant' = 'distant';
-    let threatLevel: 'low' | 'medium' | 'high' = 'low';
-    let pricingStrategy: 'premium' | 'competitive' | 'budget' | 'dynamic' = 'competitive';
-
-    if (Math.abs(priceDifferencePercent) <= 10) {
-      competitiveLevel = 'direct';
-      threatLevel = 'high';
-    } else if (Math.abs(priceDifferencePercent) <= 25) {
-      competitiveLevel = 'indirect';
-      threatLevel = 'medium';
-    }
-
-    // Determine pricing strategy
-    if (priceDifferencePercent > 20) {
-      pricingStrategy = 'premium';
-    } else if (priceDifferencePercent < -20) {
-      pricingStrategy = 'budget';
-    } else if (Math.abs(priceDifferencePercent) <= 5) {
-      pricingStrategy = 'dynamic';
-    }
-
-    // Calculate similarity score based on price proximity
-    const similarityScore = Math.max(0, 1 - (Math.abs(priceDifferencePercent) / 100));
-
-    // Determine price trend (simulate based on market position)
-    let priceTrend: 'increasing' | 'decreasing' | 'stable' = 'stable';
-    if (priceDifferencePercent > 15) {
-      priceTrend = 'increasing'; // Premium pricing
-    } else if (priceDifferencePercent < -15) {
-      priceTrend = 'decreasing'; // Budget pricing
-    }
-
-    return {
-      hotelId: competitor.name || 'unknown',
-      hotelName: competitor.name || 'Unknown Hotel',
-      distance: Math.random() * 5 + 1, // Simulate distance 1-6 km
-      currentPrice: competitor.avgPrice || marketAvg,
-      priceTrend,
-      occupancyRate: 0.75 + (Math.random() * 0.2), // Simulate 75-95% occupancy
-      competitiveLevel,
-      pricingStrategy,
-      threatLevel,
-      similarityScore
-    };
-  }
-
-  /**
-   * Fallback competitor analysis when real data is not available
-   */
-  private getFallbackCompetitorAnalysis(): CompetitorIntelligence[] {
-    const marketAvg = 1928.21; // Real market average from your data
-    
-    return [
-      {
-        hotelId: 'competitor-1',
-        hotelName: 'Hotel Marriott',
-        distance: 2.5,
-        currentPrice: marketAvg * 1.1, // 10% above market
-        priceTrend: 'stable',
-        occupancyRate: 0.85,
-        competitiveLevel: 'direct',
-        pricingStrategy: 'premium',
-        threatLevel: 'high',
-        similarityScore: 0.9
-      },
-      {
-        hotelId: 'competitor-2',
-        hotelName: 'Hotel Holiday Inn',
-        distance: 3.2,
-        currentPrice: marketAvg * 0.9, // 10% below market
-        priceTrend: 'stable',
-        occupancyRate: 0.78,
-        competitiveLevel: 'direct',
-        pricingStrategy: 'competitive',
-        threatLevel: 'medium',
-        similarityScore: 0.8
-      },
-      {
-        hotelId: 'competitor-3',
-        hotelName: 'Hotel Sheraton',
-        distance: 4.1,
-        currentPrice: marketAvg * 1.2, // 20% above market
-        priceTrend: 'increasing',
-        occupancyRate: 0.82,
-        competitiveLevel: 'indirect',
-        pricingStrategy: 'premium',
-        threatLevel: 'medium',
-        similarityScore: 0.7
-      }
-    ];
-  }
-
-  /**
-   * Analiza la relevancia de un competidor para eventos específicos
-   */
-  private async analyzeCompetitorRelevance(competitor: any, events: any[]): Promise<any> {
-    // Simular análisis de relevancia (implementar con lógica real)
+  private async analyzeMainCompetitorRelevance(competitor: any, events: any[]): Promise<any> {
+    // Calculate distance to events (simplified)
     const distance = Math.random() * 10; // km
-    const isRelevant = distance < 5; // Competidor directo si está a menos de 5km
     
-    if (!isRelevant) {
-      return { isRelevant: false };
-    }
-
-    // Obtener precio actual del competidor
+    // Extract current price
     const currentPrice = this.extractCurrentPrice(competitor);
     
+    // Calculate similarity score
+    const similarity = this.calculateSimilarityScore(competitor);
+    
+    // Determine if it's a main competitor based on multiple factors
+    const isMainCompetitor = this.determineMainCompetitor(competitor, similarity, distance, currentPrice);
+    
+    // Determine market position
+    const marketPosition = this.determineMarketPosition(currentPrice, similarity);
+    
     return {
-      isRelevant: true,
       distance,
       currentPrice,
       priceTrend: 'stable' as const,
       occupancyRate: 0.75,
-      level: 'direct' as const,
-      strategy: 'competitive' as const,
-      threat: 'medium' as const,
-      similarity: 0.8
+      level: isMainCompetitor ? 'direct' as const : 'indirect' as const,
+      strategy: this.determinePricingStrategy(currentPrice, similarity),
+      threat: this.determineThreatLevel(currentPrice, similarity, isMainCompetitor),
+      similarity,
+      isMainCompetitor,
+      marketPosition
     };
   }
 
   /**
-   * Extrae precio actual de los datos del competidor
+   * Determines if competitor is a main competitor
+   */
+  private determineMainCompetitor(competitor: any, similarity: number, distance: number, price: number): boolean {
+    // Main competitor criteria:
+    // 1. High similarity (>0.7)
+    // 2. Close distance (<5km) 
+    // 3. Similar price range (500-5000 MXN)
+    // 4. Similar star rating
+    // 5. Same city/location
+    
+    const isHighSimilarity = similarity > 0.7;
+    const isCloseDistance = distance < 5;
+    const hasReasonablePrice = price > 500 && price < 5000;
+    const isSameCity = competitor.ciudad && competitor.ciudad.toLowerCase().includes('tijuana');
+    const hasSimilarStars = competitor.estrellas && parseInt(competitor.estrellas) >= 3;
+
+    return isHighSimilarity && isCloseDistance && hasReasonablePrice && isSameCity && hasSimilarStars;
+  }
+
+  /**
+   * Calculates similarity score between competitor and our hotel
+   */
+  private calculateSimilarityScore(competitor: any): number {
+    let similarity = 0.5; // Base similarity
+
+    // Adjust based on stars
+    if (competitor.estrellas) {
+      const stars = parseInt(competitor.estrellas);
+      if (stars >= 4) similarity += 0.2;
+      if (stars >= 5) similarity += 0.1;
+    }
+
+    // Adjust based on location
+    if (competitor.ciudad && competitor.ciudad.toLowerCase().includes('tijuana')) {
+      similarity += 0.2;
+    }
+
+    // Adjust based on hotel type/name
+    if (competitor.nombre) {
+      const name = competitor.nombre.toLowerCase();
+      if (name.includes('hotel') || name.includes('inn') || name.includes('suites')) {
+        similarity += 0.1;
+      }
+    }
+
+    return Math.min(1, similarity);
+  }
+
+  /**
+   * Determines market position
+   */
+  private determineMarketPosition(price: number, similarity: number): 'leader' | 'premium' | 'competitive' | 'budget' {
+    if (price > 3000 && similarity > 0.8) return 'leader';
+    if (price > 2000 && similarity > 0.6) return 'premium';
+    if (price > 1000 && similarity > 0.4) return 'competitive';
+    return 'budget';
+  }
+
+  /**
+   * Determines pricing strategy
+   */
+  private determinePricingStrategy(price: number, similarity: number): 'premium' | 'competitive' | 'budget' | 'dynamic' {
+    if (price > 2500) return 'premium';
+    if (price > 1500) return 'competitive';
+    if (price < 1000) return 'budget';
+    return 'dynamic';
+  }
+
+  /**
+   * Determines threat level
+   */
+  private determineThreatLevel(price: number, similarity: number, isMainCompetitor: boolean): 'low' | 'medium' | 'high' {
+    if (isMainCompetitor && similarity > 0.8 && price < 1500) return 'high';
+    if (isMainCompetitor && similarity > 0.6 && price < 2000) return 'medium';
+    return 'low';
+  }
+
+  /**
+   * Extracts current price from competitor data
    */
   private extractCurrentPrice(competitor: any): number {
     if (competitor.rooms_jsonb && typeof competitor.rooms_jsonb === 'object') {
@@ -674,7 +638,7 @@ export class IntelligentPricingAI {
   }
 
   /**
-   * Calculates optimal price using AI and real market data
+   * Calcula precio óptimo usando IA
    */
   private async calculateOptimalPrice(
     currentPrice: number,
@@ -683,55 +647,30 @@ export class IntelligentPricingAI {
     marketIntelligence: MarketIntelligence
   ): Promise<number> {
     
-    // Calculate event multiplier
+    // Calcular multiplicador de eventos
     const eventMultiplier = eventIntelligence.length > 0 
       ? eventIntelligence.reduce((sum, event) => sum + event.priceImpactMultiplier, 0) / eventIntelligence.length
       : 1.0;
 
-    // Calculate competitor average price (use real market data)
+    // Calcular precio promedio de competidores
     const competitorAvgPrice = competitorIntelligence.length > 0
       ? competitorIntelligence.reduce((sum, comp) => sum + comp.currentPrice, 0) / competitorIntelligence.length
-      : 1928.21; // Fallback to real market average
+      : currentPrice;
 
-    // Calculate market position
-    const marketPosition = currentPrice / competitorAvgPrice;
-    
-    // Calculate event-adjusted price
+    // Calcular precio base ajustado por eventos
     const eventAdjustedPrice = currentPrice * eventMultiplier;
 
-    // Calculate competitive price based on market intelligence
-    let competitivePrice = competitorAvgPrice;
-    
-    // Adjust based on market opportunity
-    if (marketIntelligence.marketOpportunity > 0.7) {
-      // High opportunity - can price above market
-      competitivePrice = competitorAvgPrice * 1.05;
-    } else if (marketIntelligence.marketOpportunity < 0.3) {
-      // Low opportunity - price below market
-      competitivePrice = competitorAvgPrice * 0.95;
-    }
+    // Calcular precio competitivo
+    const competitivePrice = competitorAvgPrice * 1.05; // 5% por encima del promedio
 
-    // Calculate optimal price using weighted factors
-    const weights = {
-      eventImpact: 0.4,    // 40% weight on event impact
-      competitive: 0.35,   // 35% weight on competitive positioning
-      market: 0.25         // 25% weight on market conditions
-    };
+    // Combinar factores
+    const optimalPrice = (eventAdjustedPrice * 0.6) + (competitivePrice * 0.4);
 
-    const optimalPrice = 
-      (eventAdjustedPrice * weights.eventImpact) +
-      (competitivePrice * weights.competitive) +
-      (currentPrice * weights.market);
-
-    // Ensure price is reasonable (within 50% of market average)
-    const minPrice = competitorAvgPrice * 0.5;
-    const maxPrice = competitorAvgPrice * 1.5;
-    
-    return Math.max(minPrice, Math.min(maxPrice, Math.round(optimalPrice)));
+    return Math.round(optimalPrice);
   }
 
   /**
-   * Generates intelligent reasoning in English
+   * Genera razonamiento inteligente
    */
   private async generateReasoning(
     eventIntelligence: EventIntelligence[],
@@ -742,64 +681,44 @@ export class IntelligentPricingAI {
   ): Promise<string[]> {
     const reasoning: string[] = [];
 
-    // Reasoning about events
+    // Razonamiento sobre eventos
     if (eventIntelligence.length > 0) {
       const totalAttendance = eventIntelligence.reduce((sum, event) => sum + event.expectedAttendance, 0);
-      reasoning.push(`Detected ${eventIntelligence.length} events with ${totalAttendance.toLocaleString()} expected attendees`);
+      reasoning.push(`Se detectaron ${eventIntelligence.length} eventos con ${totalAttendance.toLocaleString()} asistentes esperados`);
       
       const highDemandEvents = eventIntelligence.filter(event => event.demandForecast === 'high' || event.demandForecast === 'extreme');
       if (highDemandEvents.length > 0) {
-        reasoning.push(`${highDemandEvents.length} high-demand events justify price increases`);
+        reasoning.push(`${highDemandEvents.length} eventos de alta demanda justifican aumento de precios`);
       }
-    } else {
-      reasoning.push(`No events detected for this date - standard market conditions`);
     }
 
-    // Reasoning about competition
+    // Razonamiento sobre competencia
     if (competitorIntelligence.length > 0) {
       const avgCompetitorPrice = competitorIntelligence.reduce((sum, comp) => sum + comp.currentPrice, 0) / competitorIntelligence.length;
-      reasoning.push(`Competitor average price: $${avgCompetitorPrice.toFixed(2)} MXN`);
+      reasoning.push(`Precio promedio de competidores: $${avgCompetitorPrice.toFixed(2)}`);
       
       const directCompetitors = competitorIntelligence.filter(comp => comp.competitiveLevel === 'direct');
       if (directCompetitors.length > 0) {
-        reasoning.push(`${directCompetitors.length} direct competitors identified`);
-        
-        // Analyze main competitors
-        const mainCompetitors = directCompetitors.slice(0, 3);
-        mainCompetitors.forEach(comp => {
-          const priceDiff = ((comp.currentPrice - avgCompetitorPrice) / avgCompetitorPrice) * 100;
-          reasoning.push(`${comp.hotelName}: $${comp.currentPrice.toFixed(2)} MXN (${priceDiff >= 0 ? '+' : ''}${priceDiff.toFixed(1)}% vs market)`);
-        });
+        reasoning.push(`${directCompetitors.length} competidores directos identificados`);
       }
     }
 
-    // Reasoning about market
-    reasoning.push(`Market demand: ${marketIntelligence.marketDemand}`);
-    reasoning.push(`Supply availability: ${marketIntelligence.supplyAvailability}`);
-    reasoning.push(`Market opportunity: ${(marketIntelligence.marketOpportunity * 100).toFixed(1)}%`);
+    // Razonamiento sobre mercado
+    reasoning.push(`Demanda del mercado: ${marketIntelligence.marketDemand}`);
+    reasoning.push(`Disponibilidad de oferta: ${marketIntelligence.supplyAvailability}`);
+    reasoning.push(`Oportunidad de mercado: ${(marketIntelligence.marketOpportunity * 100).toFixed(1)}%`);
 
-    // Reasoning about price
+    // Razonamiento sobre precio
     const priceChange = recommendedPrice - currentPrice;
     const priceChangePercent = (priceChange / currentPrice) * 100;
     
     if (priceChange > 0) {
-      reasoning.push(`Recommended increase of $${priceChange.toFixed(2)} MXN (${priceChangePercent.toFixed(1)}%) to maximize revenue`);
+      reasoning.push(`Aumento recomendado de $${priceChange.toFixed(2)} (${priceChangePercent.toFixed(1)}%) para maximizar revenue`);
     } else if (priceChange < 0) {
-      reasoning.push(`Recommended decrease of $${Math.abs(priceChange).toFixed(2)} MXN (${Math.abs(priceChangePercent).toFixed(1)}%) to improve competitiveness`);
+      reasoning.push(`Reducción recomendada de $${Math.abs(priceChange).toFixed(2)} (${Math.abs(priceChangePercent).toFixed(1)}%) para mejorar competitividad`);
     } else {
-      reasoning.push(`Maintain current price - stable market conditions`);
+      reasoning.push(`Mantener precio actual - condiciones de mercado estables`);
     }
-
-    // Add competitive positioning reasoning
-    const marketAvg = competitorIntelligence.length > 0 
-      ? competitorIntelligence.reduce((sum, comp) => sum + comp.currentPrice, 0) / competitorIntelligence.length
-      : 1928.21;
-    
-    const ourPosition = ((currentPrice - marketAvg) / marketAvg) * 100;
-    const recommendedPosition = ((recommendedPrice - marketAvg) / marketAvg) * 100;
-    
-    reasoning.push(`Current market position: ${ourPosition >= 0 ? '+' : ''}${ourPosition.toFixed(1)}% vs market average`);
-    reasoning.push(`Recommended market position: ${recommendedPosition >= 0 ? '+' : ''}${recommendedPosition.toFixed(1)}% vs market average`);
 
     return reasoning;
   }

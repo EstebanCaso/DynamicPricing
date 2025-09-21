@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useCurrency } from '@/contexts/CurrencyContext';
-import { usePriceUpdates } from '@/contexts/PriceUpdateContext';
+import { usePriceContext } from '@/contexts/PriceContext';
 
 interface AIRecommendation {
   recommendedPrice: number;
@@ -49,7 +49,7 @@ export default function IntelligentPricingCard({
   className = ""
 }: IntelligentPricingCardProps) {
   const { currency, convertPriceToSelectedCurrency } = useCurrency();
-  const { triggerPriceUpdate } = usePriceUpdates();
+  const { updatePrice, competitorAnalysis } = usePriceContext();
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +68,7 @@ export default function IntelligentPricingCard({
       setError(null);
       setAnalysisResult(null);
 
-      console.log(`🤖 Ejecutando análisis de IA para ${targetDate}`);
+      console.log(`🤖 Running AI analysis for ${targetDate}`);
 
       const response = await fetch('/api/ai/pricing-analysis', {
         method: 'POST',
@@ -85,22 +85,22 @@ export default function IntelligentPricingCard({
       const result: AIAnalysisResult = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || 'Error en análisis de IA');
+        throw new Error(result.error || 'Error in AI analysis');
       }
 
       setAnalysisResult(result);
       
-      // Seleccionar la primera recomendación por defecto
+      // Select first recommendation by default
       if (result.data?.recommendations.length > 0) {
         setSelectedRecommendation(result.data.recommendations[0]);
       }
 
-      console.log(`✅ Análisis completado:`, result);
+      console.log(`✅ Analysis completed:`, result);
 
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Error desconocido';
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       setError(errorMessage);
-      console.error('❌ Error en análisis:', err);
+      console.error('❌ Error in analysis:', err);
     } finally {
       setIsAnalyzing(false);
     }
@@ -108,29 +108,11 @@ export default function IntelligentPricingCard({
 
   const applyRecommendation = async (recommendation: AIRecommendation) => {
     try {
+      // Apply the recommended price using the global price context
       console.log('🚀 Applying recommendation:', recommendation);
       
-      // Update price in database
-      const response = await fetch('/api/calendar/apply-prices', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          date: targetDate,
-          prices: [{
-            room_type: 'Standard', // Default room type
-            new_price: recommendation.recommendedPrice
-          }]
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to apply price');
-      }
-
-      // Trigger global price update
-      triggerPriceUpdate(targetDate, recommendation.recommendedPrice);
+      // Update price in the global context
+      await updatePrice('Standard Room', recommendation.recommendedPrice, 'AI Recommendation');
       
       // Notify parent component
       if (onRecommendationApplied) {
@@ -177,14 +159,14 @@ export default function IntelligentPricingCard({
       {/* Header */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              🤖 Intelligent Pricing Analysis
-            </h3>
-            <p className="text-sm text-gray-600">
-              AI analyzes events, competition and market for {targetDate}
-            </p>
-          </div>
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+            🤖 Intelligent Pricing Analysis
+          </h3>
+          <p className="text-sm text-gray-600">
+            AI analyzes events, competition, and market for {targetDate}
+          </p>
+        </div>
           
           <div className="flex items-center gap-3">
             {isAnalyzing && (
@@ -210,7 +192,7 @@ export default function IntelligentPricingCard({
         {isAnalyzing && (
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">AI is analyzing events, competition and market...</p>
+            <p className="text-gray-600">AI is analyzing events, competition, and market...</p>
             <p className="text-sm text-gray-500 mt-2">This may take a few seconds</p>
           </div>
         )}
@@ -233,7 +215,7 @@ export default function IntelligentPricingCard({
 
         {analysisResult?.data && selectedRecommendation && (
           <div className="space-y-6">
-            {/* Resumen de análisis */}
+            {/* Analysis Summary */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center gap-2 text-blue-800 mb-2">
                 <span className="text-xl">📊</span>
@@ -261,48 +243,48 @@ export default function IntelligentPricingCard({
               </div>
             </div>
 
-            {/* Recomendación principal */}
+            {/* Main Recommendation */}
             <div className="bg-gradient-to-r from-green-50 to-blue-50 border border-green-200 rounded-lg p-6">
               <div className="flex items-center justify-between mb-4">
                 <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                  💡 Recomendación Principal
+                  💡 Main Recommendation
                 </h4>
                 <div className={`px-3 py-1 rounded-full text-sm font-medium ${getConfidenceColor(selectedRecommendation.confidence)}`}>
-                  {selectedRecommendation.confidence}% confianza
+                  {selectedRecommendation.confidence}% confidence
                 </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                {/* Precio actual vs recomendado */}
+                {/* Current vs Recommended Price */}
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Precio Actual:</span>
+                    <span className="text-gray-600">Current Price:</span>
                     <span className="font-semibold text-gray-900">
-                      {currency.format(selectedRecommendation.currentPrice)}
+                      {currency.format(selectedRecommendation.currentPrice)} MXN
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Precio Recomendado:</span>
+                    <span className="text-gray-600">Recommended Price:</span>
                     <span className="font-semibold text-green-600 text-lg">
-                      {currency.format(selectedRecommendation.recommendedPrice)}
+                      {currency.format(selectedRecommendation.recommendedPrice)} MXN
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-600">Cambio:</span>
+                    <span className="text-gray-600">Change:</span>
                     <span className={`font-semibold ${
                       selectedRecommendation.priceChange >= 0 ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {selectedRecommendation.priceChange >= 0 ? '+' : ''}
-                      {currency.format(selectedRecommendation.priceChange)} 
+                      {currency.format(selectedRecommendation.priceChange)} MXN
                       ({selectedRecommendation.priceChangePercent >= 0 ? '+' : ''}
                       {selectedRecommendation.priceChangePercent.toFixed(1)}%)
                     </span>
                   </div>
                 </div>
 
-                {/* Impacto esperado */}
+                {/* Expected Impact */}
                 <div className="space-y-3">
-                  <div className="text-gray-600 font-medium mb-2">Impacto Esperado:</div>
+                  <div className="text-gray-600 font-medium mb-2">Expected Impact:</div>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm">Revenue:</span>
@@ -312,14 +294,14 @@ export default function IntelligentPricingCard({
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Ocupación:</span>
+                      <span className="text-sm">Occupancy:</span>
                       <span className={`text-sm font-medium ${getOutcomeColor(selectedRecommendation.expectedOutcomes.occupancy)}`}>
                         {getOutcomeIcon(selectedRecommendation.expectedOutcomes.occupancy)} 
                         {selectedRecommendation.expectedOutcomes.occupancy}
                       </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm">Competitividad:</span>
+                      <span className="text-sm">Competitiveness:</span>
                       <span className={`text-sm font-medium ${getOutcomeColor(selectedRecommendation.expectedOutcomes.competitiveness)}`}>
                         {getOutcomeIcon(selectedRecommendation.expectedOutcomes.competitiveness)} 
                         {selectedRecommendation.expectedOutcomes.competitiveness}
@@ -328,25 +310,25 @@ export default function IntelligentPricingCard({
                   </div>
                 </div>
 
-                {/* Acción */}
+                {/* Action */}
                 <div className="flex flex-col justify-center">
                   <button
                     onClick={() => applyRecommendation(selectedRecommendation)}
                     className="w-full bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 transition-colors font-medium"
                   >
-                    🚀 Aplicar Recomendación
+                    🚀 Apply Recommendation
                   </button>
                   <p className="text-xs text-gray-500 mt-2 text-center">
-                    Impacto esperado: +{selectedRecommendation.expectedOutcomes.percentage}%
+                    Expected impact: +{selectedRecommendation.expectedOutcomes.percentage}%
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Razonamiento de la IA */}
+            {/* AI Reasoning */}
             <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
               <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                🧠 Razonamiento de la IA
+                🧠 AI Reasoning
               </h4>
               <div className="space-y-3">
                 {selectedRecommendation.reasoning.map((reason, index) => (
@@ -358,11 +340,11 @@ export default function IntelligentPricingCard({
               </div>
             </div>
 
-            {/* Factores de riesgo */}
+            {/* Risk Factors */}
             {selectedRecommendation.riskFactors.length > 0 && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
                 <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                  ⚠️ Factores de Riesgo
+                  ⚠️ Risk Factors
                 </h4>
                 <div className="space-y-2">
                   {selectedRecommendation.riskFactors.map((risk, index) => (
@@ -375,24 +357,24 @@ export default function IntelligentPricingCard({
               </div>
             )}
 
-            {/* Precios alternativos */}
+            {/* Alternative Prices */}
             {selectedRecommendation.alternativePrices.length > 0 && (
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
                 <h4 className="text-lg font-semibold text-gray-900 flex items-center gap-2 mb-4">
-                  🔄 Precios Alternativos
+                  🔄 Alternative Prices
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {selectedRecommendation.alternativePrices.map((alt, index) => (
                     <div key={index} className="bg-white border border-purple-200 rounded-lg p-4">
                       <div className="text-center">
                         <div className="text-lg font-semibold text-purple-600">
-                          {currency.format(alt.price)}
+                          {currency.format(alt.price)} MXN
                         </div>
                         <div className="text-sm text-gray-600 mt-1">
                           {alt.scenario}
                         </div>
                         <div className="text-xs text-purple-500 mt-2">
-                          {alt.probability * 100}% probabilidad
+                          {alt.probability * 100}% probability
                         </div>
                       </div>
                     </div>
@@ -406,8 +388,8 @@ export default function IntelligentPricingCard({
         {analysisResult?.data && analysisResult.data.recommendations.length === 0 && (
           <div className="text-center py-8 text-gray-500">
             <div className="text-4xl mb-2">🤖</div>
-            <p className="text-sm">No se encontraron eventos para esta fecha</p>
-            <p className="text-xs mt-1">La IA no detectó factores que justifiquen ajustes de precio</p>
+            <p className="text-sm">No events found for this date</p>
+            <p className="text-xs mt-1">AI did not detect factors that justify price adjustments</p>
           </div>
         )}
       </div>
