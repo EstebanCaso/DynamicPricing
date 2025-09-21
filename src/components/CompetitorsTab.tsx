@@ -109,6 +109,10 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
   const [historicalComparisonData, setHistoricalComparisonData] = useState<HistoricalComparisonData | null>(null);
   const [eventsData, setEventsData] = useState<EventData[]>([]);
   const [isComparisonLoading, setIsComparisonLoading] = useState(false);
+  
+  // Sorting state
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   // Get hotel ID for AI analysis
   useEffect(() => {
@@ -180,6 +184,74 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
 
   // Check if a competitor is selected
   const isCompetitorSelected = (competitorName: string) => selectedCompetitors.includes(competitorName)
+
+  // Sorting functions
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (field: string) => {
+    if (sortField !== field) {
+      return (
+        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+        </svg>
+      );
+    }
+    
+    return sortDirection === 'asc' ? (
+      <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+      </svg>
+    ) : (
+      <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+      </svg>
+    );
+  };
+
+  const sortCompetitors = (competitors: Array<{ name: string; avg: number; estrellas: number | null }>) => {
+    if (!sortField) return competitors;
+
+    return [...competitors].sort((a, b) => {
+      let aValue: any;
+      let bValue: any;
+
+      switch (sortField) {
+        case 'name':
+          aValue = a.name.toLowerCase();
+          bValue = b.name.toLowerCase();
+          break;
+        case 'price':
+          aValue = a.avg;
+          bValue = b.avg;
+          break;
+        case 'difference':
+          aValue = a.avg - (competitorData?.myAvg || 0);
+          bValue = b.avg - (competitorData?.myAvg || 0);
+          break;
+        case 'rating':
+          aValue = a.estrellas || 0;
+          bValue = b.estrellas || 0;
+          break;
+        case 'revpar':
+          aValue = a.avg * 0.80; // 80% occupancy
+          bValue = b.avg * 0.80;
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
 
   const handleCompareCompetitors = async () => {
     if (selectedCompetitors.length === 0) {
@@ -802,20 +874,50 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
                 <table className="min-w-full divide-y divide-glass-200">
                   <thead className="bg-glass-50">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Hotel
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort('name')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Hotel
+                          {getSortIcon('name')}
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Price
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort('price')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Price
+                          {getSortIcon('price')}
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Difference From You
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort('difference')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Difference From You
+                          {getSortIcon('difference')}
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Rating
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort('rating')}
+                      >
+                        <div className="flex items-center gap-2">
+                          Rating
+                          {getSortIcon('rating')}
+                        </div>
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        RevPAR
+                      <th 
+                        className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => handleSort('revpar')}
+                      >
+                        <div className="flex items-center gap-2">
+                          RevPAR
+                          {getSortIcon('revpar')}
+                        </div>
                       </th>
                     </tr>
                   </thead>
@@ -854,8 +956,11 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
                         ? competitorData.competitors.filter(competitor => isCompetitorSelected(competitor.name))
                         : competitorData.competitors
                       
-                      return filteredCompetitors.length > 0 ? (
-                        filteredCompetitors.map((competitor, index) => {
+                      // Sort the filtered competitors
+                      const sortedCompetitors = sortCompetitors(filteredCompetitors);
+                      
+                      return sortedCompetitors.length > 0 ? (
+                        sortedCompetitors.map((competitor, index) => {
                           const difference = competitor.avg - (competitorData.myAvg || 0)
                           const differencePercent = (competitorData.myAvg || 0) > 0 ? 
                             (difference / (competitorData.myAvg || 0)) * 100 : 0
