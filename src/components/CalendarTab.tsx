@@ -5,7 +5,8 @@ import { useCurrency } from '@/contexts/CurrencyContext'
 import { usePriceContext } from '@/contexts/PriceContext'
 import { supabase } from '@/lib/supabaseClient'
 import CurrencySelector from './CurrencySelector'
-import IntelligentPricingCard from './IntelligentPricingCard'
+import { standardizeRoomType, type StandardizedRoomType } from '@/lib/roomTypeStandardization'
+import { formatCurrencyCard } from '@/lib/currencyFormatting'
 
 type EventItem = { id?: string; nombre?: string | null; fecha?: string | null; lugar?: string | null; enlace?: string | null }
 type PriceItem = { room_type: string; price: number | null }
@@ -46,7 +47,6 @@ export default function CalendarTab() {
   const [manualPercent, setManualPercent] = useState<number>(0)
   const [appliedDates, setAppliedDates] = useState<Set<string>>(new Set())
   const [hotelId, setHotelId] = useState<string | null>(null)
-  const [showAIAnalysis, setShowAIAnalysis] = useState<boolean>(false)
   const { selectedCurrency, currency, convertPriceToSelectedCurrency } = useCurrency()
   const { currentPrices, updatePrice } = usePriceContext()
 
@@ -241,7 +241,7 @@ export default function CalendarTab() {
   }
 
   const recommended = useMemo(() => {
-    if (!prices) return [] as Array<{ room_type: string; base: number; next: number }>
+    if (!prices) return [] as Array<{ room_type: string; base: number; next: number; original_room_type: string }>
     const items = (prices.items || []).filter((x): x is { room_type: string; price: number } => x.price != null)
     const adj = getRuleAdjustmentForDate(prices.date)
     const hasRules = adj.pct !== 0 || adj.fixed !== 0
@@ -250,7 +250,13 @@ export default function CalendarTab() {
       const base = x.price as number
       const afterRules = Math.round((base * (1 + adj.pct / 100)) + adj.fixed)
       const next = hasRules ? afterRules : Math.round(base * (1 + extraPct))
-      return { room_type: x.room_type, base, next }
+      const standardizedRoomType = standardizeRoomType(x.room_type)
+      return { 
+        room_type: standardizedRoomType, 
+        original_room_type: x.room_type,
+        base, 
+        next 
+      }
     })
   }, [prices, activeRules, manualPercent, dayHasEvents])
 
@@ -280,24 +286,6 @@ export default function CalendarTab() {
     }
   }
 
-  // Handle AI recommendation application
-  const handleAIRecommendationApplied = async (recommendation: any) => {
-    console.log('✅ AI recommendation applied:', recommendation);
-    
-    // Update price in global context for the specific room type
-    try {
-      await updatePrice(recommendation.roomType, recommendation.recommendedPrice, 'AI Recommendation');
-      console.log(`✅ Price updated for ${recommendation.roomType} in global context`);
-    } catch (error) {
-      console.error('❌ Error updating price:', error);
-    }
-    
-    // Reload prices to show the change
-    if (selectedDate) {
-      handleSelectDate(selectedDate);
-    }
-  };
-
   const clearSelection = () => {
     setSelectedDate(null)
     setPrices(null)
@@ -318,13 +306,19 @@ export default function CalendarTab() {
     })
   }
 
-  async function applyUpdates(items: Array<{ room_type: string; new_price: number }>) {
+  async function applyUpdates(items: Array<{ room_type: string; new_price: number; original_room_type?: string }>) {
     try {
       setIsApplying(true)
+      // Convert standardized room types back to original for database updates
+      const dbItems = items.map(item => ({
+        room_type: item.original_room_type || item.room_type,
+        new_price: item.new_price
+      }))
+      
       const res = await fetch('/api/calendar/apply-prices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: selectedDate, items }),
+        body: JSON.stringify({ date: selectedDate, items: dbItems }),
       })
       const json = await res.json()
       if (!json?.success) throw new Error(json?.error || 'Failed to apply updates')
@@ -643,17 +637,20 @@ export default function CalendarTab() {
                               ) : null}
                               <div>
                                 <div className="font-semibold text-gray-900 text-lg md:text-xl">{r.room_type}</div>
-                                <div className="text-base text-gray-700">Current {formatMoney(r.base, 'MXN')}</div>
+                                {r.original_room_type !== r.room_type && (
+                                  <div className="text-xs text-gray-500">Original: {r.original_room_type}</div>
+                                )}
+                                <div className="text-base text-gray-700">Current {formatCurrencyCard(r.base)}</div>
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
                               <div className="text-right">
                                 <div className="text-sm text-gray-600">New</div>
-                                <div className="font-bold text-red-600 text-xl">{formatMoney(r.next, 'MXN')}</div>
+                                <div className="font-bold text-red-600 text-xl">{formatCurrencyCard(r.next)}</div>
                               </div>
                               <button
                                 disabled={isApplying}
-                                onClick={() => applyUpdates([{ room_type: r.room_type, new_price: r.next }])}
+                                onClick={() => applyUpdates([{ room_type: r.room_type, new_price: r.next, original_room_type: r.original_room_type }])}
                                 className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-base"
                               >
                                 Accept
@@ -670,7 +667,7 @@ export default function CalendarTab() {
                         </div>
                         <button
                           disabled={isApplying || recommended.every((r) => !selectedMap[r.room_type])}
-                          onClick={() => applyUpdates(recommended.filter((r) => selectedMap[r.room_type]).map((r) => ({ room_type: r.room_type, new_price: r.next })))}
+                          onClick={() => applyUpdates(recommended.filter((r) => selectedMap[r.room_type]).map((r) => ({ room_type: r.room_type, new_price: r.next, original_room_type: r.original_room_type })))}
                           className="px-5 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-base"
                         >
                           Apply all
@@ -698,30 +695,6 @@ export default function CalendarTab() {
                   <div className="font-medium mb-2">Error</div>
                   <div>{error}</div>
                 </div>
-              </div>
-            )}
-
-            {/* Button to show AI analysis */}
-            {selectedDate && hotelId && (
-              <div className="mt-6">
-                <button
-                  onClick={() => setShowAIAnalysis(!showAIAnalysis)}
-                  className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-medium flex items-center justify-center gap-2"
-                >
-                  <span className="text-xl">🤖</span>
-                  {showAIAnalysis ? 'Hide AI Analysis' : 'Intelligent AI Analysis'}
-                </button>
-              </div>
-            )}
-
-            {/* AI Analysis Component */}
-            {showAIAnalysis && selectedDate && hotelId && (
-              <div className="mt-6">
-                <IntelligentPricingCard
-                  targetDate={selectedDate}
-                  hotelId={hotelId}
-                  onRecommendationApplied={handleAIRecommendationApplied}
-                />
               </div>
             )}
           
