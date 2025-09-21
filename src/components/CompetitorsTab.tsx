@@ -955,7 +955,7 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
                     <tr className="bg-yellow-50">
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center justify-center">
-                          <span className="inline-flex items-center justify-center w-8 h-8 text-sm font-bold text-white bg-yellow-500 rounded-full">
+                          <span className="inline-flex items-center justify-center w-8 h-8 text-sm font-bold text-yellow-800 bg-glass-100 backdrop-blur-sm border border-yellow-200 rounded-full shadow-sm">
                             {calculatePosition({ name: competitorData.myHotelName, avg: competitorData.myAvg || 0, estrellas: null })}
                           </span>
                         </div>
@@ -1010,12 +1010,12 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
                             >
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="flex items-center justify-center">
-                                  <span className={`inline-flex items-center justify-center w-8 h-8 text-sm font-bold rounded-full ${
+                                  <span className={`inline-flex items-center justify-center w-8 h-8 text-sm font-bold rounded-full backdrop-blur-sm border shadow-sm ${
                                     calculatePosition(competitor) <= 3 
-                                      ? 'text-white bg-green-500' 
+                                      ? 'text-green-800 bg-glass-100 border-green-200' 
                                       : calculatePosition(competitor) <= 5 
-                                        ? 'text-white bg-blue-500' 
-                                        : 'text-white bg-gray-500'
+                                        ? 'text-blue-800 bg-glass-100 border-blue-200' 
+                                        : 'text-gray-700 bg-glass-100 border-gray-200'
                                   }`}>
                                     {calculatePosition(competitor)}
                                   </span>
