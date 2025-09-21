@@ -9,12 +9,14 @@ import {
   type ProcessedHotelData 
 } from '@/lib/dataUtils'
 import { useCurrency } from '@/contexts/CurrencyContext'
+import { usePriceContext } from '@/contexts/PriceContext'
 import CurrencySelector from './CurrencySelector'
 import CompetitorProfile from './CompetitorProfile';
 import MultiCompetitorChart from './MultiCompetitorChart'; // Import the new chart component
 import ComparisonKpiCards from './ComparisonKpiCards';
 import ComparisonInsights from './ComparisonInsights';
 import EventInsights from './EventInsights';
+import IntelligentPricingCard from './IntelligentPricingCard';
 
 interface Competitor {
   id: string
@@ -92,6 +94,12 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
   const [selectedRoomType, setSelectedRoomType] = useState('All');
   const [availableRoomTypes, setAvailableRoomTypes] = useState<string[]>([]);
   const { selectedCurrency, exchangeRate, convertPriceToSelectedCurrency, currency } = useCurrency()
+  const { currentPrices, updatePrice } = usePriceContext()
+  
+  // AI Analysis state
+  const [showAIAnalysis, setShowAIAnalysis] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [hotelId, setHotelId] = useState<string | null>(null)
   
   // New state for competitor selection
   const [selectedCompetitors, setSelectedCompetitors] = useState<string[]>([])
@@ -101,6 +109,22 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
   const [historicalComparisonData, setHistoricalComparisonData] = useState<HistoricalComparisonData | null>(null);
   const [eventsData, setEventsData] = useState<EventData[]>([]);
   const [isComparisonLoading, setIsComparisonLoading] = useState(false);
+
+  // Get hotel ID for AI analysis
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.id) {
+          setHotelId(user.id);
+        }
+      } catch (error) {
+        console.error('Error getting user:', error);
+      }
+    };
+    
+    getCurrentUser();
+  }, []);
 
   // Load selected competitors from localStorage on component mount
   useEffect(() => {
@@ -135,6 +159,22 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
   const clearSelectedCompetitors = () => {
     setSelectedCompetitors([])
   }
+
+  // Handle AI recommendation application
+  const handleAIRecommendationApplied = async (recommendation: any) => {
+    console.log('✅ AI recommendation applied:', recommendation);
+    
+    // Update price in global context for the specific room type
+    try {
+      await updatePrice(recommendation.roomType, recommendation.recommendedPrice, 'AI Recommendation');
+      console.log(`✅ Price updated for ${recommendation.roomType} in global context`);
+    } catch (error) {
+      console.error('❌ Error updating price:', error);
+    }
+    
+    // Reload competitor data to show updated prices
+    fetchCompetitiveData();
+  };
 
   // Check if a competitor is selected
   const isCompetitorSelected = (competitorName: string) => selectedCompetitors.includes(competitorName)
@@ -551,6 +591,47 @@ export default function CompetitorsTab({ onCompetitorSelect }: { onCompetitorSel
               </span>
             )}
           </button>
+        </div>
+
+        {/* AI Analysis Section */}
+        <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-xl border border-blue-200">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                🤖 AI-Powered Pricing Analysis
+              </h3>
+              <p className="text-sm text-gray-600">
+                Get intelligent pricing recommendations based on competitor analysis and market conditions
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center space-x-2">
+                <label className="text-sm font-medium text-gray-700">Analysis Date:</label>
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                />
+              </div>
+              <button
+                onClick={() => setShowAIAnalysis(!showAIAnalysis)}
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-medium flex items-center gap-2"
+              >
+                <span className="text-xl">🤖</span>
+                {showAIAnalysis ? 'Hide AI Analysis' : 'Show AI Analysis'}
+              </button>
+            </div>
+          </div>
+          
+          {/* AI Analysis Component */}
+          {showAIAnalysis && selectedDate && hotelId && (
+            <IntelligentPricingCard
+              targetDate={selectedDate}
+              hotelId={hotelId}
+              onRecommendationApplied={handleAIRecommendationApplied}
+            />
+          )}
         </div>
 
         {/* Competitor Selection Panel */}
