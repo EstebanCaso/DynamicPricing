@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useCurrency } from '@/contexts/CurrencyContext'
 import { supabase } from '@/lib/supabaseClient'
 import CurrencySelector from './CurrencySelector'
+import IntelligentPricingCard from './IntelligentPricingCard'
 
 type EventItem = { id?: string; nombre?: string | null; fecha?: string | null; lugar?: string | null; enlace?: string | null }
 type PriceItem = { room_type: string; price: number | null }
@@ -43,12 +44,30 @@ export default function CalendarTab() {
   const [bulkMode, setBulkMode] = useState<boolean>(false)
   const [manualPercent, setManualPercent] = useState<number>(0)
   const [appliedDates, setAppliedDates] = useState<Set<string>>(new Set())
+  const [hotelId, setHotelId] = useState<string | null>(null)
+  const [showAIAnalysis, setShowAIAnalysis] = useState<boolean>(false)
   const { selectedCurrency, currency, convertPriceToSelectedCurrency } = useCurrency()
 
   // Force re-render when currency changes
   useEffect(() => {
     // This will force the component to re-render when currency changes
   }, [selectedCurrency]);
+
+  // Obtener hotel ID del usuario actual
+  useEffect(() => {
+    const getCurrentUser = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.id) {
+          setHotelId(user.id);
+        }
+      } catch (error) {
+        console.error('Error obteniendo usuario:', error);
+      }
+    };
+    
+    getCurrentUser();
+  }, []);
 
   // Format money function with currency conversion
   const formatMoney = (value?: number | null, originalCurrency: 'MXN' | 'USD' = 'MXN'): string => {
@@ -258,6 +277,15 @@ export default function CalendarTab() {
       setLoadingPrices(false)
     }
   }
+
+  // Manejar aplicación de recomendación de IA
+  const handleAIRecommendationApplied = (recommendation: any) => {
+    console.log('✅ Recomendación de IA aplicada:', recommendation);
+    // Recargar precios para mostrar el cambio
+    if (selectedDate) {
+      handleSelectDate(selectedDate);
+    }
+  };
 
   const clearSelection = () => {
     setSelectedDate(null)
@@ -659,6 +687,30 @@ export default function CalendarTab() {
                   <div className="font-medium mb-2">Error</div>
                   <div>{error}</div>
                 </div>
+              </div>
+            )}
+
+            {/* Botón para mostrar análisis de IA */}
+            {selectedDate && hotelId && (
+              <div className="mt-6">
+                <button
+                  onClick={() => setShowAIAnalysis(!showAIAnalysis)}
+                  className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-medium flex items-center justify-center gap-2"
+                >
+                  <span className="text-xl">🤖</span>
+                  {showAIAnalysis ? 'Ocultar Análisis de IA' : 'Análisis Inteligente de IA'}
+                </button>
+              </div>
+            )}
+
+            {/* Componente de análisis de IA */}
+            {showAIAnalysis && selectedDate && hotelId && (
+              <div className="mt-6">
+                <IntelligentPricingCard
+                  targetDate={selectedDate}
+                  hotelId={hotelId}
+                  onRecommendationApplied={handleAIRecommendationApplied}
+                />
               </div>
             )}
           

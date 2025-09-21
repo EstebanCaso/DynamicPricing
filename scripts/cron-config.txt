@@ -1,0 +1,98 @@
+# Configuración de Cron Jobs para Automatización de IA
+# 
+# Este archivo contiene ejemplos de cron jobs para ejecutar
+# la automatización diaria de pricing con IA
+
+# ===== CRON JOBS =====
+
+# Ejecutar análisis diario a las 6:00 AM todos los días
+# (Análisis sin auto-aplicación)
+0 6 * * * cd /path/to/DynamicPricing && node scripts/daily-ai-automation.js
+
+# Ejecutar análisis diario con auto-aplicación a las 7:00 AM
+# (Solo para hoteles con alta confianza >= 80%)
+0 7 * * * cd /path/to/DynamicPricing && node scripts/daily-ai-automation.js --auto-apply
+
+# Ejecutar análisis con notificaciones por email
+0 8 * * * cd /path/to/DynamicPricing && node scripts/daily-ai-automation.js --email=admin@hotel.com
+
+# Ejecutar análisis para fechas específicas (ejemplo: análisis semanal)
+0 9 * * 1 cd /path/to/DynamicPricing && node scripts/daily-ai-automation.js --date=$(date -d '+7 days' +%Y-%m-%d)
+
+# Obtener estadísticas semanales cada domingo a las 10:00 AM
+0 10 * * 0 cd /path/to/DynamicPricing && node scripts/daily-ai-automation.js --stats
+
+# ===== CONFIGURACIÓN RECOMENDADA =====
+
+# Para producción, recomiendo este cron job:
+# 0 6 * * * cd /path/to/DynamicPricing && node scripts/daily-ai-automation.js --auto-apply --email=admin@hotel.com
+
+# Explicación:
+# - 0 6 * * * : Ejecutar a las 6:00 AM todos los días
+# - --auto-apply : Aplicar automáticamente recomendaciones con alta confianza
+# - --email=admin@hotel.com : Enviar notificaciones por email
+
+# ===== INSTALACIÓN =====
+
+# 1. Hacer el script ejecutable:
+# chmod +x scripts/daily-ai-automation.js
+
+# 2. Agregar al crontab:
+# crontab -e
+
+# 3. Agregar la línea del cron job deseada
+
+# 4. Verificar que el cron está funcionando:
+# tail -f /var/log/cron
+
+# ===== VARIABLES DE ENTORNO REQUERIDAS =====
+
+# Asegúrate de que estas variables estén configuradas:
+# NEXT_PUBLIC_BASE_URL=https://tu-dominio.com
+# OPENAI_API_KEY=tu-api-key
+# GOOGLE_SEARCH_API_KEY=tu-api-key
+# EVENTBRITE_API_KEY=tu-api-key
+
+# ===== MONITOREO =====
+
+# Para monitorear el funcionamiento del cron job:
+
+# 1. Ver logs del sistema:
+# journalctl -u cron
+
+# 2. Ver logs específicos del script:
+# tail -f /var/log/daily-ai-automation.log
+
+# 3. Verificar que la API está funcionando:
+# curl -X POST https://tu-dominio.com/api/ai/daily-automation \
+#   -H "Content-Type: application/json" \
+#   -d '{"targetDate":"2024-01-15","autoApply":false}'
+
+# ===== TROUBLESHOOTING =====
+
+# Si el cron job no funciona:
+
+# 1. Verificar permisos:
+# ls -la scripts/daily-ai-automation.js
+
+# 2. Verificar que Node.js está en el PATH:
+# which node
+
+# 3. Ejecutar manualmente para debug:
+# cd /path/to/DynamicPricing && node scripts/daily-ai-automation.js --date=2024-01-15
+
+# 4. Verificar variables de entorno:
+# env | grep NEXT_PUBLIC
+
+# ===== BACKUP Y RECUPERACIÓN =====
+
+# Para hacer backup de la configuración:
+
+# 1. Backup del crontab:
+# crontab -l > backup-crontab.txt
+
+# 2. Backup de variables de entorno:
+# env > backup-env.txt
+
+# 3. Backup de la configuración del proyecto:
+# cp .env .env.backup
