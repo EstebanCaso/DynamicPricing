@@ -241,8 +241,8 @@ export default function CalendarTab() {
   }
 
   const recommended = useMemo(() => {
-    if (!prices) return [] as Array<{ room_type: string; base: number; next: number; original_room_type: string }>
-    const items = (prices.items || []).filter((x): x is { room_type: string; price: number } => x.price != null)
+    if (!prices) return [] as Array<{ room_type: string; base: number; next: number; original_room_type: string; ai_updated: boolean; ai_price: number | null }>
+    const items = (prices.items || []).filter((x): x is { room_type: string; price: number; ai_updated?: boolean; ai_price?: number | null } => x.price != null)
     const adj = getRuleAdjustmentForDate(prices.date)
     const hasRules = adj.pct !== 0 || adj.fixed !== 0
     const extraPct = !hasRules && !dayHasEvents ? Math.max(0, (manualPercent || 0) / 100) : 0
@@ -251,11 +251,17 @@ export default function CalendarTab() {
       const afterRules = Math.round((base * (1 + adj.pct / 100)) + adj.fixed)
       const next = hasRules ? afterRules : Math.round(base * (1 + extraPct))
       const standardizedRoomType = standardizeRoomType(x.room_type)
+      
+      // Use AI price if available, otherwise use calculated price
+      const finalPrice = x.ai_updated && x.ai_price ? x.ai_price : next
+      
       return { 
         room_type: standardizedRoomType, 
         original_room_type: x.room_type,
         base, 
-        next 
+        next: finalPrice,
+        ai_updated: x.ai_updated || false,
+        ai_price: x.ai_price || null
       }
     })
   }, [prices, activeRules, manualPercent, dayHasEvents])
@@ -274,10 +280,51 @@ export default function CalendarTab() {
     setPrices(null)
     try {
       setLoadingPrices(true)
-      const res = await fetch('/api/calendar/hotel-prices', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ date: dateISO }) })
+      
+      // Fetch regular hotel prices
+      const res = await fetch('/api/calendar/hotel-prices', { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ date: dateISO }) 
+      })
       const json = await res.json()
       if (!json?.success) throw new Error(json?.error || 'Failed to load prices')
-      setPrices({ hotelName: json.data.hotelName, date: json.data.date, items: json.data.prices || [] })
+      
+      // Fetch AI-updated prices from room_types table
+      const aiRes = await fetch('/api/calendar/ai-prices', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: dateISO })
+      })
+      
+      let aiPrices: Record<string, number> = {}
+      if (aiRes.ok) {
+        const aiJson = await aiRes.json()
+        if (aiJson.success && aiJson.data) {
+          aiPrices = aiJson.data.reduce((acc: Record<string, number>, item: any) => {
+            if (item.final_price) {
+              acc[item.nombre] = item.final_price
+            }
+            return acc
+          }, {})
+        }
+      }
+      
+      // Merge regular prices with AI-updated prices
+      const mergedPrices = (json.data.prices || []).map((priceItem: any) => {
+        const aiPrice = aiPrices[priceItem.room_type]
+        return {
+          ...priceItem,
+          ai_updated: !!aiPrice,
+          ai_price: aiPrice || null
+        }
+      })
+      
+      setPrices({ 
+        hotelName: json.data.hotelName, 
+        date: json.data.date, 
+        items: mergedPrices 
+      })
     } catch (e: unknown) {
       setError((e as Error)?.message || 'Failed to load prices')
       setPrices(null)
@@ -354,6 +401,28 @@ export default function CalendarTab() {
             </div>
           </div>
           <CurrencySelector showLabel={true} />
+          <button
+            onClick={() => {
+              // Redirect to Competitors tab
+              const competitorsTab = document.querySelector('[data-tab="competitors"]') as HTMLElement;
+              if (competitorsTab) {
+                competitorsTab.click();
+              } else {
+                // Fallback: try to find the tab by text content
+                const tabs = document.querySelectorAll('[role="tab"]');
+                const competitorsTabElement = Array.from(tabs).find(tab => 
+                  tab.textContent?.toLowerCase().includes('competitor')
+                ) as HTMLElement;
+                if (competitorsTabElement) {
+                  competitorsTabElement.click();
+                }
+              }
+            }}
+            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:to-purple-700 transition-all duration-200 font-medium flex items-center gap-2 backdrop-blur-sm border border-white/20 shadow-lg"
+          >
+            <span className="text-lg">🤖</span>
+            Apply AI Changes
+          </button>
         </div>
       </div>
       
@@ -636,7 +705,15 @@ export default function CalendarTab() {
                                 />
                               ) : null}
                               <div>
-                                <div className="font-semibold text-gray-900 text-lg md:text-xl">{r.room_type}</div>
+                                <div className="flex items-center gap-2">
+                                  <div className="font-semibold text-gray-900 text-lg md:text-xl">{r.room_type}</div>
+                                  {r.ai_updated && (
+                                    <span className="inline-flex items-center px-2 py-1 text-xs font-medium rounded-full bg-gradient-to-r from-blue-100 to-purple-100 text-blue-800 border border-blue-200">
+                                      <span className="mr-1">🤖</span>
+                                      AI Updated
+                                    </span>
+                                  )}
+                                </div>
                                 {r.original_room_type !== r.room_type && (
                                   <div className="text-xs text-gray-500">Original: {r.original_room_type}</div>
                                 )}
@@ -645,15 +722,25 @@ export default function CalendarTab() {
                             </div>
                             <div className="flex items-center gap-3">
                               <div className="text-right">
-                                <div className="text-sm text-gray-600">New</div>
-                                <div className="font-bold text-red-600 text-xl">{formatCurrencyCard(r.next)}</div>
+                                <div className="text-sm text-gray-600">
+                                  {r.ai_updated ? 'AI Price' : 'New'}
+                                </div>
+                                <div className={`font-bold text-xl ${
+                                  r.ai_updated ? 'text-blue-600' : 'text-red-600'
+                                }`}>
+                                  {formatCurrencyCard(r.next)}
+                                </div>
                               </div>
                               <button
                                 disabled={isApplying}
                                 onClick={() => applyUpdates([{ room_type: r.room_type, new_price: r.next, original_room_type: r.original_room_type }])}
-                                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-base"
+                                className={`px-4 py-2 rounded-lg text-white hover:opacity-90 disabled:opacity-60 disabled:cursor-not-allowed text-base transition-all duration-200 ${
+                                  r.ai_updated 
+                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700' 
+                                    : 'bg-red-600 hover:bg-red-700'
+                                }`}
                               >
-                                Accept
+                                {r.ai_updated ? 'Apply AI' : 'Accept'}
                               </button>
                             </div>
                           </div>
