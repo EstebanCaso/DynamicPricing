@@ -5,6 +5,7 @@ interface CompetitorPricingResult {
   date: string;
   roomTypes: {
     roomType: string;
+    originalRoomType: string;
     competitorPrices: number[];
     medianPrice: number;
     currentPrice: number;
@@ -205,7 +206,12 @@ const CompetitorPricingCard: React.FC<CompetitorPricingCardProps> = ({
               {analysisResult.roomTypes.map((roomTypeData, index) => (
                 <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h5 className="font-semibold text-gray-900">{roomTypeData.roomType}</h5>
+                    <div>
+                      <h5 className="font-semibold text-gray-900">{roomTypeData.roomType}</h5>
+                      {roomTypeData.originalRoomType !== roomTypeData.roomType && (
+                        <p className="text-xs text-gray-500">Original: {roomTypeData.originalRoomType}</p>
+                      )}
+                    </div>
                     <div className="text-right">
                       <div className="text-sm text-gray-500">Price Change</div>
                       <div className={`font-semibold ${

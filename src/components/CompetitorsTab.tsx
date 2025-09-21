@@ -17,6 +17,7 @@ import ComparisonKpiCards from './ComparisonKpiCards';
 import ComparisonInsights from './ComparisonInsights';
 import EventInsights from './EventInsights';
 import CompetitorPricingCard from './CompetitorPricingCard';
+import { standardizeRoomType, type StandardizedRoomType } from '@/lib/roomTypeStandardization';
 
 interface Competitor {
   id: string

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { standardizeRoomType, groupRoomsByStandardizedType, standardizeCompetitorRoomTypes, standardizeHotelRoomTypes, type StandardizedRoomType } from '@/lib/roomTypeStandardization'
 
 // ===== TYPES =====
 interface CompetitorPricingData {
-  roomType: string
+  roomType: StandardizedRoomType
+  originalRoomType: string
   competitorPrices: number[]
   medianPrice: number
   currentPrice: number
@@ -150,6 +152,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No hotel data found for the specified date' }, { status: 404 })
     }
 
+    // Standardize hotel room types
+    const standardizedHotelData = standardizeHotelRoomTypes(hotelData)
+    console.log(`🏨 Standardized ${hotelData.length} hotel room types`)
+
     // 2. Get competitor data
     const { data: competitorData, error: compError } = await supabase
       .from('hoteles_parallel')
@@ -160,6 +166,10 @@ export async function POST(request: NextRequest) {
       console.error('Error fetching competitor data:', compError)
       return NextResponse.json({ error: 'Failed to fetch competitor data' }, { status: 500 })
     }
+
+    // Standardize competitor room types
+    const standardizedCompetitorData = competitorData?.map(comp => standardizeCompetitorRoomTypes(comp)) || []
+    console.log(`🏨 Standardized ${standardizedCompetitorData.length} competitor room types`)
 
     // 3. Get events for the date (optional)
     const { data: eventsData, error: eventsError } = await supabase
@@ -178,25 +188,26 @@ export async function POST(request: NextRequest) {
     const allEvents = [...(eventsData || []), ...(eventosData || [])]
     console.log(`📅 Found ${allEvents.length} events for ${targetDate}`)
 
-    // 4. Process each room type
+    // 4. Group hotel data by standardized room types
+    const groupedHotelData = groupRoomsByStandardizedType(standardizedHotelData)
     const roomTypeResults: CompetitorPricingData[] = []
-    const processedRoomTypes = new Set<string>()
 
-    for (const hotelRecord of hotelData) {
-      const roomType = hotelRecord.room_type
-      const currentPrice = parsePriceToNumber(hotelRecord.price)
+    // Process each standardized room type
+    for (const [standardizedRoomType, hotelRecords] of Object.entries(groupedHotelData)) {
+      if (hotelRecords.length === 0) continue
+
+      const roomType = standardizedRoomType as StandardizedRoomType
+      const currentPrice = parsePriceToNumber(hotelRecords[0].price)
+      const originalRoomType = hotelRecords[0].original_room_type || hotelRecords[0].room_type
       
-      if (!roomType || currentPrice === null || processedRoomTypes.has(roomType)) {
-        continue
-      }
+      if (currentPrice === null) continue
 
-      processedRoomTypes.add(roomType)
-      console.log(`🏨 Processing room type: ${roomType} (current: ${currentPrice} MXN)`)
+      console.log(`🏨 Processing standardized room type: ${roomType} (original: ${originalRoomType}, current: ${currentPrice} MXN)`)
 
-      // 5. Find competitor prices for this room type
+      // 5. Find competitor prices for this standardized room type
       const competitorPrices: number[] = []
       
-      for (const competitor of competitorData || []) {
+      for (const competitor of standardizedCompetitorData) {
         if (!competitor.rooms_jsonb || typeof competitor.rooms_jsonb !== 'object') continue
         
         const dateRooms = competitor.rooms_jsonb[targetDate]
@@ -205,13 +216,12 @@ export async function POST(request: NextRequest) {
         for (const room of dateRooms) {
           if (!room.room_type || !room.price) continue
           
-          // Map competitor room type to hotel room type
-          const mappedRoomType = findSimilarRoomType(room.room_type, [roomType])
-          if (mappedRoomType) {
+          // Check if competitor room type matches our standardized room type
+          if (room.room_type === roomType) {
             const price = parsePriceToNumber(room.price)
             if (price !== null) {
               competitorPrices.push(price)
-              console.log(`   📊 Competitor ${competitor.nombre}: ${room.room_type} → ${roomType} = ${price} MXN`)
+              console.log(`   📊 Competitor ${competitor.nombre}: ${room.original_room_type || room.room_type} → ${roomType} = ${price} MXN`)
             }
           }
         }
@@ -286,6 +296,7 @@ export async function POST(request: NextRequest) {
 
       roomTypeResults.push({
         roomType,
+        originalRoomType,
         competitorPrices,
         medianPrice,
         currentPrice,
@@ -303,7 +314,7 @@ export async function POST(request: NextRequest) {
     // 9. Update database with final prices
     const updatePromises = roomTypeResults.map(async (result) => {
       try {
-        // Update hotel_usuario with final price
+        // Update hotel_usuario with final price (use original room type for database update)
         const { error: updateError } = await supabase
           .from('hotel_usuario')
           .update({ 
@@ -312,7 +323,7 @@ export async function POST(request: NextRequest) {
           })
           .eq('user_id', hotelId)
           .eq('checkin_date', targetDate)
-          .eq('room_type', result.roomType)
+          .eq('room_type', result.originalRoomType)
 
         if (updateError) {
           console.error(`Error updating hotel_usuario for ${result.roomType}:`, updateError)
@@ -323,7 +334,8 @@ export async function POST(request: NextRequest) {
           const { error: roomTypeError } = await supabase
             .from('room_types')
             .upsert({
-              nombre: result.roomType,
+              nombre: result.originalRoomType,
+              standardized_type: result.roomType,
               fecha: targetDate,
               final_price: result.finalPrice,
               min_price: result.minPrice || null,
