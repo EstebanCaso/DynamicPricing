@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { spawn } from 'child_process'
 import path from 'path'
 
+// Ensure Node.js runtime for child_process
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+export const maxDuration = 300
+
 export async function POST(request: NextRequest) {
   try {
     const { userData } = await request.json()

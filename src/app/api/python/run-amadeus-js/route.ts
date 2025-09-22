@@ -2,6 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { spawn } from 'child_process'
 import path from 'path'
 
+// Ensure this route runs on Node.js runtime (child_process unsupported on Edge)
+export const runtime = 'nodejs'
+// Force dynamic to avoid static optimization attempts
+export const dynamic = 'force-dynamic'
+// Allow longer execution window for external API calls
+export const maxDuration = 300
+
 export async function POST(request: NextRequest) {
   try {
     const { userData } = await request.json()

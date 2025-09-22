@@ -1,5 +1,7 @@
 // dotenv/config not needed in Vercel - env vars are already available
-import { v4 as uuidv4, validate as uuidValidate } from 'uuid';
+import { randomUUID } from 'crypto';
+const uuidv4 = () => randomUUID();
+const uuidValidate = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value));
 
 // --- Configuración Amadeus ---
 const AMADEUS_CLIENT_ID = process.env.AMADEUS_API_KEY;
