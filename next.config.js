@@ -2,12 +2,12 @@
 const nextConfig = {
   experimental: {
     outputFileTracingIncludes: {
-      // Ensure Node scripts are bundled with the server functions on Vercel
-      '/src/app/api/python/run-amadeus-js/route.ts': ['./scripts/**'],
-      '/src/app/api/python/run-hotel-js/route.ts': ['./scripts/**'],
-      '/src/app/api/python/run-events-js/route.ts': ['./scripts/**'],
-      '/src/app/api/python/run-script/route.ts': ['./scripts/**'],
-      '/src/app/api/python/run-script-with-progress/route.ts': ['./scripts/**'],
+      // Ensure Node scripts are bundled with the server functions on Vercel (app dir paths)
+      '/app/api/python/run-amadeus-js/route': ['./scripts/**'],
+      '/app/api/python/run-hotel-js/route': ['./scripts/**'],
+      '/app/api/python/run-events-js/route': ['./scripts/**'],
+      '/app/api/python/run-script/route': ['./scripts/**'],
+      '/app/api/python/run-script-with-progress/route': ['./scripts/**'],
     },
   },
   // Enable API routes for Python script integration
