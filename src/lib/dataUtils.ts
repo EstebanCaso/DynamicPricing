@@ -201,7 +201,17 @@ export async function fetchUserHotelData(userId: string): Promise<ProcessedHotel
     return [];
   }
 
-  const processed = data.map((item: any) => {
+  type UserHotelRow = {
+    id?: string;
+    hotel_name: string;
+    checkin_date: string;
+    room_type: string;
+    price: string | number;
+    user_id?: string;
+    [key: string]: unknown;
+  };
+
+  const processed = (data as UserHotelRow[]).map((item) => {
     const cleanedPrice = cleanPrice(item.price);
     return {
       id: item.id,
@@ -219,7 +229,9 @@ export async function fetchUserHotelData(userId: string): Promise<ProcessedHotel
   return processed;
 }
 
-export async function fetchCompetitorData(city?: string): Promise<any[]> {
+export type CompetitorRow = { ciudad?: string } & Record<string, unknown>;
+
+export async function fetchCompetitorData(city?: string): Promise<CompetitorRow[]> {
   console.log('🔄 Fetching competitor data with unified function...');
   
   let query = supabase.from(TABLES.COMPETITORS).select('*');
@@ -236,7 +248,7 @@ export async function fetchCompetitorData(city?: string): Promise<any[]> {
   }
 
   console.log(`✅ Fetched ${data?.length || 0} competitor records`);
-  return data || [];
+  return (data as CompetitorRow[]) || [];
 }
 
 // ===== UNIFIED CURRENCY FORMATTING =====
@@ -251,7 +263,7 @@ export function formatCurrency(amount: number, currency: Currency): string {
 }
 
 // ===== UNIFIED LOGGING =====
-export function logDataFlow(component: string, data: any, message?: string) {
+export function logDataFlow(component: string, data: unknown, message?: string) {
   if (process.env.NODE_ENV === 'development') {
     console.log(`📊 [${component}] ${message || 'Data flow'}:`, data);
   }

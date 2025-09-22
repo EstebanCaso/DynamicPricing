@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { chromium } from 'playwright'
+import { chromium, type Page } from 'playwright'
 import fetch from 'node-fetch'
-import { URL } from 'url'
 
 // Ensure this route runs on the Node.js runtime
 export const runtime = 'nodejs'
@@ -19,6 +18,20 @@ function resolveSongkickUrl(lat: number, lon: number, radiusKm: number) {
 		return `https://www.songkick.com/search?query=&location=${lat},${lon}&radius=${radiusKm}`
 	}
 	return 'https://www.songkick.com/metro-areas/31097-mexico-tijuana/calendar'
+}
+
+type EventRecord = {
+  nombre?: string
+  fecha?: string
+  lugar?: string
+  enlace?: string
+  name?: string
+  date?: string
+  venue?: string
+  url?: string
+  latitude?: number | null
+  longitude?: number | null
+  distance_km?: number
 }
 
 async function scrapeSongkick(lat: number, lon: number, radiusKm: number) {
@@ -72,9 +85,9 @@ async function scrapeSongkick(lat: number, lon: number, radiusKm: number) {
 		await page.goto(URL, { waitUntil: 'domcontentloaded', timeout: 120000 })
 		
 		// Handle cookie banner if present
-		const acceptCookies = async (p: any) => {
+        const acceptCookies = async (p: Page) => {
 			let clicked = false
-			const tryClick = async (locator: string) => {
+            const tryClick = async (locator: string) => {
 				if (clicked) return
 				try {
 					const el = await p.$(locator)
@@ -101,14 +114,14 @@ async function scrapeSongkick(lat: number, lon: number, radiusKm: number) {
 			for (const s of selectors) { await tryClick(s); if (clicked) break }
 
 			// Try common cookie iframes
-			try {
-				for (const frame of p.frames()) {
+            try {
+                for (const frame of p.frames()) {
 					if (clicked) break
 					for (const s of selectors) {
 						await tryClick(`${s}`)
 						if (clicked) break
 						try {
-							const el = await frame.$(s)
+                            const el = await frame.$(s)
 							if (el) {
 								if (DEBUG) console.error('[songkick] Clicking cookie in frame:', s)
 								await el.click({ timeout: 1500 }).catch(()=>{})
@@ -172,9 +185,9 @@ async function scrapeSongkick(lat: number, lon: number, radiusKm: number) {
 
 		// Extract with page.evaluate to avoid server libs
 		if (DEBUG) console.error('[songkick] Extracting events…')
-		let events = await page.evaluate(({ lat, lon, radiusKm, BASE_URL }) => {
-			function text(el: any) { return (el?.textContent || '').trim() }
-			function toKm(a: any, b: any) {
+        let events: EventRecord[] = await page.evaluate(({ lat, lon, radiusKm, BASE_URL }) => {
+            function text(el: Element | null | undefined) { return ((el && 'textContent' in el ? el.textContent : '') || '').toString().trim() }
+            function toKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
 				// Approx calc (not exact geodesic):
 				const R = 6371
 				const dLat = (b.lat - a.lat) * Math.PI / 180
@@ -187,24 +200,30 @@ async function scrapeSongkick(lat: number, lon: number, radiusKm: number) {
 			}
 
 			// Fallback: parse JSON-LD event data if present (AMP pages etc.)
-			try {
-				const ld = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
-				  .map((s: any) => { try { return JSON.parse(s.textContent || 'null') } catch { return null } })
-				  .filter(Boolean)
-				let ldEvents: any[] = []
+            try {
+                const ldScripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]')) as HTMLScriptElement[]
+                const ld = ldScripts
+                  .map((s) => { try { return JSON.parse(s.textContent || 'null') as unknown } catch { return null } })
+                  .filter(Boolean) as unknown[]
+                const ldEvents: EventRecord[] = []
 				for (const item of ld) {
-					const arr = Array.isArray(item) ? item : [item]
-					for (const obj of arr) {
-						if (obj['@type'] === 'Event' || (obj['@graph'] && obj['@graph'].some((x: any) => x['@type'] === 'Event'))) {
-							const eventsIn = obj['@graph']?.filter((x: any) => x['@type'] === 'Event') || [obj]
-							for (const ev of eventsIn) {
-								const name = ev.name || ''
-								const date = (ev.startDate || '').slice(0,10)
-								const venueName = ev.location?.name || ''
-								const url = ev.url || ''
-								const geo = ev.location?.geo || {}
-								const evLat = geo.latitude ?? null
-								const evLon = geo.longitude ?? null
+                    const arr = Array.isArray(item) ? item : [item]
+                    for (const objAny of arr) {
+                        const obj = objAny as Record<string, unknown>
+                        const type = obj['@type'] as string | undefined
+                        const graph = obj['@graph'] as Array<Record<string, unknown>> | undefined
+                        const isEvent = type === 'Event' || (Array.isArray(graph) && graph.some((x) => x['@type'] === 'Event'))
+                        if (isEvent) {
+                            const eventsIn = (Array.isArray(graph) ? graph.filter((x) => x['@type'] === 'Event') : [obj]) as Array<Record<string, unknown>>
+                            for (const ev of eventsIn) {
+                                const name = (ev['name'] as string) || ''
+                                const date = ((ev['startDate'] as string) || '').slice(0,10)
+                                const location = ev['location'] as Record<string, unknown> | undefined
+                                const venueName = (location?.['name'] as string) || ''
+                                const url = (ev['url'] as string) || ''
+                                const geo = (location?.['geo'] as Record<string, unknown>) || {}
+                                const evLat = (geo['latitude'] as number | null | undefined) ?? null
+                                const evLon = (geo['longitude'] as number | null | undefined) ?? null
 								if (evLat != null && evLon != null) {
 									const distance = toKm({ lat, lon }, { lat: evLat, lon: evLon })
 									if (distance <= radiusKm) {
@@ -222,8 +241,8 @@ async function scrapeSongkick(lat: number, lon: number, radiusKm: number) {
 			} catch {}
 
 			// Primary path: iterate explicit event anchors
-			const anchors = Array.from(document.querySelectorAll('a.event-link[href^="/concerts/"]'))
-			const out: any[] = []
+            const anchors = Array.from(document.querySelectorAll('a.event-link[href^="/concerts/"]')) as HTMLAnchorElement[]
+            const out: EventRecord[] = []
 			for (const a of anchors) {
 				try {
 					const root = a.closest('li.event-listings-element, .event-listings li, .event, .event-item, article') || a.parentElement || a
@@ -247,19 +266,20 @@ async function scrapeSongkick(lat: number, lon: number, radiusKm: number) {
 					const venue = text(venueEl)
 
 					// Link from the event anchor
-					const href = a.getAttribute('href')
+                    const href = a.getAttribute('href')
 					const enlace = href ? (href.startsWith('http') ? href : `${BASE_URL}${href}`) : ''
 
 					// Geo
-					let evLat = null, evLon = null
+                    let evLat: number | null = null, evLon: number | null = null
 					const microformat = root.querySelector('div.microformat script[type="application/ld+json"]')
 					if (microformat?.textContent) {
 						try {
-							const data = JSON.parse(microformat.textContent)
-							const obj = Array.isArray(data) ? data[0] : data
-							const geo = obj?.location?.geo || {}
-							evLat = geo?.latitude ?? null
-							evLon = geo?.longitude ?? null
+                            const data = JSON.parse(microformat.textContent) as unknown
+                            const obj = (Array.isArray(data) ? data[0] : data) as Record<string, unknown>
+                            const location = obj['location'] as Record<string, unknown> | undefined
+                            const geo = (location?.['geo'] as Record<string, unknown>) || {}
+                            evLat = (geo['latitude'] as number | null | undefined) ?? null
+                            evLon = (geo['longitude'] as number | null | undefined) ?? null
 						} catch {}
 					}
 
@@ -276,38 +296,42 @@ async function scrapeSongkick(lat: number, lon: number, radiusKm: number) {
 		}, { lat, lon, radiusKm, BASE_URL })
 
 		// Enrich missing fields by visiting event pages (limit concurrency)
-		const needEnrichment = Array.isArray(events) ? events
-			.filter((ev: any) => (!ev.fecha || !ev.lugar || !ev.enlace) && ev.enlace)
+        const needEnrichment = Array.isArray(events) ? events
+            .filter((ev) => (!ev.fecha || !ev.lugar || !ev.enlace) && !!ev.enlace)
 			.slice(0, 15) : []
 		const concurrency = 5
-		const chunkArray = (arr: any[], size: number) => {
-			const res = []
+        const chunkArray = <T,>(arr: T[], size: number) => {
+            const res: T[][] = []
 			for (let i = 0; i < arr.length; i += size) res.push(arr.slice(i, i + size))
 			return res
 		}
-		for (const batch of chunkArray(needEnrichment, concurrency)) {
-			await Promise.all(batch.map(async (ev: any) => {
+        for (const batch of chunkArray(needEnrichment, concurrency)) {
+            await Promise.all(batch.map(async (ev) => {
 				try {
-					const p2 = await context.newPage()
-					await p2.goto(ev.enlace, { waitUntil: 'domcontentloaded', timeout: 45_000 })
+                    if (!ev.enlace) return
+                    const p2 = await context.newPage()
+                    await p2.goto(ev.enlace, { waitUntil: 'domcontentloaded', timeout: 45_000 })
 					try { await p2.waitForLoadState('networkidle', { timeout: 5_000 }) } catch {}
-					const detail = await p2.evaluate(() => {
-						function text(el: any) { return (el?.textContent || '').trim() }
-						const out = { fecha: '', lugar: '', enlace: '' }
+                    const detail = await p2.evaluate(() => {
+                        function text(el: Element | null | undefined) { return ((el && 'textContent' in el ? el.textContent : '') || '').toString().trim() }
+                        const out: { fecha: string; lugar: string; enlace: string } = { fecha: '', lugar: '', enlace: '' }
 						try {
-							const ld = Array.from(document.querySelectorAll('script[type="application/ld+json"]'))
-								.map((s: any) => { try { return JSON.parse(s.textContent || 'null') } catch { return null } })
-								.filter(Boolean)
-							for (const item of ld) {
-								const arr = Array.isArray(item) ? item : [item]
-								for (const obj of arr) {
-									if (obj['@type'] === 'Event') {
-										out.fecha = (obj.startDate || '').slice(0,10) || out.fecha
-										out.lugar = obj.location?.name || out.lugar
-										out.enlace = obj.url || out.enlace
-									}
-								}
-							}
+                            const ldScripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]')) as HTMLScriptElement[]
+                            const ld = ldScripts
+                              .map((s) => { try { return JSON.parse(s.textContent || 'null') as unknown } catch { return null } })
+                              .filter(Boolean) as unknown[]
+                            for (const item of ld) {
+                                const arr = Array.isArray(item) ? item : [item]
+                                for (const objAny of arr) {
+                                    const obj = objAny as Record<string, unknown>
+                                    if (obj['@type'] === 'Event') {
+                                        out.fecha = ((obj['startDate'] as string) || '').slice(0,10) || out.fecha
+                                        const location = obj['location'] as Record<string, unknown> | undefined
+                                        out.lugar = (location?.['name'] as string) || out.lugar
+                                        out.enlace = (obj['url'] as string) || out.enlace
+                                    }
+                                }
+                            }
 						} catch {}
 						// Fallbacks
 						if (!out.fecha) {
@@ -366,7 +390,7 @@ export async function POST(request: NextRequest) {
 		
 		if (SUPABASE_URL && SUPABASE_ANON_KEY && userUuid) {
 			// Map events to DB schema and deduplicate
-			const mapped = events.map((ev: any) => ({
+			const mapped = events.map((ev: EventRecord) => ({
 				nombre: ev.nombre || ev.name || '',
 				fecha: ((ev.fecha || ev.date || '') as string).slice(0, 10),
 				lugar: ev.lugar || ev.venue || '',
@@ -403,7 +427,7 @@ export async function POST(request: NextRequest) {
 						body: JSON.stringify(batch)
 					})
 					if (res.ok) {
-						const json = (await res.json().catch(() => [])) as any[]
+						const json = (await res.json().catch(() => [])) as unknown[]
 						inserted += Array.isArray(json) ? json.length : batch.length
 						console.log('[songkick-api] Batch inserted:', Array.isArray(json) ? json.length : batch.length)
 					} else {
