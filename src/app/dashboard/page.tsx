@@ -271,7 +271,7 @@ function DashboardContent() {
 
               {/* KPI Grid */}
               <div>
-                  <div className={`grid grid-cols-1 gap-6 mb-8 ${kpis?.occupancy?.hasData ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+                  <div className={`grid grid-cols-1 gap-6 mb-8 ${Boolean((kpis as any)?.occupancy?.hasData) ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
                     
                     {/* Revenue */}
                     <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
@@ -282,24 +282,28 @@ function DashboardContent() {
                         </svg>
                       </div>
                       <div className="text-2xl font-bold text-gray-900 mb-1">
-                        {loading ? '...' : kpis?.revenue ? 
-                          currency.format(convertPriceToSelectedCurrency(kpis.revenue.current, kpis.revenue.currency || 'USD')) : 
-                          currency.format(0)
-                        }
+                        {loading ? '...' : (kpis as any)?.revenue ? (() => {
+                          const rev = (kpis as any).revenue || {}
+                          const amount = (rev?.current ?? 0) as number
+                          const c = rev?.currency === 'USD' ? 'USD' : 'MXN'
+                          return currency.format(
+                            convertPriceToSelectedCurrency(amount, c)
+                          )
+                        })() : currency.format(0)}
                       </div>
-                      <div className={`text-xs font-medium ${loading ? 'text-gray-400' : (kpis?.revenue?.growth >= 0 ? 'text-green-600' : 'text-red-600')}`}>
+                      <div className={`text-xs font-medium ${loading ? 'text-gray-400' : (((kpis as any)?.revenue?.growth ?? 0) >= 0 ? 'text-green-600' : 'text-red-600')}`}>
                         <span className="inline-flex items-center">
-                          {!loading && kpis?.revenue?.growth !== undefined && (
-                            <svg className={`w-3 h-3 mr-1 ${kpis.revenue.growth >= 0 ? '' : 'rotate-180'}`} fill="currentColor" viewBox="0 0 20 20">
+                          {!loading && (kpis as any)?.revenue?.growth !== undefined && (
+                            <svg className={`w-3 h-3 mr-1 ${(((kpis as any).revenue?.growth ?? 0) >= 0) ? '' : 'rotate-180'}`} fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                             </svg>
                           )}
-                          {loading ? '...' : kpis?.revenue?.growth !== undefined ? `${kpis.revenue.growth > 0 ? '+' : ''}${kpis.revenue.growth}% MoM` : 'No data'}
+                          {loading ? '...' : (kpis as any)?.revenue?.growth !== undefined ? `${(((kpis as any).revenue?.growth ?? 0) > 0 ? '+' : '')}${(kpis as any).revenue?.growth}% MoM` : 'No data'}
                         </span>
                       </div>
-                      {!loading && kpis?.revenue && (
-                        <div className="text-xs text-gray-500 mt-1" title={kpis.revenue.methodology}>
-                          {kpis.revenue.isRealData ? (
+                      {!loading && (kpis as any)?.revenue && (
+                        <div className="text-xs text-gray-500 mt-1" title={(kpis as any).revenue?.methodology as string}>
+                          {(kpis as any).revenue?.isRealData ? (
                             <span className="inline-flex items-center">
                               <span className="w-2 h-2 bg-green-500 rounded-full mr-1"></span>
                               Real data
@@ -323,15 +327,15 @@ function DashboardContent() {
                         </svg>
                       </div>
                       <div className="text-2xl font-bold text-gray-900 mb-1">
-                        {loading ? '...' : kpis?.marketPosition?.rank ? `#${kpis.marketPosition.rank}` : 'N/A'}
+                        {loading ? '...' : (kpis as any)?.marketPosition?.rank ? `#${(kpis as any).marketPosition.rank}` : 'N/A'}
                       </div>
                       <div className="text-xs text-gray-600">
-                        {loading ? '...' : kpis?.marketPosition?.total ? `of ${kpis.marketPosition.total} properties` : 'No data'}
+                        {loading ? '...' : (kpis as any)?.marketPosition?.total ? `of ${(kpis as any).marketPosition.total} properties` : 'No data'}
                       </div>
                     </div>
 
                     {/* Occupancy - Only show if data is available */}
-                    {kpis?.occupancy?.hasData && (
+                    {(kpis as any)?.occupancy?.hasData && (
                       <div className="backdrop-blur-xl bg-glass-100 border border-glass-200 rounded-2xl shadow-lg p-6 hover:shadow-xl transition-all duration-300">
                         <div className="flex items-center justify-between mb-2">
                           <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">Occupancy</span>
@@ -340,16 +344,16 @@ function DashboardContent() {
                           </svg>
                         </div>
                         <div className="text-2xl font-bold text-gray-900 mb-1">
-                          {loading ? '...' : kpis?.occupancy?.rate !== null ? `${kpis.occupancy.rate}%` : 'N/A'}
+                          {loading ? '...' : (kpis as any)?.occupancy?.rate !== null && (kpis as any)?.occupancy?.rate !== undefined ? `${(kpis as any).occupancy.rate}%` : 'N/A'}
                         </div>
-                        <div className={`text-xs font-medium ${loading ? 'text-gray-400' : (kpis?.occupancy?.growth >= 0 ? 'text-green-600' : 'text-red-600')}`}>
+                        <div className={`text-xs font-medium ${loading ? 'text-gray-400' : ((((kpis as any)?.occupancy?.growth ?? 0) >= 0) ? 'text-green-600' : 'text-red-600')}`}>
                           <span className="inline-flex items-center">
-                            {!loading && kpis?.occupancy?.growth !== null && (
-                              <svg className={`w-3 h-3 mr-1 ${kpis.occupancy.growth >= 0 ? '' : 'rotate-180'}`} fill="currentColor" viewBox="0 0 20 20">
+                            {!loading && (kpis as any)?.occupancy?.growth !== null && (kpis as any)?.occupancy?.growth !== undefined && (
+                              <svg className={`w-3 h-3 mr-1 ${(((kpis as any).occupancy?.growth ?? 0) >= 0) ? '' : 'rotate-180'}`} fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                               </svg>
                             )}
-                            {loading ? '...' : kpis?.occupancy?.growth !== null ? `${kpis.occupancy.growth > 0 ? '+' : ''}${kpis.occupancy.growth}% WoW` : 'No data'}
+                            {loading ? '...' : (kpis as any)?.occupancy?.growth !== null && (kpis as any)?.occupancy?.growth !== undefined ? `${(((kpis as any).occupancy?.growth ?? 0) > 0 ? '+' : '')}${(kpis as any).occupancy?.growth}% WoW` : 'No data'}
                           </span>
                         </div>
                       </div>
@@ -364,10 +368,14 @@ function DashboardContent() {
                         </svg>
                       </div>
                       <div className="text-2xl font-bold text-gray-900 mb-1">
-                        {loading ? '...' : kpis?.adr?.current ? 
-                          currency.format(convertPriceToSelectedCurrency(kpis.adr.current, kpis.adr.currency || 'MXN')) : 
-                          currency.format(0)
-                        }
+                        {loading ? '...' : (kpis as any)?.adr?.current ? (() => {
+                          const adr = (kpis as any).adr || {}
+                          const amount = (adr?.current ?? 0) as number
+                          const c = adr?.currency === 'USD' ? 'USD' : 'MXN'
+                          return currency.format(
+                            convertPriceToSelectedCurrency(amount, c)
+                          )
+                        })() : currency.format(0)}
                       </div>
                       <div className="text-xs text-gray-600">avg daily rate</div>
                     </div>

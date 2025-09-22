@@ -44,7 +44,7 @@ const RADIAN = Math.PI / 180;
 const renderCustomizedLabel = (props: CustomPieLabelProps) => {
   const { cx, cy, midAngle, innerRadius, outerRadius, percent, index, payload } = props;
 
-  if (midAngle === undefined || innerRadius === undefined || outerRadius === undefined || percent === undefined || !payload) {
+  if (midAngle == null || innerRadius === undefined || outerRadius === undefined || percent === undefined || !payload) {
     return null;
   }
 
@@ -53,6 +53,7 @@ const renderCustomizedLabel = (props: CustomPieLabelProps) => {
     return null;
   }
   
+  const percentNum = typeof percent === 'number' ? percent : Number(percent);
   const sin = Math.sin(-midAngle * RADIAN);
   const cos = Math.cos(-midAngle * RADIAN);
   const sx = Number(cx) + (Number(outerRadius) + 10) * cos;
@@ -71,7 +72,7 @@ const renderCustomizedLabel = (props: CustomPieLabelProps) => {
         {payload.room_type}
       </text>
       <text x={ex + (cos >= 0 ? 1 : -1) * 12} y={ey} dy={16} textAnchor={textAnchor} fill="#666" className="text-xs">
-        {`(${(percent * 100).toFixed(0)}%)`}
+        {`(${(percentNum * 100).toFixed(0)}%)`}
       </text>
     </g>
   );

@@ -185,7 +185,7 @@ async function scrapeSongkick(lat: number, lon: number, radiusKm: number) {
 
 		// Extract with page.evaluate to avoid server libs
 		if (DEBUG) console.error('[songkick] Extracting events…')
-        let events: EventRecord[] = await page.evaluate(({ lat, lon, radiusKm, BASE_URL }) => {
+		const events: EventRecord[] = await page.evaluate(({ lat, lon, radiusKm, BASE_URL }) => {
             function text(el: Element | null | undefined) { return ((el && 'textContent' in el ? el.textContent : '') || '').toString().trim() }
             function toKm(a: { lat: number; lon: number }, b: { lat: number; lon: number }) {
 				// Approx calc (not exact geodesic):

@@ -45,7 +45,8 @@ async function scrapeBookingPrices(hotelName: string, { locale = 'en-us', curren
     try {
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90000 });
     } catch (error2) {
-      console.log('❌ Error al cargar página de resultados:', error2.message);
+      const msg = (error2 as Error)?.message ?? String(error2)
+      console.log('❌ Error al cargar página de resultados:', msg);
       await browser.close();
       return [];
     }
@@ -54,8 +55,8 @@ async function scrapeBookingPrices(hotelName: string, { locale = 'en-us', curren
   // Esperar a que aparezcan los resultados
   try {
     await page.waitForSelector('[data-testid*="property"], .sr_property_block, .sr_item', { timeout: 10000 });
-  } catch (e) {
-    console.log('⚠️  No se encontraron selectores específicos, esperando carga general...');
+    } catch (e) {
+      console.log('⚠️  No se encontraron selectores específicos, esperando carga general...');
     await page.waitForLoadState("networkidle");
   }
   
@@ -69,13 +70,13 @@ async function scrapeBookingPrices(hotelName: string, { locale = 'en-us', curren
         const titleEl = card.querySelector('[data-testid="title"], .fcab3ed991, h3, h2, a');
         const linkEl = card.querySelector('a[href*="/hotel/"]') || card.querySelector('a');
         const title = titleEl?.textContent?.trim() || '';
-        const href = linkEl?.href || '';
+        const href = (linkEl as HTMLAnchorElement | null)?.getAttribute('href') || '';
         if (href) out.push({ title, href });
       });
       if (out.length === 0) {
         document.querySelectorAll('a[href*="/hotel/"]').forEach((a) => {
           const title = a.textContent?.trim() || '';
-          const href = a.href || '';
+          const href = (a as HTMLAnchorElement).getAttribute('href') || '';
           if (href) out.push({ title, href });
         })
       }
@@ -107,7 +108,8 @@ async function scrapeBookingPrices(hotelName: string, { locale = 'en-us', curren
     await page.goto(chosenHref, { waitUntil: 'domcontentloaded', timeout: 90000 });
     console.log('✅ Página del hotel cargada');
   } catch (error2) {
-    console.log('❌ Error al abrir el primer resultado:', error2.message);
+    const msg = (error2 as Error)?.message ?? String(error2)
+    console.log('❌ Error al abrir el primer resultado:', msg);
     await browser.close();
     return [];
   }
@@ -218,10 +220,10 @@ async function scrapeBookingPrices(hotelName: string, { locale = 'en-us', curren
             roomTypeRaw = roomTypeCell?.textContent?.trim() || ''
           }
           // Limpiar textos de capacidad (Max. people, Only for x guest, etc.) y normalizar
-          let roomType = roomTypeRaw
+          const roomType = roomTypeRaw
             .split('\n')
-            .map(s => s.trim())
-            .filter(s => s && !/^(max\.|máx\.|max|solo|only|capacidad|occupancy)/i.test(s) && !/(people|personas|guests?)/i.test(s))
+            .map((s: string) => s.trim())
+            .filter((s: string) => s && !/^(max\.|máx\.|max|solo|only|capacidad|occupancy)/i.test(s) && !/(people|personas|guests?)/i.test(s))
             .join(' ')
             .replace(/\s+/g, ' ')
             .trim();
@@ -289,8 +291,8 @@ async function scrapeBookingPrices(hotelName: string, { locale = 'en-us', curren
             if (txt && txt.length > 3) {
               const cleaned = txt
                 .split('\n')
-                .map(s => s.trim())
-                .filter(s => s && !/^(max\.|máx\.|max|solo|only|capacidad|occupancy)/i.test(s) && !/(people|personas|guests?)/i.test(s))
+                .map((s: string) => s.trim())
+                .filter((s: string) => s && !/^(max\.|máx\.|max|solo|only|capacidad|occupancy)/i.test(s) && !/(people|personas|guests?)/i.test(s))
                 .join(' ')
                 .replace(/\s+/g, ' ')
                 .trim();
@@ -304,8 +306,8 @@ async function scrapeBookingPrices(hotelName: string, { locale = 'en-us', curren
             if (txt && txt.length > 3) {
               const cleaned = txt
                 .split('\n')
-                .map(s => s.trim())
-                .filter(s => s && !/^(max\.|máx\.|max|solo|only|capacidad|occupancy)/i.test(s) && !/(people|personas|guests?)/i.test(s))
+                .map((s: string) => s.trim())
+                .filter((s: string) => s && !/^(max\.|máx\.|max|solo|only|capacidad|occupancy)/i.test(s) && !/(people|personas|guests?)/i.test(s))
                 .join(' ')
                 .replace(/\s+/g, ' ')
                 .trim();
@@ -320,7 +322,7 @@ async function scrapeBookingPrices(hotelName: string, { locale = 'en-us', curren
           const priceText = el.textContent?.trim() || ''
           const m = priceText.match(/(MXN\s*\$?|\$|USD|EUR)\s*[\d.,]+/)
           if (!m) return
-          let roomType = getRoomTypeNear(el)
+          const roomType = getRoomTypeNear(el)
           if (!roomType) return
           if (!results.some(r => r.room_type === roomType && r.price === m[0])) {
             results.push({ room_type: roomType, price: m[0], source: 'generic' })
@@ -368,7 +370,7 @@ async function scrapeBookingPrices(hotelName: string, { locale = 'en-us', curren
       await page.goto(u2.toString(), { waitUntil: 'domcontentloaded', timeout: 60000 })
       await page.waitForSelector('#hprt-table, .hprt-table, [data-testid*="RoomRow"], .bui-price-display__value', { timeout: 15000 }).catch(() => {})
 
-      let retryData = await page.evaluate(() => {
+      const retryData = await page.evaluate(() => {
         const out: any[] = []
         const seen = new Set()
         const table = document.querySelector('#hprt-table, .hprt-table')
@@ -425,7 +427,7 @@ async function scrapeBookingPrices(hotelName: string, { locale = 'en-us', curren
 }
 
 // --- Insertar en Supabase ---
-async function insertUserHotelPrices(userId: string, hotelName: string, results: any[], jwt = null) {
+async function insertUserHotelPrices(userId: string, hotelName: string, results: any[], jwt: string | null = null) {
   const SUPABASE_URL = process.env.SUPABASE_URL;
   const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY;
 
@@ -497,7 +499,9 @@ export async function POST(request: NextRequest) {
     try {
       // For now, just scrape single day (can be extended to multiple days later)
       const prices = await scrapeBookingPrices(hotelName, { headless });
-      await insertUserHotelPrices(userUuid, hotelName, prices, request.headers.get('Authorization')?.replace(/^Bearer\s+/i, ''));
+      const authHeader = request.headers.get('Authorization');
+      const jwt = authHeader ? authHeader.replace(/^Bearer\s+/i, '') : null;
+      await insertUserHotelPrices(userUuid, hotelName, prices, jwt);
       
       return NextResponse.json({
         success: true,
@@ -505,11 +509,12 @@ export async function POST(request: NextRequest) {
         data: prices
       })
     } catch (error) {
-      console.error('❌ Error:', error.message);
+      const msg = (error as Error)?.message ?? String(error)
+      console.error('❌ Error:', msg);
       return NextResponse.json({
         success: false,
         message: 'Hotel scraping failed',
-        error: error.message
+        error: msg
       }, { status: 500 })
     }
   } catch (error) {

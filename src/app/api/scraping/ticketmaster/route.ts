@@ -6,7 +6,9 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
 
-export class EventsFetcher {
+class EventsFetcher {
+    private apiKey: string
+    private baseUrl: string
 	constructor(apiKey: string) {
 		this.apiKey = apiKey
 		this.baseUrl = 'https://app.ticketmaster.com/discovery/v2/events.json'
@@ -49,12 +51,13 @@ export class EventsFetcher {
 		}
 
 		const url = `${this.baseUrl}?${params.toString()}`
-		const res = await fetch(url)
-		const data = await res.json()
+        const res = await fetch(url)
+        const data = (await res.json()) as { _embedded?: { events?: any[] } } | Record<string, unknown>
 
-		const events: any[] = []
-		if (data?._embedded?.events) {
-			for (const event of data._embedded.events) {
+        const events: any[] = []
+        const embedded = (data as { _embedded?: { events?: any[] } })._embedded
+        if (embedded?.events) {
+            for (const event of embedded.events) {
 				events.push({
 					name: event?.name || '',
 					url: event?.url || '',
@@ -124,7 +127,7 @@ export class EventsFetcher {
 	}
 }
 
-export function getHotelCoordinates(hotelName: string) {
+function getHotelCoordinates(hotelName: string) {
 	const hotels: { [key: string]: [number, number] } = {
 		"Grand Hotel Tijuana": [32.5149, -117.0382],
 		"Hotel Real del Río": [32.5283, -117.0187],
@@ -161,8 +164,8 @@ export async function POST(request: NextRequest) {
 		}
 
 		const fetcher = new EventsFetcher(apikey)
-		const events = await fetcher.getAllEvents({
-			city: null,
+        const events = await fetcher.getAllEvents({
+            city: undefined,
 			daysAhead: 90, // 90 days ahead
 			latitude: latitude,
 			longitude: longitude,
