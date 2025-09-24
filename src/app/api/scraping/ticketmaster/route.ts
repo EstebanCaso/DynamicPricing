@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import fetch from 'node-fetch'
 
 // Ensure this route runs on the Node.js runtime
 export const runtime = 'nodejs'
@@ -144,106 +143,42 @@ function getHotelCoordinates(hotelName: string) {
 }
 
 export async function POST(request: NextRequest) {
-	try {
-		const { userData } = await request.json()
-		const { latitude, longitude, radius = 10, userUuid, hotelName } = userData || {}
+    try {
+        const { userData } = await request.json()
+        const { latitude, longitude, radius = 10, userUuid, hotelName } = userData || {}
 
-		if (!latitude || !longitude) {
-			return NextResponse.json({ error: 'Missing latitude/longitude' }, { status: 400 })
-		}
-		if (!userUuid) {
-			return NextResponse.json({ error: 'Missing userUuid' }, { status: 400 })
-		}
+        if (!latitude || !longitude) {
+            return NextResponse.json({ error: 'Missing latitude/longitude' }, { status: 400 })
+        }
+        if (!userUuid) {
+            return NextResponse.json({ error: 'Missing userUuid' }, { status: 400 })
+        }
 
-		console.log('[ticketmaster-api] Starting scraping with params:', { latitude, longitude, radius, userUuid, hotelName })
+        const WORKER_URL = process.env.WORKER_URL
+        const WORKER_API_KEY = process.env.WORKER_API_KEY
+        if (!WORKER_URL || !WORKER_API_KEY) {
+            return NextResponse.json({ success: false, error: 'Server not configured (WORKER_URL/WORKER_API_KEY missing)' }, { status: 500 })
+        }
 
-		const apikey = process.env.TICKETMASTER_API_KEY
-		if (!apikey) {
-			console.log('[ticketmaster-api] No API key found, returning empty results')
-			return NextResponse.json({ success: true, inserted: 0, count: 0 })
-		}
+        const payload = { latitude, longitude, radius, userUuid, hotelName }
+        const res = await fetch(`${WORKER_URL}/ticketmaster`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': WORKER_API_KEY
+            },
+            body: JSON.stringify(payload)
+        })
 
-		const fetcher = new EventsFetcher(apikey)
-        const events = await fetcher.getAllEvents({
-            city: undefined,
-			daysAhead: 90, // 90 days ahead
-			latitude: latitude,
-			longitude: longitude,
-			radius: radius
-		})
-
-		// Convert to the expected format for Supabase
-		const formattedEvents = events.map(event => ({
-			nombre: event.name,
-			fecha: event.date,
-			lugar: event.venue,
-			enlace: event.url,
-			// Note: Ticketmaster doesn't provide distance_km, so we'll leave it null
-		}))
-
-		console.log('[ticketmaster-api] Scraped events:', formattedEvents.length)
-
-		// Save to Supabase
-		const SUPABASE_URL = process.env.SUPABASE_URL
-		const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY
-		let inserted = 0
-		
-		if (SUPABASE_URL && SUPABASE_ANON_KEY && userUuid) {
-			// Map events to DB schema and deduplicate
-			const mapped = formattedEvents.map((ev: any) => ({
-				nombre: ev.nombre || ev.name || '',
-				fecha: ((ev.fecha || ev.date || '') as string).slice(0, 10),
-				lugar: ev.lugar || ev.venue || '',
-				enlace: ev.enlace || ev.url || '',
-				hotel_referencia: hotelName || '',
-				created_by: userUuid,
-				distancia: typeof ev.distance_km === 'number' ? ev.distance_km : null
-			})).filter((e) => e.nombre && e.fecha)
-			
-			// Deduplicate by nombre + fecha + created_by
-			const uniqueEvents = mapped.reduce((acc, event) => {
-				const key = `${event.nombre}|${event.fecha}|${event.created_by}`
-				if (!acc.has(key)) {
-					acc.set(key, event)
-				}
-				return acc
-			}, new Map())
-			
-			const deduplicatedEvents = Array.from(uniqueEvents.values())
-			console.log('[ticketmaster-api] Mapped events:', mapped.length, 'Deduplicated:', deduplicatedEvents.length)
-
-			const chunkSize = 100
-			for (let i = 0; i < deduplicatedEvents.length; i += chunkSize) {
-				const batch = deduplicatedEvents.slice(i, i + chunkSize)
-				try {
-					const res = await fetch(`${SUPABASE_URL}/rest/v1/events?on_conflict=nombre,fecha,created_by`, {
-						method: 'POST',
-						headers: {
-							apikey: SUPABASE_ANON_KEY,
-							Authorization: `Bearer ${process.env.USER_JWT || SUPABASE_ANON_KEY}`,
-							'Content-Type': 'application/json',
-							Prefer: 'resolution=merge-duplicates,return=representation'
-						},
-						body: JSON.stringify(batch)
-					})
-					if (res.ok) {
-						const json = (await res.json().catch(() => [])) as any[]
-						inserted += Array.isArray(json) ? json.length : batch.length
-						console.log('[ticketmaster-api] Batch inserted:', Array.isArray(json) ? json.length : batch.length)
-					} else {
-						const errorText = await res.text().catch(() => '')
-						console.error('[ticketmaster-api] Supabase insert failed:', res.status, errorText)
-					}
-				} catch (e) {
-					console.error('[ticketmaster-api] Supabase insert error:', (e as Error)?.message)
-				}
-			}
-		}
-
-		console.log('[ticketmaster-api] Final result - inserted:', inserted, 'total events:', formattedEvents.length)
-		return NextResponse.json({ success: true, inserted, count: formattedEvents.length })
-	} catch (error) {
-		console.error('Error in ticketmaster-api:', error)
-		return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-	}
+        const text = await res.text()
+        let json: unknown
+        try { json = JSON.parse(text) } catch { json = { raw: text } }
+        if (!res.ok) {
+            return NextResponse.json({ success: false, status: res.status, data: json }, { status: 500 })
+        }
+        return NextResponse.json({ success: true, data: json })
+    } catch (error) {
+        console.error('Error in ticketmaster-api:', error)
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    }
 }

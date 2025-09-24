@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { spawn } from 'child_process'
-import path from 'path'
 
 // Ensure Node.js runtime for child_process
 export const runtime = 'nodejs'
@@ -19,81 +17,31 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.log('Executing hotel_propio.js with parameters:', {
-      hotelName,
-      userUuid,
-      days,
-      concurrency,
-      headless
+    const WORKER_URL = process.env.WORKER_URL
+    const WORKER_API_KEY = process.env.WORKER_API_KEY
+    if (!WORKER_URL || !WORKER_API_KEY) {
+      return NextResponse.json({ success: false, error: 'Server not configured (WORKER_URL/WORKER_API_KEY missing)' }, { status: 500 })
+    }
+
+    const userJwt = request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || ''
+    const payload = { hotelName, userUuid, days, concurrency, headless, userJwt }
+
+    const res = await fetch(`${WORKER_URL}/hotel`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': WORKER_API_KEY
+      },
+      body: JSON.stringify(payload)
     })
 
-    // Construir el comando para ejecutar el script
-    const scriptPath = path.join(process.cwd(), 'scripts', 'hotel_propio.js')
-    const args = [
-      userUuid,
-      hotelName,
-      `--days=${days}`,
-      `--concurrency=${concurrency}`,
-      headless ? '--headless' : ''
-    ].filter(Boolean) // Remover argumentos vacíos
-
-    console.log('Executing command:', `node ${scriptPath} ${args.join(' ')}`)
-
-    return new Promise<Response>((resolve) => {
-      const child = spawn('node', [scriptPath, ...args], {
-        cwd: process.cwd(),
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: {
-          ...process.env,
-          USER_JWT: request.headers.get('Authorization')?.replace(/^Bearer\s+/i, '') || ''
-        }
-      })
-
-      let stdout = ''
-      let stderr = ''
-
-      child.stdout.on('data', (data) => {
-        const output = data.toString()
-        stdout += output
-        console.log('hotel_propio.js stdout:', output)
-      })
-
-      child.stderr.on('data', (data) => {
-        const output = data.toString()
-        stderr += output
-        console.log('hotel_propio.js stderr:', output)
-      })
-
-      child.on('close', (code) => {
-        console.log(`hotel_propio.js process exited with code ${code}`)
-        
-        if (code === 0) {
-          resolve(NextResponse.json({
-            success: true,
-            message: 'Hotel scraping completed successfully',
-            output: stdout,
-            errors: stderr
-          }))
-        } else {
-          resolve(NextResponse.json({
-            success: false,
-            message: 'Hotel scraping failed',
-            output: stdout,
-            errors: stderr,
-            exitCode: code
-          }, { status: 500 }))
-        }
-      })
-
-      child.on('error', (error) => {
-        console.error('Error spawning hotel_propio.js process:', error)
-        resolve(NextResponse.json({
-          success: false,
-          message: 'Failed to start hotel scraping process',
-          error: error.message
-        }, { status: 500 }))
-      })
-    })
+    const text = await res.text()
+    let json: unknown
+    try { json = JSON.parse(text) } catch { json = { raw: text } }
+    if (!res.ok) {
+      return NextResponse.json({ success: false, status: res.status, data: json }, { status: 500 })
+    }
+    return NextResponse.json({ success: true, data: json })
 
   } catch (error) {
     console.error('Error in hotel JS scraping endpoint:', error)

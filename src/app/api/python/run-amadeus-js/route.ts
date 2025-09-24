@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { spawn } from 'child_process'
-import path from 'path'
 
 // Ensure this route runs on Node.js runtime (child_process unsupported on Edge)
 export const runtime = 'nodejs'
@@ -14,86 +12,43 @@ export async function POST(request: NextRequest) {
     const { userData } = await request.json()
     const { latitude, longitude, userUuid, radius = 30, keyword = null, saveToDb = true } = userData
 
-    if (!latitude || !longitude || !userUuid) {
+    if (!latitude || !longitude) {
       return NextResponse.json(
-        { error: 'Missing required parameters: latitude, longitude, and userUuid' },
+        { error: 'Missing required parameters: latitude and longitude' },
         { status: 400 }
       )
     }
+    const WORKER_URL = process.env.WORKER_URL
+    const WORKER_API_KEY = process.env.WORKER_API_KEY
+    if (!WORKER_URL || !WORKER_API_KEY) {
+      return NextResponse.json({ success: false, error: 'Server not configured (WORKER_URL/WORKER_API_KEY missing)' }, { status: 500 })
+    }
 
-    console.log('Executing amadeus_hotels.js with parameters:', {
+    const body = {
       latitude,
       longitude,
-      userUuid,
       radius,
-      keyword,
-      saveToDb
+      keyword: keyword || '',
+      saveToDb: Boolean(saveToDb),
+      userUuid: userUuid || null
+    }
+
+    const res = await fetch(`${WORKER_URL}/amadeus`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': WORKER_API_KEY
+      },
+      body: JSON.stringify(body)
     })
 
-    // Construir el comando para ejecutar el script
-    const scriptPath = path.join(process.cwd(), 'scripts', 'amadeus_hotels.js')
-    const args = [
-      latitude.toString(),
-      longitude.toString(),
-      `--radius=${radius}`,
-      keyword ? `--keyword=${keyword}` : '',
-      saveToDb ? `--user-id=${userUuid}` : '',
-      saveToDb ? '--save' : ''
-    ].filter(Boolean) // Remover argumentos vacíos
-
-    console.log('Executing command:', `node ${scriptPath} ${args.join(' ')}`)
-
-    return new Promise<Response>((resolve) => {
-      const child = spawn('node', [scriptPath, ...args], {
-        cwd: process.cwd(),
-        stdio: ['pipe', 'pipe', 'pipe']
-      })
-
-      let stdout = ''
-      let stderr = ''
-
-      child.stdout.on('data', (data) => {
-        const output = data.toString()
-        stdout += output
-        console.log('amadeus_hotels.js stdout:', output)
-      })
-
-      child.stderr.on('data', (data) => {
-        const output = data.toString()
-        stderr += output
-        console.log('amadeus_hotels.js stderr:', output)
-      })
-
-      child.on('close', (code) => {
-        console.log(`amadeus_hotels.js process exited with code ${code}`)
-        
-        if (code === 0) {
-          resolve(NextResponse.json({
-            success: true,
-            message: 'Amadeus hotels search completed successfully',
-            output: stdout,
-            errors: stderr
-          }))
-        } else {
-          resolve(NextResponse.json({
-            success: false,
-            message: 'Amadeus hotels search failed',
-            output: stdout,
-            errors: stderr,
-            exitCode: code
-          }, { status: 500 }))
-        }
-      })
-
-      child.on('error', (error) => {
-        console.error('Error spawning amadeus_hotels.js process:', error)
-        resolve(NextResponse.json({
-          success: false,
-          message: 'Failed to start Amadeus hotels search process',
-          error: error.message
-        }, { status: 500 }))
-      })
-    })
+    const text = await res.text()
+    let json: unknown
+    try { json = JSON.parse(text) } catch { json = { raw: text } }
+    if (!res.ok) {
+      return NextResponse.json({ success: false, status: res.status, data: json }, { status: 500 })
+    }
+    return NextResponse.json({ success: true, data: json })
 
   } catch (error) {
     console.error('Error in Amadeus hotels JS endpoint:', error)

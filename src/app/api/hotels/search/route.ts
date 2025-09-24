@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const WORKER_URL = process.env.WORKER_URL || ''
-const WORKER_API_KEY = process.env.WORKER_API_KEY || ''
-
 export async function POST(request: NextRequest): Promise<Response> {
   try {
     const { latitude, longitude, radius = 30, keyword = '' } = await request.json()
@@ -14,43 +11,60 @@ export async function POST(request: NextRequest): Promise<Response> {
       )
     }
 
+    const WORKER_URL = process.env.WORKER_URL
+    const WORKER_API_KEY = process.env.WORKER_API_KEY
     if (!WORKER_URL || !WORKER_API_KEY) {
-      return NextResponse.json({ success: false, error: 'Worker not configured' }, { status: 500 })
+      return NextResponse.json({ success: false, error: 'Server not configured (WORKER_URL/WORKER_API_KEY missing)' }, { status: 500 })
     }
 
-    const resp = await fetch(`${WORKER_URL}/amadeus`, {
+    const payload = {
+      latitude,
+      longitude,
+      radius,
+      keyword: keyword || '',
+      saveToDb: false
+    }
+
+    const res = await fetch(`${WORKER_URL}/amadeus`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': WORKER_API_KEY,
+        'x-api-key': WORKER_API_KEY
       },
-      body: JSON.stringify({ latitude, longitude, radius, keyword, saveToDb: false })
+      body: JSON.stringify(payload)
     })
 
-    const body = await resp.json().catch(() => ({} as any))
-    if (!resp.ok) {
-      return NextResponse.json({ success: false, error: body?.error || 'Worker error', output: body?.output }, { status: 500 })
+    const text = await res.text()
+    let data: unknown
+    try { data = JSON.parse(text) } catch { data = { raw: text } }
+
+    // El worker puede devolver { ok, output: 'json' } o directamente un array
+    let hotels: any[] = []
+    if (data && typeof data === 'object' && 'ok' in data && (data as any).ok === true && typeof (data as any).output === 'string') {
+      try { hotels = JSON.parse((data as any).output) } catch { hotels = [] }
+    } else if (Array.isArray((data as any))) {
+      hotels = data as any[]
+    } else if ((data as any)?.data?.ok && typeof (data as any)?.data?.output === 'string') {
+      try { hotels = JSON.parse((data as any).data.output) } catch { hotels = [] }
+    } else if ((data as any)?.data && Array.isArray((data as any).data)) {
+      hotels = (data as any).data
     }
 
-    let hotels: any[] = []
-    try { hotels = JSON.parse((body?.output as string) || '[]') } catch {}
-
-    const transformedHotels = hotels.map((hotel: Record<string, any>) => ({
+    const transformedHotels = hotels.map((hotel: Record<string, unknown>) => ({
       name: hotel.name || 'Hotel sin nombre',
-      hotelId: hotel.hotelId || hotel.id || `hotel-${Date.now()}-${Math.random()}`,
-      latitude: hotel?.geoCode?.latitude ?? hotel?.latitude ?? 0,
-      longitude: hotel?.geoCode?.longitude ?? hotel?.longitude ?? 0,
+      hotelId: hotel.hotelId || (hotel as any).id || `hotel-${Date.now()}-${Math.random()}`,
+      latitude: ((hotel as any)?.geoCode)?.latitude ?? (hotel as any)?.latitude ?? 0,
+      longitude: ((hotel as any)?.geoCode)?.longitude ?? (hotel as any)?.longitude ?? 0,
       address: {
-        cityName: hotel?.address?.cityName ?? hotel?.cityName ?? 'Ciudad no especificada',
-        countryCode: hotel?.address?.countryCode ?? hotel?.countryCode ?? 'ES',
-        postalCode: hotel?.address?.postalCode ?? hotel?.postalCode,
-        street: hotel?.address?.lines?.[0] ?? hotel?.address?.street
+        cityName: ((hotel as any)?.address)?.cityName ?? (hotel as any)?.cityName ?? 'Ciudad no especificada',
+        countryCode: ((hotel as any)?.address)?.countryCode ?? (hotel as any)?.countryCode ?? 'ES',
+        postalCode: ((hotel as any)?.address)?.postalCode ?? (hotel as any)?.postalCode,
+        street: ((hotel as any)?.address)?.street ?? (hotel as any)?.street
       },
-      distance: typeof hotel?.distance === 'number' && !Number.isNaN(hotel.distance) ? hotel.distance : 0
+      distance: typeof (hotel as any).distance === 'number' && !isNaN((hotel as any).distance) ? (hotel as any).distance : ((hotel as any)?.distance?.value ?? 0)
     }))
 
     return NextResponse.json({ success: true, hotels: transformedHotels })
-
   } catch (error) {
     console.error('Error in hotel search API:', error)
     return NextResponse.json(
